@@ -1,0 +1,6 @@
+{
+    "IPsAllowList": [
+        "X.Y.Z.W"
+    ],
+    "SSHKeysPath": "/home/myusername/.ssh"
+}
