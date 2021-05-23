@@ -1,37 +1,5 @@
 <?php
 
-function getQueryParams() {
-	$string = $_SERVER['QUERY_STRING'];
-        $result = [];
-        if (!$string) {
-            return $result;
-        }
-        foreach (array_filter(array_map('trim', explode('&', $string)), 'strlen') as $i) {
-            list($name, $value) = array_map('urldecode', array_filter(explode('=', $i, 2), 'strlen')) + [null, true];
-            if (null !== $name) {
-                $name = strtolower($name);
-                if (array_key_exists($name, $result)) {
-                    if (is_array($result[$name])) {
-                        $result[$name][] = $value;
-                    } else {
-                        $result[$name] = [$result[$name], $value];
-                    }
-                } else {
-                    $result[$name] = $value;
-                }
-            }
-        }
-        return $result;
-    }
-// echo "HOLA";
-//
-// echo file_get_contents("php://input");
-
-
-
-// Forked from https://gist.github.com/1809044
-// Available from https://gist.github.com/nichtich/5290675#file-deploy-php
-
 $TITLE   = 'Git Deployment Hamster';
 $VERSION = '0.11';
 
@@ -65,16 +33,16 @@ $allowed = false;
 $headers = array_intersect_key(
     $_SERVER,
     array_flip(
-      preg_grep(
-        '/^HTTP_/', 
-        array_keys($_SERVER),
-        0
-      )
+        preg_grep(
+            '/^HTTP_/',
+            array_keys($_SERVER),
+            0
+        )
     )
-  );
+);
 
-if (@$headers["X-Forwarded-For"]) {
-    $ips = explode(",",$headers["X-Forwarded-For"]);
+if (@$headers["HTTP_X_FORWARDED_FOR"]) {
+    $ips = explode(",",$headers["HTTP_X_FORWARDED_FOR"]);
     $ip  = $ips[0];
 } else {
     $ip = $_SERVER['REMOTE_ADDR'];
@@ -96,9 +64,12 @@ if (!$allowed) {
 
 flush();
 
-$qp = getQueryParams();
-$escapedRepo = preg_replace('/[^A-Za-z0-9_\-]/', '_', $qp['repo']);
-$escapedKey = preg_replace('/[^A-Za-z0-9_\-]/', '_', $qp['key']);
+$sanitize = function (string $input): string {
+    return preg_replace('/[^A-Za-z0-9_\-]/', '_', $input);
+};
+
+$escapedRepo = $sanitize($_GET['repo']);
+$escapedKey = $sanitize($_GET['key']);
 
 if (!$escapedRepo || !$escapedKey) {
 	header('HTTP/1.1 422 Invalid Hook');
