@@ -2,5 +2,6 @@
     "IPsAllowList": [
         "X.Y.Z.W"
     ],
-    "SSHKeysPath": "/home/myusername/.ssh"
+    "SSHKeysPath": "/home/myusername/.ssh",
+    "ReposBasePath": "/var/www"
 }

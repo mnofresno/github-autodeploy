@@ -35,7 +35,11 @@ class Hamster {
     }
 
     private function doRun(string $escapedRepo, string $escapedKey) {
-        chdir('/var/www/' . $escapedRepo);
+        chdir(
+            $this->configReader->getKey('ReposBasePath')
+            . DIRECTORY_SEPARATOR
+            . $escapedRepo
+        );
 
         // Actually run the update
 
