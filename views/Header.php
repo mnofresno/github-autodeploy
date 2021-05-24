@@ -2,8 +2,8 @@
 
 namespace GithubAutoDeploy\views;
 
-class Main {
-    static function render() {
+class Header implements ViewInterface {
+    function render() {
         $TITLE   = 'Git Deployment Hamster';
         $VERSION = '0.11';
         echo <<<EOT
@@ -20,5 +20,9 @@ class Main {
 (`=*=')
  ^---^`-.
 EOT;
+    }
+
+    static function show() {
+        (new self())->render();
     }
 }

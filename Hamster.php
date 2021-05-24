@@ -2,10 +2,13 @@
 
 namespace GithubAutoDeploy;
 
-use GithubAutoDeploy\Request as Request;
+use Exception;
+use GithubAutoDeploy\Request;
 use GithubAutoDeploy\views\Footer;
-use GithubAutoDeploy\views\Main;
+use GithubAutoDeploy\views\Header;
 use GithubAutoDeploy\views\MissingRepoOrKey;
+use GithubAutoDeploy\exceptions\BadRequestException;
+use GithubAutoDeploy\views\UnknownError;
 
 class Hamster {
     private $request;
@@ -17,7 +20,23 @@ class Hamster {
     }
 
     function run() {
-        Main::render();
+        try {
+            $this->doRun();
+        } catch (BadRequestException $e) {
+            $e->render();
+        } catch (Exception $e) {
+            $view = new UnknownError($e->getMessage());
+            $view->render();
+            exit;
+        }
+        finally {
+            Footer::show();
+            exit;
+        }
+    }
+
+    private function doRun() {
+        Header::show();
         Security::assert(
             $this->configReader->getKey('IPsAllowList'),
             $this->request->getHeaders(),
@@ -25,16 +44,12 @@ class Hamster {
         );
         $escapedRepo = $this->request->getQueryParam('repo');
         $escapedKey = $this->request->getQueryParam('key');
-        if (!$escapedRepo || !$escapedKey) {
-            MissingRepoOrKey::render();
-            exit;
-        }
+        $this->assertRepoAndKey($escapedRepo, $escapedKey);
         flush();
-        $this->doRun($escapedRepo, $escapedKey);
-        Footer::render();
+        $this->updateRepository($escapedRepo, $escapedKey);
     }
 
-    private function doRun(string $escapedRepo, string $escapedKey) {
+    private function updateRepository(string $escapedRepo, string $escapedKey) {
         chdir(
             $this->configReader->getKey('ReposBasePath')
             . DIRECTORY_SEPARATOR
@@ -73,5 +88,13 @@ class Hamster {
         file_put_contents (__DIR__ . '/deploy-log.log', $log, FILE_APPEND);
 
         echo $output;
+    }
+
+    private function assertRepoAndKey(string $repo, string $key) {
+        if (!$repo || !$key) {
+            throw new BadRequestException(
+                new MissingRepoOrKey()
+            );
+        }
     }
 }

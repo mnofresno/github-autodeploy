@@ -3,6 +3,7 @@
 namespace GithubAutoDeploy;
 
 use GithubAutoDeploy\views\Forbidden;
+use GithubAutoDeploy\exceptions\BadRequestException;
 
 class Security {
     static function assert(array $allowedIps, array $headers, string $remoteAddr) {
@@ -13,17 +14,16 @@ class Security {
         } else {
             $ip = $remoteAddr;
         }
-
         foreach ($allowedIps as $allow) {
             if (stripos($ip, $allow) !== false) {
                 $allowed = true;
                 break;
             }
         }
-
         if (!$allowed) {
-            Forbidden::render();
-            exit;
+            throw new BadRequestException(
+                new Forbidden()
+            );
         }
     }
 }
