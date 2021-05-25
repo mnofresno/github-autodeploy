@@ -6,6 +6,7 @@ class ConfigReader {
     const IPS_ALLOWLIST = 'IPsAllowList';
     const SSH_KEYS_PATH = 'SSHKeysPath';
     const REPOS_BASE_PATH = 'ReposBasePath';
+    const CUSTOM_UPDATE_COMMANDS = 'CustomCommands';
 
     private $config;
 
@@ -23,6 +24,8 @@ class ConfigReader {
     }
 
     function getKey(string $key) {
-        return $this->config[$key];
+        return array_key_exists($key, $this->config)
+            ? $this->config[$key]
+            : null;
     }
 }

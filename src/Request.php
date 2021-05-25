@@ -3,6 +3,9 @@
 namespace GitAutoDeploy;
 
 class Request {
+    const REPO_QUERY_PARAM = 'repo';
+    const KEY_QUERY_PARAM = 'key';
+
     private $headers;
     private $queryParams;
 

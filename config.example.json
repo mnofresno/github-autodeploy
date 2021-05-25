@@ -3,5 +3,10 @@
         "X.Y.Z.W"
     ],
     "SSHKeysPath": "/home/myusername/.ssh",
-    "ReposBasePath": "/var/www"
+    "ReposBasePath": "/var/www",
+    "CustomCommands": [
+        "ls /home",
+        "cd /home/$ReposBasePath/$repo",
+        "GIT_SSH_COMMAND=\"ssh -i $SSHKeysPath/$key \" git pull"
+    ]
 }

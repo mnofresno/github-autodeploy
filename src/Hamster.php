@@ -43,12 +43,13 @@ class Hamster {
             $this->request->getHeaders(),
             $this->request->getRemoteAddress()
         );
-        $escapedRepo = $this->request->getQueryParam('repo');
-        $escapedKey = $this->request->getQueryParam('key');
-        $this->assertRepoAndKey($escapedRepo, $escapedKey);
-        $this->changeDirToRepoPath($escapedRepo);
+        $this->assertRepoAndKey(
+            $this->request->getQueryParam(Request::REPO_QUERY_PARAM),
+            $this->request->getQueryParam(Request::KEY_QUERY_PARAM)
+        );
+        $this->changeDirToRepoPath();
         $this->updateRepository(
-            $this->getCommands($escapedKey)
+            $this->getCommands()
         );
     }
 
@@ -71,30 +72,57 @@ class Hamster {
         $commandView->render();
     }
 
-    private function changeDirToRepoPath(string $escapedRepo) {
+    private function changeDirToRepoPath() {
         chdir(
             $this->configReader->getKey(ConfigReader::REPOS_BASE_PATH)
             . DIRECTORY_SEPARATOR
-            . $escapedRepo
+            . $this->request->getQueryParam('repo')
         );
     }
 
-    private function getCommands(string $escapedKey): array {
-        return [
+    private function getCommands(): array {
+        return $this->getCustomCommands() ?? [
             'echo $PWD',
             'whoami',
             'GIT_SSH_COMMAND="ssh -i '
                 . $this->configReader->getKey(ConfigReader::SSH_KEYS_PATH)
                 . '/'
-                . $escapedKey
+                . $this->request->getQueryParam(Request::KEY_QUERY_PARAM)
                 . '" git pull',
             'git status',
             'git submodule sync',
             'git submodule update',
             'git submodule status',
-            'cd falopa'
-        //    'test -e /usr/share/update-notifier/notify-reboot-required && echo "system restart required"',
         ];
+    }
+
+    private function getCustomCommands() {
+        $customCommands = $this->configReader->getKey(ConfigReader::CUSTOM_UPDATE_COMMANDS);
+        return $customCommands
+            ? array_map(function (string $command) {
+                $hydratedCommand = str_replace(
+                    '$' . Request::REPO_QUERY_PARAM,
+                    $this->request->getQueryParam(Request::REPO_QUERY_PARAM),
+                    $command
+                );
+                $hydratedCommand = str_replace(
+                    '$' . Request::KEY_QUERY_PARAM,
+                    $this->request->getQueryParam(Request::KEY_QUERY_PARAM),
+                    $hydratedCommand
+                );
+                $hydratedCommand = str_replace(
+                    '$' . ConfigReader::REPOS_BASE_PATH,
+                    $this->configReader->getKey(ConfigReader::REPOS_BASE_PATH),
+                    $hydratedCommand
+                );
+                $hydratedCommand = str_replace(
+                    '$' . ConfigReader::SSH_KEYS_PATH,
+                    $this->configReader->getKey(ConfigReader::SSH_KEYS_PATH),
+                    $hydratedCommand
+                );
+                return $hydratedCommand;
+            }, $customCommands)
+            : null;
     }
 
     private function assertRepoAndKey(string $repo, string $key) {
