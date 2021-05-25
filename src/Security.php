@@ -20,6 +20,10 @@ class Security {
                 break;
             }
         }
+        self::throwIfAllowed($allowed);
+    }
+
+    private static function throwIfAllowed(bool $allowed) {
         if (!$allowed) {
             throw new ForbiddenException(
                 new Forbidden()

@@ -9,7 +9,9 @@ use GithubAutoDeploy\views\Header;
 use GithubAutoDeploy\views\MissingRepoOrKey;
 use GithubAutoDeploy\exceptions\BadRequestException;
 use GithubAutoDeploy\exceptions\BaseException;
+use GithubAutoDeploy\views\Command;
 use GithubAutoDeploy\views\UnknownError;
+use Throwable;
 
 class Hamster {
     private $request;
@@ -26,7 +28,7 @@ class Hamster {
             $this->doRun();
         } catch (BaseException $e) {
             $e->render();
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
             $view = new UnknownError($e->getMessage());
             $view->render();
         }
@@ -38,58 +40,61 @@ class Hamster {
 
     private function doRun() {
         Security::assert(
-            $this->configReader->getKey('IPsAllowList'),
+            $this->configReader->getKey(ConfigReader::IPS_ALLOWLIST),
             $this->request->getHeaders(),
             $this->request->getRemoteAddress()
         );
         $escapedRepo = $this->request->getQueryParam('repo');
         $escapedKey = $this->request->getQueryParam('key');
         $this->assertRepoAndKey($escapedRepo, $escapedKey);
-        flush();
-        $this->updateRepository($escapedRepo, $escapedKey);
+        $this->changeDirToRepoPath($escapedRepo);
+        $this->updateRepository(
+            $this->getCommands($escapedKey)
+        );
     }
 
-    private function updateRepository(string $escapedRepo, string $escapedKey) {
+    private function updateRepository(array $commands) {
+        flush();
+        // Actually run the update
+        $log = [];
+        $commandView = new Command();
+
+        foreach($commands AS $command){
+            // Run it
+            $commandOutput = shell_exec("$command 2>&1");
+            // Output
+            $commandView->add($command, $commandOutput);
+
+            $log [] = ['command' => $command, 'output' => $commandOutput];
+        }
+        Logger::log(['updatingCommands' => $log]);
+
+        $commandView->render();
+    }
+
+    private function changeDirToRepoPath(string $escapedRepo) {
         chdir(
-            $this->configReader->getKey('ReposBasePath')
+            $this->configReader->getKey(ConfigReader::REPOS_BASE_PATH)
             . DIRECTORY_SEPARATOR
             . $escapedRepo
         );
-
-        // Actually run the update
-
-        $output = "\n";
-
-        $log = "####### ".date('Y-m-d H:i:s'). " #######\n";
-
-        foreach($this->getCommands($escapedKey) AS $command){
-            // Run it
-            $tmp = shell_exec("$command 2>&1");
-            // Output
-            $output .= "<span style=\"color: #6BE234;\">\$</span> <span style=\"color: #729FCF;\">{$command}\n</span>";
-            $output .= htmlentities(trim($tmp)) . "\n";
-
-            $log  .= "\$ $command\n".trim($tmp)."\n";
-        }
-
-        $log .= "\n";
-
-        file_put_contents (__DIR__ . '/deploy-log.log', $log, FILE_APPEND);
-
-        echo $output;
     }
 
     private function getCommands(string $escapedKey): array {
-        return array(
+        return [
             'echo $PWD',
             'whoami',
-            'GIT_SSH_COMMAND="ssh -i ' . $this->configReader->getKey('SSHKeysPath') . '/' . $escapedKey . '" git pull',
+            'GIT_SSH_COMMAND="ssh -i '
+                . $this->configReader->getKey(ConfigReader::SSH_KEYS_PATH)
+                . '/'
+                . $escapedKey
+                . '" git pull',
             'git status',
             'git submodule sync',
             'git submodule update',
             'git submodule status',
         //    'test -e /usr/share/update-notifier/notify-reboot-required && echo "system restart required"',
-        );
+        ];
     }
 
     private function assertRepoAndKey(string $repo, string $key) {
