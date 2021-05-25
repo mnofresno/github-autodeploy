@@ -2,7 +2,7 @@
 
 namespace GithubAutoDeploy\views;
 
-class Header implements ViewInterface {
+class Header extends BaseView {
     function render() {
         $TITLE   = 'Git Deployment Hamster';
         $VERSION = '0.11';
@@ -20,9 +20,5 @@ class Header implements ViewInterface {
 (`=*=')
  ^---^`-.
 EOT;
-    }
-
-    static function show() {
-        (new self())->render();
     }
 }

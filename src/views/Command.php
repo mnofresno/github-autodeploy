@@ -2,7 +2,7 @@
 
 namespace GithubAutoDeploy\views;
 
-class Command implements ViewInterface {
+class Command extends BaseView {
     private $commands = [];
 
     function add(string $command, string $output = null) {
