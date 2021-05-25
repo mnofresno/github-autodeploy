@@ -29,7 +29,6 @@ class Hamster {
         } catch (Exception $e) {
             $view = new UnknownError($e->getMessage());
             $view->render();
-            exit;
         }
         finally {
             Footer::show();
@@ -63,7 +62,7 @@ class Hamster {
 
         $log = "####### ".date('Y-m-d H:i:s'). " #######\n";
 
-        foreach($this->getCommands() AS $command){
+        foreach($this->getCommands($escapedKey) AS $command){
             // Run it
             $tmp = shell_exec("$command 2>&1");
             // Output
@@ -80,7 +79,7 @@ class Hamster {
         echo $output;
     }
 
-    private function getCommands(): array {
+    private function getCommands(string $escapedKey): array {
         return array(
             'echo $PWD',
             'whoami',
