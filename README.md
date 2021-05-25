@@ -22,19 +22,19 @@ cp config.example.json config.json
 
 The config parameters are json keys in file config.json
 
-### IPsAllowList (array, mandatory)
+* IPsAllowList (array, mandatory)
 
 List of IP addresses that are allowed to hit the endpoint
 
-### SSHKeysPath (string, mandatory)
+* SSHKeysPath (string, mandatory)
 
 Base path where the SSH keys are stored
 
-### ReposBasePath (string, mandatory)
+* ReposBasePath (string, mandatory)
 
 Base path where the git repositories are stored
 
-### CustomCommands (array, optional)
+* CustomCommands (array, optional)
 
 Is the list of commands that are needed to be executed in order to update and refresh a deployment (it could include for instance a docker-compose restart service command)
 
@@ -42,18 +42,18 @@ This commands may make use of the following placeholders with the format of a do
 
 The placeholders options available by now are:
 
-#### ReposBasePath
+### ReposBasePath
 
 Is the config parameter with same name
 
-#### SSHKeysPath
+### SSHKeysPath
 
 Is the config parameter with same name
 
-#### repo
+### repo
 
 Is the value of the 'repo' query param given
 
-#### key
+### key
 
 Is the value of the 'key' query param given
