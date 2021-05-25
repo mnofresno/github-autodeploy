@@ -2,8 +2,8 @@
 
 namespace GithubAutoDeploy\exceptions;
 
-class BadRequestException extends BaseException {
+class ForbiddenException extends BaseException {
     protected function getStatus(): string {
-        return '422 Bad Request';
+        return '403 Forbidden';
     }
 }

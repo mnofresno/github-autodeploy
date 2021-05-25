@@ -8,6 +8,7 @@ use GithubAutoDeploy\views\Footer;
 use GithubAutoDeploy\views\Header;
 use GithubAutoDeploy\views\MissingRepoOrKey;
 use GithubAutoDeploy\exceptions\BadRequestException;
+use GithubAutoDeploy\exceptions\BaseException;
 use GithubAutoDeploy\views\UnknownError;
 
 class Hamster {
@@ -20,9 +21,10 @@ class Hamster {
     }
 
     function run() {
+        Header::show();
         try {
             $this->doRun();
-        } catch (BadRequestException $e) {
+        } catch (BaseException $e) {
             $e->render();
         } catch (Exception $e) {
             $view = new UnknownError($e->getMessage());
@@ -36,7 +38,6 @@ class Hamster {
     }
 
     private function doRun() {
-        Header::show();
         Security::assert(
             $this->configReader->getKey('IPsAllowList'),
             $this->request->getHeaders(),
@@ -58,22 +59,11 @@ class Hamster {
 
         // Actually run the update
 
-        $commands = array(
-            'echo $PWD',
-            'whoami',
-            'GIT_SSH_COMMAND="ssh -i ' . $this->configReader->getKey('SSHKeysPath') . '/' . $escapedKey . '" git pull',
-            'git status',
-            'git submodule sync',
-            'git submodule update',
-            'git submodule status',
-        //    'test -e /usr/share/update-notifier/notify-reboot-required && echo "system restart required"',
-        );
-
         $output = "\n";
 
         $log = "####### ".date('Y-m-d H:i:s'). " #######\n";
 
-        foreach($commands AS $command){
+        foreach($this->getCommands() AS $command){
             // Run it
             $tmp = shell_exec("$command 2>&1");
             // Output
@@ -88,6 +78,19 @@ class Hamster {
         file_put_contents (__DIR__ . '/deploy-log.log', $log, FILE_APPEND);
 
         echo $output;
+    }
+
+    private function getCommands(): array {
+        return array(
+            'echo $PWD',
+            'whoami',
+            'GIT_SSH_COMMAND="ssh -i ' . $this->configReader->getKey('SSHKeysPath') . '/' . $escapedKey . '" git pull',
+            'git status',
+            'git submodule sync',
+            'git submodule update',
+            'git submodule status',
+        //    'test -e /usr/share/update-notifier/notify-reboot-required && echo "system restart required"',
+        );
     }
 
     private function assertRepoAndKey(string $repo, string $key) {
