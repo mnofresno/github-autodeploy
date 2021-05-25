@@ -59,10 +59,12 @@ class Hamster {
         $commandView = new Command();
         foreach($commands AS $command){
             // Run it
-            $commandOutput = shell_exec("$command 2>&1");
+            $commandOutput = [];
+            $exitCode = 0;
+            exec("$command 2>&1", $commandOutput, $exitCode);
             // Output
             $commandView->add($command, $commandOutput);
-            $log []= ['command' => $command, 'output' => $commandOutput];
+            $log []= ['command' => $command, 'output' => $commandOutput, 'exitCode' => $exitCode];
         }
         Logger::log(['updatingCommands' => $log]);
 
@@ -90,6 +92,7 @@ class Hamster {
             'git submodule sync',
             'git submodule update',
             'git submodule status',
+            'cd falopa'
         //    'test -e /usr/share/update-notifier/notify-reboot-required && echo "system restart required"',
         ];
     }
