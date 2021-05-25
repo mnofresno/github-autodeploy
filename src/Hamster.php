@@ -97,32 +97,10 @@ class Hamster {
     }
 
     private function getCustomCommands() {
-        $customCommands = $this->configReader->getKey(ConfigReader::CUSTOM_UPDATE_COMMANDS);
-        return $customCommands
-            ? array_map(function (string $command) {
-                $hydratedCommand = str_replace(
-                    '$' . Request::REPO_QUERY_PARAM,
-                    $this->request->getQueryParam(Request::REPO_QUERY_PARAM),
-                    $command
-                );
-                $hydratedCommand = str_replace(
-                    '$' . Request::KEY_QUERY_PARAM,
-                    $this->request->getQueryParam(Request::KEY_QUERY_PARAM),
-                    $hydratedCommand
-                );
-                $hydratedCommand = str_replace(
-                    '$' . ConfigReader::REPOS_BASE_PATH,
-                    $this->configReader->getKey(ConfigReader::REPOS_BASE_PATH),
-                    $hydratedCommand
-                );
-                $hydratedCommand = str_replace(
-                    '$' . ConfigReader::SSH_KEYS_PATH,
-                    $this->configReader->getKey(ConfigReader::SSH_KEYS_PATH),
-                    $hydratedCommand
-                );
-                return $hydratedCommand;
-            }, $customCommands)
-            : null;
+        return (new CustomCommands(
+            $this->configReader,
+            $this->request
+        ))->get();
     }
 
     private function assertRepoAndKey(string $repo, string $key) {
