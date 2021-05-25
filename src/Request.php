@@ -1,6 +1,6 @@
 <?php
 
-namespace GithubAutoDeploy;
+namespace GitAutoDeploy;
 
 class Request {
     private $headers;

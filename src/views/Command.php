@@ -1,6 +1,6 @@
 <?php
 
-namespace GithubAutoDeploy\views;
+namespace GitAutoDeploy\views;
 
 class Command extends BaseView {
     private $commands = [];

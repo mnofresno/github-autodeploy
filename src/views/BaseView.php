@@ -1,6 +1,6 @@
 <?php
 
-namespace GithubAutoDeploy\views;
+namespace GitAutoDeploy\views;
 
 abstract class BaseView {
     static function show() {

@@ -1,6 +1,6 @@
 <?php
 
-namespace GithubAutoDeploy;
+namespace GitAutoDeploy;
 
 class ConfigReader {
     const IPS_ALLOWLIST = 'IPsAllowList';

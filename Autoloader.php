@@ -1,7 +1,7 @@
 <?php
 
 class Autoloader {
-    const NAMESPACE = 'GithubAutoDeploy';
+    const NAMESPACE = 'GitAutoDeploy';
     const SRC_PATH = 'src';
 
     static function load() {

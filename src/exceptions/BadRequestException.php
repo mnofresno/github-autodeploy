@@ -1,6 +1,6 @@
 <?php
 
-namespace GithubAutoDeploy\exceptions;
+namespace GitAutoDeploy\exceptions;
 
 class BadRequestException extends BaseException {
     protected function getStatus(): string {

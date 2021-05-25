@@ -1,7 +1,7 @@
-# Github Auto Deployment Tool
+# Git Auto Deployment Tool
 
-Inspired in:
+This project was inspired in: [This Gist](https://gist.github.com/nichtich/5290675)
 
-https://gist.github.com/nichtich/5290675
+[Original Documentation](ORIGINAL.md)
 
-[Original GIST](ORIGINAL.md)
+This project is meant to be used as a Github/Gitlab web hook endpoint.

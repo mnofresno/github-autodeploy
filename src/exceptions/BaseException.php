@@ -1,10 +1,10 @@
 <?php
 
-namespace GithubAutoDeploy\exceptions;
+namespace GitAutoDeploy\exceptions;
 
 use Exception;
-use GithubAutoDeploy\Logger;
-use GithubAutoDeploy\views\BaseView;
+use GitAutoDeploy\Logger;
+use GitAutoDeploy\views\BaseView;
 
 abstract class BaseException extends Exception {
     private $view;

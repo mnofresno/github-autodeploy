@@ -1,9 +1,9 @@
 <?php
 
-namespace GithubAutoDeploy;
+namespace GitAutoDeploy;
 
-use GithubAutoDeploy\views\Forbidden;
-use GithubAutoDeploy\exceptions\ForbiddenException;
+use GitAutoDeploy\views\Forbidden;
+use GitAutoDeploy\exceptions\ForbiddenException;
 
 class Security {
     static function assert(array $allowedIps, array $headers, string $remoteAddr) {

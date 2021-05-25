@@ -1,6 +1,6 @@
 <?php
 
-namespace GithubAutoDeploy\views;
+namespace GitAutoDeploy\views;
 
 class MissingRepoOrKey extends BaseView {
     function render() {

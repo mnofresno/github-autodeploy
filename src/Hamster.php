@@ -1,16 +1,15 @@
 <?php
 
-namespace GithubAutoDeploy;
+namespace GitAutoDeploy;
 
-use Exception;
-use GithubAutoDeploy\Request;
-use GithubAutoDeploy\views\Footer;
-use GithubAutoDeploy\views\Header;
-use GithubAutoDeploy\views\MissingRepoOrKey;
-use GithubAutoDeploy\exceptions\BadRequestException;
-use GithubAutoDeploy\exceptions\BaseException;
-use GithubAutoDeploy\views\Command;
-use GithubAutoDeploy\views\UnknownError;
+use GitAutoDeploy\Request;
+use GitAutoDeploy\views\Footer;
+use GitAutoDeploy\views\Header;
+use GitAutoDeploy\views\MissingRepoOrKey;
+use GitAutoDeploy\exceptions\BadRequestException;
+use GitAutoDeploy\exceptions\BaseException;
+use GitAutoDeploy\views\Command;
+use GitAutoDeploy\views\UnknownError;
 use Throwable;
 
 class Hamster {
@@ -58,14 +57,12 @@ class Hamster {
         // Actually run the update
         $log = [];
         $commandView = new Command();
-
         foreach($commands AS $command){
             // Run it
             $commandOutput = shell_exec("$command 2>&1");
             // Output
             $commandView->add($command, $commandOutput);
-
-            $log [] = ['command' => $command, 'output' => $commandOutput];
+            $log []= ['command' => $command, 'output' => $commandOutput];
         }
         Logger::log(['updatingCommands' => $log]);
 
