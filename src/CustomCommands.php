@@ -26,14 +26,7 @@ class CustomCommands {
     }
 
     function get() {
-        $customCommands = $this->configReader->getKey(ConfigReader::CUSTOM_UPDATE_COMMANDS);
-        $repoName = $this->request->getQueryParam(Request::REPO_QUERY_PARAM);
-        if (!$customCommands) {
-            return null;
-        }
-        $customCommands = array_key_exists($repoName, $customCommands)
-            ? $customCommands[$repoName]
-            : $customCommands;
+        $customCommands = $this->getCommandsByRepoOrDefault();
         return $customCommands
             ? array_map(function (string $command) {
                 return $this->hydratePlaceHolders($command);
@@ -50,6 +43,29 @@ class CustomCommands {
             );
         }
         return $command;
+    }
+
+    private function getCommandsByRepoOrDefault() {
+        $commandsConfig = $this->configReader->getKey(ConfigReader::CUSTOM_UPDATE_COMMANDS);
+        $repoName = $this->request->getQueryParam(Request::REPO_QUERY_PARAM);
+        if (!$commandsConfig) {
+            return null;
+        }
+        return $this->getCommandsByRepo($repoName, $commandsConfig)
+            ?? $this->getDefaultCommands($commandsConfig);
+
+    }
+
+    private function getCommandsByRepo(string $repoName, array $commands) {
+        return array_key_exists($repoName, $commands)
+            ? $commands[$repoName]
+            : null;
+    }
+
+    private function getDefaultCommands(array $commands) {
+        return array_key_exists(ConfigReader::DEFAULT_COMMANDS, $commands)
+            ? $commands[ConfigReader::DEFAULT_COMMANDS]
+            : $commands;
     }
 
     private function getFromRequestCallback(): Closure {

@@ -1,6 +1,6 @@
 <?php
 
-require __DIR__ . '/Autoloader.php';
+require __DIR__ . '/../Autoloader.php';
 
 Autoloader::load();
 
