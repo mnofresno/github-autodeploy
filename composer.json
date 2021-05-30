@@ -1,0 +1,21 @@
+{
+    "autoload": {
+        "psr-4": {
+            "GitAutoDeploy\\": "src/",
+            "GitAutoDeploy\\Test\\": "test/"
+        }
+    },
+    "name": "mnofresno/git-autodeploy",
+    "description": "This project allows a git repo to be automatically deployed based on events triggered by a webhook",
+    "type": "project",
+    "license": "apache",
+    "authors": [
+        {
+            "name": "Mariano Fresno",
+            "email": "mnofresno@gmail.com"
+        }
+    ],
+    "require-dev": {
+        "phpunit/phpunit": "^8"
+    }
+}

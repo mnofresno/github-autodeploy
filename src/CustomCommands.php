@@ -27,6 +27,13 @@ class CustomCommands {
 
     function get() {
         $customCommands = $this->configReader->getKey(ConfigReader::CUSTOM_UPDATE_COMMANDS);
+        $repoName = $this->request->getQueryParam(Request::REPO_QUERY_PARAM);
+        if (!$customCommands) {
+            return null;
+        }
+        $customCommands = array_key_exists($repoName, $customCommands)
+            ? $customCommands[$repoName]
+            : $customCommands;
         return $customCommands
             ? array_map(function (string $command) {
                 return $this->hydratePlaceHolders($command);
