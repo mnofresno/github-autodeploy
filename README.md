@@ -40,6 +40,21 @@ Is the list of commands that are needed to be executed in order to update and re
 
 This commands may make use of the following placeholders with the format of a dollar sign followed by a string.
 
+For example, if you have this config in your config.js file:
+
+```
+{
+    "ReposBasePath": "repos_with_code",
+    "CustomCommands": [
+        "ls /var/www",
+        "cd $ReposBasePath",
+        "rm tempfile"
+    ]
+}
+```
+
+That means that the triggered endpoint will cd into the /var/www/repos_with_code at the 2nd command given the ReposBasePath config parameter that is set.
+
 The placeholders options available by now are these:
 
 
@@ -49,3 +64,21 @@ The placeholders options available by now are these:
 | SSHKeysPath       | Is the config parameter with same name        |
 | repo              | Is the value of the 'repo' query param given  |
 | key               | Is the value of the 'key' query param given   |
+
+This parameter is optional because there's a list of commands that are executed by default to update the projects. This list is as following:
+
+```
+cd $ReposBasePath
+echo $PWD
+whoami
+GIT_SSH_COMMAND="ssh -i $SSHKeysPath/$key git pull
+git status
+git submodule sync
+git submodule update
+git submodule status
+```
+
+
+## Thanks:
+
+To the github user @nichtich for uploading the inpirational gist this project was based on.
