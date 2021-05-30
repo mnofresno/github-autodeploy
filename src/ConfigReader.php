@@ -7,6 +7,7 @@ class ConfigReader {
     const SSH_KEYS_PATH = 'SSHKeysPath';
     const REPOS_BASE_PATH = 'ReposBasePath';
     const CUSTOM_UPDATE_COMMANDS = 'CustomCommands';
+    const DEFAULT_COMMANDS = '_default_';
 
     private $config;
 
