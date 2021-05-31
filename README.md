@@ -34,13 +34,13 @@ Base path where the SSH keys are stored
 
 Base path where the git repositories are stored
 
-### CustomCommands (array, optional)
+### CustomCommands (array|object, optional)
 
 Is the list of commands that are needed to be executed in order to update and refresh a deployment (it could include for instance a docker-compose restart service command)
 
 This commands may make use of the following placeholders with the format of a dollar sign followed by a string.
 
-For example, if you have this config in your config.js file:
+For example, if you have this config in your config.js file as a collection of commands:
 
 ```
 {
@@ -54,6 +54,32 @@ For example, if you have this config in your config.js file:
 ```
 
 That means that the triggered endpoint will cd into the /var/www/repos_with_code at the 2nd command given the ReposBasePath config parameter that is set.
+
+Additionally you could configure the custom commands parameter with an object using valid "repo" query parameter as keys, this allows to use a different set of commands for every repository:
+
+```
+{
+    "ReposBasePath": "repos_with_code",
+    "CustomCommands": {
+        "example-repo1": [
+            "ls /var/www",
+            "cd $ReposBasePath",
+            "rm tempfile"
+        ],
+        "example-repo2": [
+            "other",
+            "set",
+            "of commands"
+        ],
+        "_default_": [
+            "default",
+            "commands to run"
+        ]
+}
+```
+So, when you request the endpoint with the query parameter localhost?repo=example-repo1, you will run the first set of commands and if you trigger the hook with localhost?repo=example-repo2 query param, you will run "other, set, of commands".
+
+And if you pass a value for repo query param localhost?repo=other-repo that is not in available as a key of CustomCommands config param, the _default_ key will be used as the list of commands: "default, commands to run".
 
 The placeholders options available by now are these:
 
