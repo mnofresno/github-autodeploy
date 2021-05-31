@@ -15,6 +15,7 @@ class CustomCommandsTest extends TestCase {
     function setUp(): void {
         parent::setUp();
         $this->mockConfigReader = $this->getMockBuilder(ConfigReader::class)
+            ->disableOriginalConstructor()
             ->onlyMethods(['getKey'])
             ->getMock();
         $this->mockRequest = $this->getMockBuilder(Request::class)
