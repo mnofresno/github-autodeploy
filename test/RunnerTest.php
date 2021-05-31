@@ -20,6 +20,7 @@ class RunnerTest extends TestCase {
             ->onlyMethods(['getQueryParam', 'getHeaders', 'getRemoteAddress'])
             ->getMock();
         $this->mockConfigReader = $this->getMockBuilder(ConfigReader::class)
+            ->disableOriginalConstructor()
             ->onlyMethods(['getKey'])
             ->getMock();
         $this->mockResponse = $this->getMockBuilder(Response::class)
