@@ -8,7 +8,7 @@
     "name": "mnofresno/git-autodeploy",
     "description": "This project allows a git repo to be automatically deployed based on events triggered by a webhook",
     "type": "project",
-    "license": "apache",
+    "license": "Apache-2.0",
     "authors": [
         {
             "name": "Mariano Fresno",
@@ -17,5 +17,8 @@
     ],
     "require-dev": {
         "phpunit/phpunit": "^8"
+    },
+    "scripts": {
+        "test": "vendor/bin/phpunit test"
     }
 }
