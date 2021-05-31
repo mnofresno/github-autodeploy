@@ -3,10 +3,10 @@
 namespace GitAutoDeploy\views;
 
 class Header extends BaseView {
-    function render() {
+    function render(): string {
         $TITLE   = 'Git Deployment Hamster';
         $VERSION = '0.11';
-        echo <<<EOT
+        return <<<EOT
 <!DOCTYPE HTML>
 <html lang="en-US">
 <head>
