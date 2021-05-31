@@ -3,7 +3,7 @@
 namespace GitAutoDeploy\exceptions;
 
 class ForbiddenException extends BaseException {
-    protected function getStatus(): string {
-        return '403 Forbidden';
+    function getStatusCode(): int {
+        return 403;
     }
 }

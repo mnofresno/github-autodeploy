@@ -13,7 +13,7 @@ class Command extends BaseView {
         $this->commands[] = $html;
     }
 
-    function render() {
-        echo implode("\n", $this->commands);
+    function render(): string {
+        return implode("\n", $this->commands);
     }
 }

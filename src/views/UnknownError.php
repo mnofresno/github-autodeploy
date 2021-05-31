@@ -9,9 +9,9 @@ class UnknownError extends BaseView {
         $this->message = $message;
     }
 
-    function render() {
-        echo "<span style=\"color: #ff0000\">Unknown error making the hamster run:";
-        echo "  <span>{$this->message}</span>\n";
-        echo "</span>\n";
+    function render(): string {
+        return "<span style=\"color: #ff0000\">Unknown error making the hamster run:"
+            ."  <span>{$this->message}</span>\n"
+            ."</span>\n";
     }
 }
