@@ -1,0 +1,26 @@
+{
+    "IPsAllowList": [
+        "207.97.227.",
+        "50.57.128.",
+        "108.171.174.",
+        "50.57.231.",
+        "204.232.175.",
+        "192.30.252.",
+        "140.82.112.",
+        "192.30.252.",
+        "140.82.115.",
+        "186.22.142.193",
+        "127.0.0.1"
+    ],
+    "SSHKeysPath": "/home/www-data/.ssh",
+    "ReposBasePath": "/var/www",
+    "CustomCommands": [
+        "echo $ReposBasePath",
+        "echo $SSHKeysPath",
+        "echo $repo",
+        "echo $key",
+        "ls /home",
+        "cd /home/$ReposBasePath/$repo",
+        "GIT_SSH_COMMAND=\"ssh -i $SSHKeysPath/$key \" git pull"
+    ]
+}

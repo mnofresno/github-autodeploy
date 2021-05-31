@@ -3,7 +3,7 @@
 namespace GitAutoDeploy\views;
 
 class Footer extends BaseView {
-    function render() {
-        echo "</pre>\n</body>\n</html>";
+    function render(): string {
+        return "</pre>\n</body>\n</html>";
     }
 }
