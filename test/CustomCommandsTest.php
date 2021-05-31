@@ -7,14 +7,12 @@ use GitAutoDeploy\CustomCommands;
 use GitAutoDeploy\Request;
 use PHPUnit\Framework\TestCase;
 
-class CustomCommandsTest extends TestCase
-{
+class CustomCommandsTest extends TestCase {
     private $subject;
     private $mockConfigReader;
     private $mockRequest;
 
-    public function setUp(): void
-    {
+    function setUp(): void {
         parent::setUp();
         $this->mockConfigReader = $this->getMockBuilder(ConfigReader::class)
             ->onlyMethods(['getKey'])
@@ -25,8 +23,7 @@ class CustomCommandsTest extends TestCase
         $this->subject = new CustomCommands($this->mockConfigReader, $this->mockRequest);
     }
 
-    public function testCustomCommandsAreNotSpecified()
-    {
+    function testCustomCommandsAreNotSpecified() {
         $this->mockConfigReader->expects($this->once())
             ->method('getKey')
             ->with($this->equalTo(ConfigReader::CUSTOM_UPDATE_COMMANDS))
@@ -39,8 +36,7 @@ class CustomCommandsTest extends TestCase
         $this->assertNull($customCommands);
     }
 
-    public function testCustomCommandsAreSpecifiedAsCollection()
-    {
+    function testCustomCommandsAreSpecifiedAsCollection() {
         $this->mockConfigReader->expects($this->exactly(17))
             ->method('getKey')
             ->will(
@@ -63,8 +59,8 @@ class CustomCommandsTest extends TestCase
             ->method('getQueryParam')
             ->will(
                 $this->returnValueMap([
-                ['repo', 'example-repo-name'],
-                ['key', 'example-ssh-key']
+                [Request::REPO_QUERY_PARAM, 'example-repo-name'],
+                [Request::KEY_QUERY_PARAM, 'example-ssh-key']
             ])
             );
         $customCommands = $this->subject->get();
@@ -80,8 +76,7 @@ class CustomCommandsTest extends TestCase
         ], $customCommands);
     }
 
-    public function testCustomCommandsAreSpecifiedAsPerRepo()
-    {
+    function testCustomCommandsAreSpecifiedAsPerRepo() {
         $this->mockConfigReader->expects($this->exactly(17))
             ->method('getKey')
             ->will(
@@ -116,8 +111,8 @@ class CustomCommandsTest extends TestCase
             ->method('getQueryParam')
             ->will(
                 $this->returnValueMap([
-                ['repo', 'example-repo2'],
-                ['key', 'example-ssh-key']
+                [Request::REPO_QUERY_PARAM, 'example-repo2'],
+                [Request::KEY_QUERY_PARAM, 'example-ssh-key']
             ])
             );
         $customCommands = $this->subject->get();
@@ -133,8 +128,7 @@ class CustomCommandsTest extends TestCase
         ], $customCommands);
     }
 
-    public function testCustomCommandsAreSpecifiedAsPerRepoButNoRepoFound()
-    {
+    function testCustomCommandsAreSpecifiedAsPerRepoButNoRepoFound() {
         $this->mockConfigReader->expects($this->exactly(9))
             ->method('getKey')
             ->will(
@@ -175,8 +169,8 @@ class CustomCommandsTest extends TestCase
             ->method('getQueryParam')
             ->will(
                 $this->returnValueMap([
-                ['repo', 'other-repo-not-considered-in-config'],
-                ['key', 'example-ssh-key']
+                [Request::REPO_QUERY_PARAM, 'other-repo-not-considered-in-config'],
+                [Request::KEY_QUERY_PARAM, 'example-ssh-key']
             ])
             );
         $customCommands = $this->subject->get();

@@ -8,11 +8,13 @@ class Request {
 
     private $headers;
     private $queryParams;
+    private $remoteAddr;
 
     static function fromHttp(): Request {
         $result = new self();
         $result->headers = self::computeHeaders();
         $result->queryParams = self::computeQueryParams();
+        $result->remoteAddr = $_SERVER['REMOTE_ADDR'];
         return $result;
     }
 
@@ -38,7 +40,7 @@ class Request {
     }
 
     function getRemoteAddress(): string {
-        return $_SERVER['REMOTE_ADDR'];
+        return $this->remoteAddr;
     }
 
     function getQueryParam(string $queryParamName): string {
