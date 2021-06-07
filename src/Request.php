@@ -11,30 +11,50 @@ class Request {
     private $headers;
     private $queryParams;
     private $remoteAddr;
+    private $body;
 
-    static function fromHttp(): Request {
+    static function fromHttp(array $givenServerVars = null): Request {
+        $serverVars = $givenServerVars ?? $_SERVER;
         $result = new self();
-        $result->headers = self::computeHeaders();
-        $result->queryParams = self::computeQueryParams();
-        $result->remoteAddr = $_SERVER['REMOTE_ADDR'] ?? '';
+        $result->headers = self::computeHeaders($serverVars);
+        $result->queryParams = self::computeQueryParams($serverVars);
+        $result->remoteAddr = $serverVars['REMOTE_ADDR'] ?? '';
+        $result->body = self::doGetBody();
         return $result;
     }
 
-    private static function computeHeaders(): array {
-        return array_intersect_key(
-            $_SERVER,
+    private static function computeHeaders(array $serverVars): array {
+        $rawHeaders = array_intersect_key(
+            $serverVars,
             array_flip(
                 preg_grep(
                     '/^HTTP_/',
-                    array_keys($_SERVER),
+                    array_keys($serverVars),
                     0
                 )
             )
         );
+        $headers = [];
+        foreach ($rawHeaders as $key => $value) {
+            $sanitizedKey = strtolower(
+                str_replace(
+                    '_',
+                    '-',
+                    str_replace(
+                        'HTTP_',
+                        '',
+                        $key
+                    )
+                )
+            );
+            $headers[$sanitizedKey] = $value;
+        }
+        return $headers;
     }
 
-    private static function computeQueryParams(): array {
-        return $_GET;
+    private static function computeQueryParams(array $serverVars): array {
+        parse_str($serverVars['QUERY_STRING'] ?? '', $output);
+        return $output;
     }
 
     function getHeaders(): array {
@@ -53,6 +73,10 @@ class Request {
     }
 
     function getBody(): array {
+        return $this->body;
+    }
+
+    private static function doGetBody(): array {
         try {
             return json_decode(
                 file_get_contents("php://input"),
