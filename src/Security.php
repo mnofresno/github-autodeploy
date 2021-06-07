@@ -8,8 +8,8 @@ use GitAutoDeploy\exceptions\ForbiddenException;
 class Security {
     static function assert(array $allowedIps, array $headers, string $remoteAddr) {
         $allowed = false;
-        if (array_key_exists("HTTP_X_FORWARDED_FOR", $headers)) {
-            $ips = explode(",",$headers["HTTP_X_FORWARDED_FOR"]);
+        if (array_key_exists("x-forwarded-for", $headers)) {
+            $ips = explode(",",$headers["x-forwarded-for"]);
             $ip  = $ips[0];
         } else {
             $ip = $remoteAddr;
