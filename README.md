@@ -104,6 +104,15 @@ git submodule update
 git submodule status
 ```
 
+## Contributing
+
+To run the tests you must first install composer dependencies, and then run the following composer script:
+
+```
+composer run-script test
+```
+
+For any suggestion please write me or raise an issue on this repo.
 
 ## Thanks:
 
