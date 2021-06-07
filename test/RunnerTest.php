@@ -92,11 +92,13 @@ class RunnerTest extends TestCase {
                 ."</span>ls: cannot access 'test-key-name': No such file or directory\n"
                 .".:\n"
                 ."CustomCommandsTest.php\n"
+                ."LoggerTest.php\n"
                 ."RunnerTest.php\n"
                 ."SecurityTest.php\n"
                 ."\n"
                 ."$thisDirectory:\n"
                 ."CustomCommandsTest.php\n"
+                ."LoggerTest.php\n"
                 ."RunnerTest.php\n"
                 ."SecurityTest.php"],
                 ["</pre>\n"
