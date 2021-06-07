@@ -2,6 +2,8 @@
 
 namespace GitAutoDeploy;
 
+use JsonException;
+
 class Request {
     const REPO_QUERY_PARAM = 'repo';
     const KEY_QUERY_PARAM = 'key';
@@ -14,7 +16,7 @@ class Request {
         $result = new self();
         $result->headers = self::computeHeaders();
         $result->queryParams = self::computeQueryParams();
-        $result->remoteAddr = $_SERVER['REMOTE_ADDR'];
+        $result->remoteAddr = $_SERVER['REMOTE_ADDR'] ?? '';
         return $result;
     }
 
@@ -48,6 +50,17 @@ class Request {
             ? $this->queryParams[$queryParamName]
             : '';
         return self::sanitizeQueryparam($value);
+    }
+
+    function getBody(): array {
+        try {
+            return json_decode(
+                file_get_contents("php://input"),
+                true
+            ) ?? [];
+        } catch (JsonException $e) {
+            return ['json_decode_error' => $e->getMessage()];
+        }
     }
 
     private static function sanitizeQueryparam(string $input): string {
