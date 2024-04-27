@@ -1,10 +1,10 @@
 <?php
 
-namespace GitAutoDeploy\Test;
+namespace Mariano\GitAutoDeploy\Test;
 
-use GitAutoDeploy\ILoggerDriver;
-use GitAutoDeploy\Logger;
-use GitAutoDeploy\Request;
+use Mariano\GitAutoDeploy\ILoggerDriver;
+use Mariano\GitAutoDeploy\Logger;
+use Mariano\GitAutoDeploy\Request;
 use PHPUnit\Framework\TestCase;
 
 class LoggerTest extends TestCase {

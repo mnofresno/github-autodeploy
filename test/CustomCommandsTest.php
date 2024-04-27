@@ -1,10 +1,10 @@
 <?php
 
-namespace GitAutoDeploy\Test;
+namespace Mariano\GitAutoDeploy\Test;
 
-use GitAutoDeploy\ConfigReader;
-use GitAutoDeploy\CustomCommands;
-use GitAutoDeploy\Request;
+use Mariano\GitAutoDeploy\ConfigReader;
+use Mariano\GitAutoDeploy\CustomCommands;
+use Mariano\GitAutoDeploy\Request;
 use PHPUnit\Framework\TestCase;
 
 class CustomCommandsTest extends TestCase {

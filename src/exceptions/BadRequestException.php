@@ -1,6 +1,6 @@
 <?php
 
-namespace GitAutoDeploy\exceptions;
+namespace Mariano\GitAutoDeploy\exceptions;
 
 class BadRequestException extends BaseException {
     function getStatusCode(): int {

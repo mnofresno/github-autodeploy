@@ -1,15 +1,15 @@
 <?php
 
-namespace GitAutoDeploy;
+namespace Mariano\GitAutoDeploy;
 
-use GitAutoDeploy\Request;
-use GitAutoDeploy\views\Footer;
-use GitAutoDeploy\views\Header;
-use GitAutoDeploy\views\MissingRepoOrKey;
-use GitAutoDeploy\exceptions\BadRequestException;
-use GitAutoDeploy\exceptions\BaseException;
-use GitAutoDeploy\views\Command;
-use GitAutoDeploy\views\UnknownError;
+use Mariano\GitAutoDeploy\Request;
+use Mariano\GitAutoDeploy\views\Footer;
+use Mariano\GitAutoDeploy\views\Header;
+use Mariano\GitAutoDeploy\views\MissingRepoOrKey;
+use Mariano\GitAutoDeploy\exceptions\BadRequestException;
+use Mariano\GitAutoDeploy\exceptions\BaseException;
+use Mariano\GitAutoDeploy\views\Command;
+use Mariano\GitAutoDeploy\views\UnknownError;
 use Throwable;
 
 class Runner {

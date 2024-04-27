@@ -1,11 +1,11 @@
 <?php
 
-namespace GitAutoDeploy\Test;
+namespace Mariano\GitAutoDeploy\Test;
 
-use GitAutoDeploy\ConfigReader;
-use GitAutoDeploy\Request;
-use GitAutoDeploy\Response;
-use GitAutoDeploy\Runner;
+use Mariano\GitAutoDeploy\ConfigReader;
+use Mariano\GitAutoDeploy\Request;
+use Mariano\GitAutoDeploy\Response;
+use Mariano\GitAutoDeploy\Runner;
 use PHPUnit\Framework\TestCase;
 
 class RunnerTest extends TestCase {

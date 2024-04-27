@@ -1,6 +1,6 @@
 <?php
 
-namespace GitAutoDeploy;
+namespace Mariano\GitAutoDeploy;
 
 class Response {
     const STATUS_MAP = [

@@ -1,6 +1,6 @@
 <?php
 
-namespace GitAutoDeploy;
+namespace Mariano\GitAutoDeploy;
 
 use Closure;
 

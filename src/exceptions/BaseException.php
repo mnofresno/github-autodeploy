@@ -1,10 +1,10 @@
 <?php
 
-namespace GitAutoDeploy\exceptions;
+namespace Mariano\GitAutoDeploy\exceptions;
 
 use Exception;
-use GitAutoDeploy\Logger;
-use GitAutoDeploy\views\BaseView;
+use Mariano\GitAutoDeploy\Logger;
+use Mariano\GitAutoDeploy\views\BaseView;
 
 abstract class BaseException extends Exception {
     private $view;

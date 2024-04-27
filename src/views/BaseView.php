@@ -1,6 +1,6 @@
 <?php
 
-namespace GitAutoDeploy\views;
+namespace Mariano\GitAutoDeploy\views;
 
 abstract class BaseView {
     static function show(): string {

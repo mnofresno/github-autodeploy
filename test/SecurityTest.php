@@ -1,9 +1,9 @@
 <?php
 
-namespace GitAutoDeploy\Test;
+namespace Mariano\GitAutoDeploy\Test;
 
-use GitAutoDeploy\exceptions\ForbiddenException;
-use GitAutoDeploy\Security;
+use Mariano\GitAutoDeploy\exceptions\ForbiddenException;
+use Mariano\GitAutoDeploy\Security;
 use PHPUnit\Framework\TestCase;
 
 class SecurityTest extends TestCase {

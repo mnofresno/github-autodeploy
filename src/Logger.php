@@ -1,6 +1,6 @@
 <?php
 
-namespace GitAutoDeploy;
+namespace Mariano\GitAutoDeploy;
 
 class Logger {
     static function log(array $message, Request $requestContext = null, ILoggerDriver $loggerDriver = null) {

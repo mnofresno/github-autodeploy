@@ -1,7 +1,7 @@
 <?php
 
 class Autoloader {
-    const NAMESPACE = 'GitAutoDeploy';
+    const NAMESPACE = 'Mariano\GitAutoDeploy';
     const SRC_PATH = 'src';
 
     static function load() {

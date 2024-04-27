@@ -1,6 +1,6 @@
 <?php
 
-namespace GitAutoDeploy;
+namespace Mariano\GitAutoDeploy;
 
 class LoggerDriver implements ILoggerDriver {
     function write(string $content, string $date) {

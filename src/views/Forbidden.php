@@ -1,6 +1,6 @@
 <?php
 
-namespace GitAutoDeploy\views;
+namespace Mariano\GitAutoDeploy\views;
 
 class Forbidden extends BaseView {
     function render(): string {

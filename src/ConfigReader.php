@@ -1,6 +1,6 @@
 <?php
 
-namespace GitAutoDeploy;
+namespace Mariano\GitAutoDeploy;
 
 class ConfigReader {
     const IPS_ALLOWLIST = 'IPsAllowList';

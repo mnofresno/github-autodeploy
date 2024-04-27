@@ -1,8 +1,8 @@
 {
     "autoload": {
         "psr-4": {
-            "GitAutoDeploy\\": "src/",
-            "GitAutoDeploy\\Test\\": "test/"
+            "Mariano\\GitAutoDeploy\\": "src/",
+            "Mariano\\GitAutoDeploy\\Test\\": "test/"
         }
     },
     "name": "mnofresno/git-autodeploy",

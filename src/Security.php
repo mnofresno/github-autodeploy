@@ -1,9 +1,9 @@
 <?php
 
-namespace GitAutoDeploy;
+namespace Mariano\GitAutoDeploy;
 
-use GitAutoDeploy\views\Forbidden;
-use GitAutoDeploy\exceptions\ForbiddenException;
+use Mariano\GitAutoDeploy\views\Forbidden;
+use Mariano\GitAutoDeploy\exceptions\ForbiddenException;
 
 class Security {
     static function assert(array $allowedIps, array $headers, string $remoteAddr) {

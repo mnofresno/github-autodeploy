@@ -1,6 +1,6 @@
 <?php
 
-namespace GitAutoDeploy\views;
+namespace Mariano\GitAutoDeploy\views;
 
 class MissingRepoOrKey extends BaseView {
     function render(): string {
