@@ -3,3 +3,5 @@ config.json
 /vendor/
 .phpunit.result.cache
 *.log*
+.vscode
+.phpunit.result.cache
