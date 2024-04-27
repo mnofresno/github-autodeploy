@@ -71,7 +71,7 @@ class RunnerTest extends TestCase {
             ->will($this->returnValueMap([
                 [ConfigReader::IPS_ALLOWLIST, ['127.0.0.1']],
                 [ConfigReader::REPOS_BASE_PATH, $thisDirectory],
-                [ConfigReader::CUSTOM_UPDATE_COMMANDS, ['ls $key $repo $ReposBasePath $SSHKeysPath']]
+                [ConfigReader::CUSTOM_UPDATE_COMMANDS, ['echo -n ""']]
             ]));
         $this->mockResponse->expects($this->exactly(3))
             ->method('addToBody')
@@ -88,21 +88,8 @@ class RunnerTest extends TestCase {
                 ." /\\\"/\   v0.11\n"
                 ."(`=*=')\n"
                 ." ^---^`-."],
-                ["<span style=\"color: #6BE234;\">$</span>  <span style=\"color: #729FCF;\">ls test-key-name . $thisDirectory \n"
-                ."</span>ls: cannot access 'test-key-name': No such file or directory\n"
-                .".:\n"
-                ."bootstrap.php\n"
-                ."CustomCommandsTest.php\n"
-                ."LoggerTest.php\n"
-                ."RunnerTest.php\n"
-                ."SecurityTest.php\n"
-                ."\n"
-                ."$thisDirectory:\n"
-                ."bootstrap.php\n"
-                ."CustomCommandsTest.php\n"
-                ."LoggerTest.php\n"
-                ."RunnerTest.php\n"
-                ."SecurityTest.php"],
+                ["<span style=\"color: #6BE234;\">$</span>  <span style=\"color: #729FCF;\">echo -n \"\"\n"
+                ."</span>"],
                 ["</pre>\n"
                 ."</body>\n"
                 ."</html>"]
