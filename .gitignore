@@ -2,3 +2,4 @@ config.json
 *.log
 /vendor/
 .phpunit.result.cache
+*.log*
