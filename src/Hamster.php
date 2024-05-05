@@ -19,7 +19,7 @@ class Hamster {
     }
 
     function run() {
-        if ($runId = $this->request->getQueryParam('previous_run_id') !== '') {
+        if (($runId = $this->request->getQueryParam('previous_run_id')) !== '') {
             $this->response->setStatusCode(200);
             $this->response->addToBody("Given run Id: $runId");
             $this->response->send();
