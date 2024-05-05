@@ -23,7 +23,7 @@ class ConfigReader {
             true
         );
     }
-
+// TEST COMMENT
     function get(string $key) {
         return array_key_exists($key, $this->config)
             ? $this->config[$key]
