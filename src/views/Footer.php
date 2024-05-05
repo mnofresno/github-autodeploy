@@ -3,7 +3,13 @@
 namespace Mariano\GitAutoDeploy\views;
 
 class Footer extends BaseView {
+    private $runId;
+
+    public function __construct(string $runId) {
+        $this->runId = $runId;
+    }
+
     function render(): string {
-        return "</pre>\n</body>\n</html>";
+        return "</pre>\n<div><b>RUN ID: {$this->runId}</b></div></body>\n</html>";
     }
 }

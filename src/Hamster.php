@@ -19,7 +19,8 @@ class Hamster {
     }
 
     function run() {
-        if ($runId = $this->request->getQueryParam('background_run_id') !== null) {
+        if ($runId = $this->request->getQueryParam('previous_run_id') !== null) {
+            $this->response->setStatusCode(200);
 
         } else {
             if ($this->request->getQueryParam('run_in_background') === 'true') {

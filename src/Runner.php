@@ -37,7 +37,9 @@ class Runner {
             $this->response->setStatusCode(500);
         }
         finally {
-            $this->response->addToBody(Footer::show());
+            $this->response->addToBody(
+                (new Footer($this->response->getRunId()))->render()
+            );
         }
     }
 
@@ -70,7 +72,6 @@ class Runner {
             $log []= ['command' => $command, 'output' => $commandOutput, 'exitCode' => $exitCode];
         }
         Logger::log($this->response->getRunId(), ['updatingCommands' => $log]);
-
         $this->response->addToBody($commandView->render());
     }
 
