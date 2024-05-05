@@ -5,6 +5,7 @@ class Autoloader {
     const SRC_PATH = 'src';
 
     static function load() {
+        require_once __DIR__ . '/vendor/autoload.php';
         spl_autoload_register(function ($class_name) {
             $class_name_without_root_ns = str_replace(
                 self::NAMESPACE . '\\',
