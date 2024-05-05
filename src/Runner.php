@@ -26,12 +26,8 @@ class Runner {
     function run(): void {
         $this->response->addToBody(Header::show());
         try {
-            if ($this->request->getQueryParam('run_in_background') === 'true') {
-                $this->response->addToBody("Thinking in background...");
-                $this->response->setStatusCode(201);
-                $this->finishRequest();
-            }
             $this->doRun();
+            $this->response->setStatusCode(200);
         } catch (BaseException $e) {
             $this->response->addToBody($e->render());
             $this->response->setStatusCode($e->getStatusCode());
@@ -42,14 +38,6 @@ class Runner {
         }
         finally {
             $this->response->addToBody(Footer::show());
-        }
-    }
-
-    private function finishRequest(): void {
-        if (function_exists('fastcgi_finish_request')) {
-            fastcgi_finish_request();
-        } else {
-            Logger::log(['fatcgi_finish_request function not found']);
         }
     }
 
