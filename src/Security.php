@@ -6,7 +6,7 @@ use Mariano\GitAutoDeploy\views\Forbidden;
 use Mariano\GitAutoDeploy\exceptions\ForbiddenException;
 
 class Security {
-    static function assert(array $allowedIps, array $headers, string $remoteAddr) {
+    static function assert(string $runId, array $allowedIps, array $headers, string $remoteAddr) {
         $allowed = false;
         if (array_key_exists("x-forwarded-for", $headers)) {
             $ips = explode(",",$headers["x-forwarded-for"]);
@@ -20,13 +20,14 @@ class Security {
                 break;
             }
         }
-        self::throwIfAllowed($allowed);
+        self::throwIfAllowed($runId, $allowed);
     }
 
-    private static function throwIfAllowed(bool $allowed) {
+    private static function throwIfAllowed(string $runId, bool $allowed) {
         if (!$allowed) {
             throw new ForbiddenException(
-                new Forbidden()
+                new Forbidden(),
+                $runId
             );
         }
     }

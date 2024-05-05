@@ -3,6 +3,7 @@
 namespace Mariano\GitAutoDeploy\Test;
 
 use Mariano\GitAutoDeploy\exceptions\ForbiddenException;
+use Mariano\GitAutoDeploy\Response;
 use Mariano\GitAutoDeploy\Security;
 use PHPUnit\Framework\TestCase;
 
@@ -14,6 +15,7 @@ class SecurityTest extends TestCase {
     function testAssertBlockedIP() {
         $this->expectException(ForbiddenException::class);
         Security::assert(
+            'run_id_for_security_test',
             ['127.0.0.2', '192.168.1.14'],
             [],
             '127.0.0.5'
@@ -22,6 +24,7 @@ class SecurityTest extends TestCase {
 
     function testAssertAllowedIP() {
         Security::assert(
+            'run_id_for_security_test',
             ['127.0.0.2', '192.168.2.14', '192.168.1.'],
             [],
             '192.168.1.16'

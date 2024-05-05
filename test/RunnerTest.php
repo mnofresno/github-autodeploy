@@ -24,7 +24,8 @@ class RunnerTest extends TestCase {
             ->onlyMethods(['get'])
             ->getMock();
         $this->mockResponse = $this->getMockBuilder(Response::class)
-            ->onlyMethods(['addToBody', 'setStatusCode'])
+            ->disableOriginalConstructor()
+            ->onlyMethods(['addToBody', 'setStatusCode', 'getRunId'])
             ->getMock();
         $this->subject = new Runner(
             $this->mockRequest,
@@ -40,6 +41,7 @@ class RunnerTest extends TestCase {
         $this->mockRequest->expects($this->once())
             ->method('getRemoteAddress')
             ->will($this->returnValue('127.0.0.1'));
+        $this->mockResponse->method('getRunId')->willReturn('run_id_for_runner_tests');
         $this->mockResponse->expects($this->once())
             ->method('setStatusCode')
             ->with($this->equalTo(400));

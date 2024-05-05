@@ -11,6 +11,15 @@ class Response {
 
     private $body = '';
     private $statusCode = 200;
+    private $runId;
+
+    public function __construct(string $runId) {
+        $this->runId = $runId;
+    }
+
+    public function getRunId(): string {
+        return $this->runId;
+    }
 
     function addToBody(string $contents) {
         $this->body .= $contents;

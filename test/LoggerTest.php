@@ -47,7 +47,8 @@ class LoggerTest extends TestCase {
             ->with(
                 $this->equalTo(
                     '{"context":'
-                    .'{"timestamp":"'.$date.'",'
+                    .'{"runId":"run_id_for_tests",'
+                    .'"timestamp":"'.$date.'",'
                     .'"repo":"the-given-repo",'
                     .'"key":"the-given-key",'
                     .'"request":{'
@@ -60,6 +61,7 @@ class LoggerTest extends TestCase {
                     .'}'
                 ), $this->equalTo($date));
         Logger::log(
+            'run_id_for_tests',
             ['this' => 'field', 'must' => 'belogged'],
             $this->mockRequest,
             $this->mockDriver

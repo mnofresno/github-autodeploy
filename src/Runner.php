@@ -43,6 +43,7 @@ class Runner {
 
     private function doRun(): void {
         Security::assert(
+            $this->response->getRunId(),
             $this->configReader->get(ConfigReader::IPS_ALLOWLIST),
             $this->request->getHeaders(),
             $this->request->getRemoteAddress()
@@ -68,7 +69,7 @@ class Runner {
             $commandView->add($command, $commandOutput);
             $log []= ['command' => $command, 'output' => $commandOutput, 'exitCode' => $exitCode];
         }
-        Logger::log(['updatingCommands' => $log]);
+        Logger::log($this->response->getRunId(), ['updatingCommands' => $log]);
 
         $this->response->addToBody($commandView->render());
     }
@@ -111,7 +112,8 @@ class Runner {
     private function assertRepoAndKey(string $repo, string $key): void {
         if (!$repo || !$key) {
             throw new BadRequestException(
-                new MissingRepoOrKey()
+                new MissingRepoOrKey(),
+                $this->response->getRunId()
             );
         }
     }

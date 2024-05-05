@@ -9,8 +9,8 @@ use Mariano\GitAutoDeploy\views\BaseView;
 abstract class BaseException extends Exception {
     private $view;
 
-    function __construct(BaseView $view) {
-        Logger::log(['exception' => get_class($this), 'statusCode' => $this->getStatusCode()]);
+    function __construct(BaseView $view, string $runId) {
+        Logger::log($runId, ['exception' => get_class($this), 'statusCode' => $this->getStatusCode()]);
         $this->view = $view;
     }
 

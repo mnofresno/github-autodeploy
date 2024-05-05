@@ -3,12 +3,13 @@
 namespace Mariano\GitAutoDeploy;
 
 class Logger {
-    static function log(array $message, Request $requestContext = null, ILoggerDriver $loggerDriver = null) {
+    static function log(string $runId, array $message, Request $requestContext = null, ILoggerDriver $loggerDriver = null) {
         $date = date('Y-m-d H:i:s');
         $request = $requestContext ?? Request::fromHttp();
         $driver = $loggerDriver ?? new LoggerDriver();
         $contextualizedMessage = [
             'context' => [
+                'runId' => $runId,
                 'timestamp' => $date,
                 'repo' => $request->getQueryParam(Request::REPO_QUERY_PARAM),
                 'key' => $request->getQueryParam(Request::KEY_QUERY_PARAM),
