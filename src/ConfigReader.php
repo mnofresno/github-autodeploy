@@ -24,7 +24,7 @@ class ConfigReader {
         );
     }
 
-    function getKey(string $key) {
+    function get(string $key) {
         return array_key_exists($key, $this->config)
             ? $this->config[$key]
             : null;

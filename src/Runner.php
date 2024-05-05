@@ -23,12 +23,12 @@ class Runner {
         $this->configReader = $configReader;
     }
 
-    function run() {
+    function run(): void {
         $this->response->addToBody(Header::show());
         try {
-            $this->response->setStatusCode(200);
-            fastcgi_finish_request();
             $this->doRun();
+            $this->response->setStatusCode(200);
+            // $this->finishRequest();
         } catch (BaseException $e) {
             $this->response->addToBody($e->render());
             $this->response->setStatusCode($e->getStatusCode());
@@ -42,9 +42,17 @@ class Runner {
         }
     }
 
-    private function doRun() {
+    private function finishRequest(): void {
+        if (function_exists('fastcgi_finish_request')) {
+            fastcgi_finish_request();
+        } else {
+            Logger::log(['fatcgi_finish_request function not found']);
+        }
+    }
+
+    private function doRun(): void {
         Security::assert(
-            $this->configReader->getKey(ConfigReader::IPS_ALLOWLIST),
+            $this->configReader->get(ConfigReader::IPS_ALLOWLIST),
             $this->request->getHeaders(),
             $this->request->getRemoteAddress()
         );
@@ -58,7 +66,7 @@ class Runner {
         );
     }
 
-    private function updateRepository(array $commands) {
+    private function updateRepository(array $commands): void {
         flush();
         // Actually run the update
         $log = [];
@@ -77,20 +85,24 @@ class Runner {
         $this->response->addToBody($commandView->render());
     }
 
-    private function changeDirToRepoPath() {
+    private function changeDirToRepoPath(): void {
         chdir(
-            $this->configReader->getKey(ConfigReader::REPOS_BASE_PATH)
+            $this->configReader->get(ConfigReader::REPOS_BASE_PATH)
             . DIRECTORY_SEPARATOR
             . $this->request->getQueryParam(Request::REPO_QUERY_PARAM)
         );
     }
 
     private function getCommands(): array {
-        return $this->getCustomCommands() ?? [
+        return $this->getCustomCommands() ?? $this->builtInCommands();
+    }
+
+    private function builtInCommands(): array {
+        return [
             'echo $PWD',
             'whoami',
             'GIT_SSH_COMMAND="ssh -i '
-                . $this->configReader->getKey(ConfigReader::SSH_KEYS_PATH)
+                . $this->configReader->get(ConfigReader::SSH_KEYS_PATH)
                 . '/'
                 . $this->request->getQueryParam(Request::KEY_QUERY_PARAM)
                 . '" git pull',
@@ -101,14 +113,14 @@ class Runner {
         ];
     }
 
-    private function getCustomCommands() {
+    private function getCustomCommands(): ?array {
         return (new CustomCommands(
             $this->configReader,
             $this->request
         ))->get();
     }
 
-    private function assertRepoAndKey(string $repo, string $key) {
+    private function assertRepoAndKey(string $repo, string $key): void {
         if (!$repo || !$key) {
             throw new BadRequestException(
                 new MissingRepoOrKey()

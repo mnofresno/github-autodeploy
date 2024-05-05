@@ -21,7 +21,7 @@ class RunnerTest extends TestCase {
             ->getMock();
         $this->mockConfigReader = $this->getMockBuilder(ConfigReader::class)
             ->disableOriginalConstructor()
-            ->onlyMethods(['getKey'])
+            ->onlyMethods(['get'])
             ->getMock();
         $this->mockResponse = $this->getMockBuilder(Response::class)
             ->onlyMethods(['addToBody', 'setStatusCode'])
@@ -44,7 +44,7 @@ class RunnerTest extends TestCase {
             ->method('setStatusCode')
             ->with($this->equalTo(400));
         $this->mockConfigReader->expects($this->once())
-            ->method('getKey')
+            ->method('get')
             ->will($this->returnValue(['127.0.0.1']));
         $this->subject->run();
     }
@@ -67,11 +67,11 @@ class RunnerTest extends TestCase {
             ->method('setStatusCode')
             ->with($this->equalTo(200));
         $this->mockConfigReader->expects($this->exactly(5))
-            ->method('getKey')
+            ->method('get')
             ->will($this->returnValueMap([
                 [ConfigReader::IPS_ALLOWLIST, ['127.0.0.1']],
                 [ConfigReader::REPOS_BASE_PATH, $thisDirectory],
-                [ConfigReader::CUSTOM_UPDATE_COMMANDS, ['echo -n ""']]
+                [ConfigReader::CUSTOM_UPDATE_COMMANDS, [ConfigReader::DEFAULT_COMMANDS => ['echo -n ""']]]
             ]));
         $this->mockResponse->expects($this->exactly(3))
             ->method('addToBody')
