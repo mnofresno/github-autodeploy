@@ -10,7 +10,6 @@ class Hamster {
     private $response;
 
     function __construct() {
-        // TEST msg
         $this->response = new Response($this->getLastRunId());
         $this->runner = new Runner(
             $this->request = Request::fromHttp(),
