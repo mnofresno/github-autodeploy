@@ -26,9 +26,11 @@ class Runner {
     function run(): void {
         $this->response->addToBody(Header::show());
         try {
+            if ($this->request->getQueryParam('run_in_background') === 'true') {
+                $this->response->setStatusCode(201);
+                $this->finishRequest();
+            }
             $this->doRun();
-            $this->response->setStatusCode(200);
-            // $this->finishRequest();
         } catch (BaseException $e) {
             $this->response->addToBody($e->render());
             $this->response->setStatusCode($e->getStatusCode());
