@@ -27,6 +27,7 @@ class Runner {
         $this->response->addToBody(Header::show());
         try {
             if ($this->request->getQueryParam('run_in_background') === 'true') {
+                $this->response->addToBody("Thinking in background...");
                 $this->response->setStatusCode(201);
                 $this->finishRequest();
             }
