@@ -2,16 +2,11 @@
 
 namespace Mariano\GitAutoDeploy;
 
+use Ramsey\Uuid\Uuid;
+
 class RunSearcher {
-    private $driver;
-
-    public function __construct(ILoggerDriver $driver) {
-        $this->driver = $driver;
-    }
-
     public function search(string $runId): array {
-        $driver = new LoggerDriver();
-        $logContents = $driver->read();
+        $logContents = $this->read($runId);
         $foundRows = [];
         foreach (explode('\n', $logContents) as $logRow) {
             if (strpos($logRow, $runId) !== false) {
@@ -23,5 +18,21 @@ class RunSearcher {
 
     private function parse(string $logRow): array {
         return json_decode(explode(' - ', $logRow)[1], true);
+    }
+
+    private function read(string $runId): string {
+        if (!Uuid::isValid($runId)) {
+            return '';
+        }
+        exec("cat {$this->fileName()} | grep {$runId}", $searchOutput);
+        return implode('\n', $searchOutput);
+    }
+
+    private function fileName(): string {
+        return implode(DIRECTORY_SEPARATOR, [
+            __DIR__,
+            '..',
+            'deploy-log.log'
+        ]);
     }
 }
