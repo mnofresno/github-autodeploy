@@ -71,15 +71,12 @@ class Runner {
 
     private function updateRepository(array $commands): void {
         flush();
-        // Actually run the update
         $log = [];
         $commandView = new Command();
         foreach($commands AS $command){
-            // Run it
             $commandOutput = [];
             $exitCode = 0;
             exec("$command 2>&1", $commandOutput, $exitCode);
-            // Output
             $commandView->add($command, $commandOutput);
             $log []= ['command' => $command, 'output' => $commandOutput, 'exitCode' => $exitCode];
         }
