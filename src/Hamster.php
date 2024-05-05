@@ -22,6 +22,9 @@ class Hamster {
         if (($runId = $this->request->getQueryParam('previous_run_id')) !== '') {
             $this->response->setStatusCode(200);
             $this->response->addToBody("Given run Id: $runId");
+            $this->response->addToBody(
+                json_encode((new RunSearcher(new LoggerDriver()))->search($runId), JSON_PRETTY_PRINT)
+            );
             $this->response->send();
         } else {
             if ($this->request->getQueryParam('run_in_background') === 'true') {

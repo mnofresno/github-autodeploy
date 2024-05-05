@@ -3,15 +3,23 @@
 namespace Mariano\GitAutoDeploy;
 
 class LoggerDriver implements ILoggerDriver {
-    function write(string $content, string $date) {
+    public function read(): string {
+        return file_get_contents($this->fileName());
+    }
+
+    public function write(string $content, string $date): void {
         file_put_contents (
-            implode(DIRECTORY_SEPARATOR, [
-                __DIR__,
-                '..',
-                'deploy-log.log'
-            ]),
+            $this->fileName(),
             "$date - $content\n",
             FILE_APPEND
         );
+    }
+
+    private function fileName(): string {
+        return implode(DIRECTORY_SEPARATOR, [
+            __DIR__,
+            '..',
+            'deploy-log.log'
+        ]);
     }
 }
