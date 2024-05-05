@@ -93,7 +93,7 @@ class RunnerTest extends TestCase {
                 ["<span style=\"color: #6BE234;\">$</span>  <span style=\"color: #729FCF;\">echo -n \"\"\n"
                 ."</span>"],
                 ["</pre>\n"
-                ."</body>\n"
+                ."<div><b>RUN ID: </b></div></body>\n"
                 ."</html>"]
             );
         $this->subject->run();
