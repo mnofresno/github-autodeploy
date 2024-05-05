@@ -26,8 +26,9 @@ class Runner {
     function run() {
         $this->response->addToBody(Header::show());
         try {
-            $this->doRun();
             $this->response->setStatusCode(200);
+            fastcgi_finish_request();
+            $this->doRun();
         } catch (BaseException $e) {
             $this->response->addToBody($e->render());
             $this->response->setStatusCode($e->getStatusCode());
