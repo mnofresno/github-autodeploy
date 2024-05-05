@@ -20,5 +20,8 @@
     },
     "scripts": {
         "test": "vendor/bin/phpunit test"
+    },
+    "require": {
+        "ramsey/uuid": "^4.2"
     }
 }
