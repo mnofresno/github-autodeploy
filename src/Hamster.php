@@ -23,9 +23,12 @@ class Hamster {
             $this->response->setStatusCode(200);
             $this->response->addToBody("Given run Id: $runId");
             $this->response->addToBody(
-                json_encode((new RunSearcher(new LoggerDriver()))->search($runId), JSON_PRETTY_PRINT)
+                json_encode([
+                    'message' => "Given run Id: $runId",
+                    'results' => (new RunSearcher())->search($runId), JSON_PRETTY_PRINT
+                ])
             );
-            $this->response->send();
+            $this->response->send('application/json');
         } else {
             if ($this->request->getQueryParam('run_in_background') === 'true') {
                 $this->response->addToBody("Thinking in background...{$this->response->getRunId()}");

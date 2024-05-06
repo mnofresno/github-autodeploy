@@ -29,7 +29,8 @@ class Response {
         $this->statusCode = $statusCode;
     }
 
-    function send(): void {
+    function send(string $contentType = 'text/html;charset=UTF-8'): void {
+        header("Content-Type: {$contentType}");
         header(
             sprintf(
                 "HTTP/1.1 %s %s",
