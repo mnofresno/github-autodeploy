@@ -55,7 +55,9 @@ class Hamster {
 
     private function finishRequest(): void {
         if (function_exists('fastcgi_finish_request')) {
+            Logger::log($this->response->getRunId(), ['message' => 'Finishing request...']);
             fastcgi_finish_request();
+            Logger::log($this->response->getRunId(), ['message' => 'Request finished OK']);
         } else {
             Logger::log($this->response->getRunId(), ['exception' => 'fatcgi_finish_request function not found']);
         }
