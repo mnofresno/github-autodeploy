@@ -24,7 +24,9 @@ class RunSearcher {
         if (!Uuid::isValid($runId)) {
             return '';
         }
-        exec("cat {$this->fileName()} | grep {$runId}", $searchOutput);
+        $fileName = escapeshellarg($this->fileName());
+        $runId = escapeshellarg($runId);
+        exec("cat {$fileName} | grep {$runId}", $searchOutput);
         return implode('\n', $searchOutput);
     }
 
