@@ -29,8 +29,10 @@ class Hamster {
                 ], JSON_PRETTY_PRINT)
             );
             $this->response->send('application/json');
+            exit();
         } else {
             if ($this->request->getQueryParam('run_in_background') === 'true') {
+                Logger::log($this->response->getRunId(), ['backgrpund_run', true]);
                 $website = $this->configReader->get('website') ?? '-website-not-configured-';
                 $this->response->addToBody(
                     "Thinking in background...\n"
@@ -42,6 +44,7 @@ class Hamster {
                 $this->finishRequest();
                 $this->runner->run();
             } else {
+                Logger::log($this->response->getRunId(), ['backgrpund_run', false]);
                 $this->runner->run();
                 $this->response->send();
             }
