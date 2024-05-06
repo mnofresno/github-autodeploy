@@ -8,13 +8,14 @@ class Hamster {
     private $runner;
     private $request;
     private $response;
+    private $configReader;
 
     function __construct() {
         $this->response = new Response($this->getLastRunId());
         $this->runner = new Runner(
             $this->request = Request::fromHttp(),
             $this->response,
-            new ConfigReader()
+            $this->configReader = new ConfigReader()
         );
     }
 
@@ -25,13 +26,18 @@ class Hamster {
             $this->response->addToBody(
                 json_encode([
                     'message' => "Given run Id: $runId",
-                    'results' => (new RunSearcher())->search($runId), JSON_PRETTY_PRINT
-                ])
+                    'results' => (new RunSearcher())->search($runId)
+                ], JSON_PRETTY_PRINT)
             );
             $this->response->send('application/json');
         } else {
             if ($this->request->getQueryParam('run_in_background') === 'true') {
-                $this->response->addToBody("Thinking in background...{$this->response->getRunId()}");
+                $website = $this->configReader->get('website') ?? '-website-not-configured-';
+                $this->response->addToBody(
+                    "Thinking in background...\n"
+                    ."Please consume this:\n"
+                    ."\t{$website}?previous_run_id={$this->response->getRunId()}"
+                );
                 $this->response->setStatusCode(201);
                 $this->response->send();
                 $this->finishRequest();
