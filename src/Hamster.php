@@ -20,7 +20,6 @@ class Hamster {
     }
 
     function run() {
-        ob_start();
         if (($runId = $this->request->getQueryParam('previous_run_id')) !== '') {
             $this->response->setStatusCode(200);
             $this->response->addToBody(
@@ -33,6 +32,7 @@ class Hamster {
             exit();
         } else {
             if ($this->request->getQueryParam('run_in_background') === 'true') {
+                ini_set('ignore_user_abort', 'On');
                 Logger::log($this->response->getRunId(), ['backgrpund_run' => true]);
                 $website = $this->configReader->get('website') ?? '-website-not-configured-';
                 $this->response->addToBody(
@@ -48,7 +48,6 @@ class Hamster {
                 Logger::log($this->response->getRunId(), ['backgrpund_run' => false]);
                 $this->runner->run();
                 $this->response->send();
-                ob_flush();
             }
         }
     }
