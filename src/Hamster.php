@@ -28,7 +28,7 @@ class Hamster {
                     'results' => (new RunSearcher())->search($runId)
                 ], JSON_PRETTY_PRINT)
             );
-            $this->response->send('application/json');
+            $this->response->send('application/json; charset=utf-8');
             exit();
         } else {
             if ($this->request->getQueryParam('run_in_background') === 'true') {
