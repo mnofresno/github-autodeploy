@@ -33,7 +33,7 @@ class Hamster {
         } else {
             if ($this->request->getQueryParam('run_in_background') === 'true') {
                 ini_set('ignore_user_abort', 'On');
-                Logger::log($this->response->getRunId(), ['backgrpund_run' => true]);
+                Logger::log($this->response->getRunId(), ['background_run' => true]);
                 $website = $this->configReader->get('website') ?? '-website-not-configured-';
                 $this->response->addToBody(
                     "Thinking in background...\n"
@@ -45,7 +45,7 @@ class Hamster {
                 $this->finishRequest();
                 $this->runner->run();
             } else {
-                Logger::log($this->response->getRunId(), ['backgrpund_run' => false]);
+                Logger::log($this->response->getRunId(), ['background_run' => false]);
                 $this->runner->run();
                 $this->response->send();
             }
