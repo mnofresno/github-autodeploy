@@ -38,7 +38,7 @@ class Hamster {
                 $this->response->addToBody(
                     "Thinking in background...\n"
                     ."Please consume this:\n"
-                    ."\t{$website}?previous_run_id={$this->response->getRunId()}"
+                    ."\t<pre>curl {$website}?previous_run_id={$this->response->getRunId()}</pre>"
                 );
                 $this->response->setStatusCode(201);
                 $this->response->send();
