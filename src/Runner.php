@@ -2,7 +2,6 @@
 
 namespace Mariano\GitAutoDeploy;
 
-use Mariano\GitAutoDeploy\Request;
 use Mariano\GitAutoDeploy\views\Footer;
 use Mariano\GitAutoDeploy\views\Header;
 use Mariano\GitAutoDeploy\views\MissingRepoOrKey;
@@ -46,8 +45,7 @@ class Runner {
             $view = new UnknownError($e->getMessage());
             $this->response->addToBody($view->render());
             $this->response->setStatusCode(500);
-        }
-        finally {
+        } finally {
             $this->response->addToBody(
                 (new Footer($this->response->getRunId()))->render()
             );
@@ -74,7 +72,7 @@ class Runner {
         flush();
         $log = [];
         $commandView = new Command();
-        foreach($commands AS $command){
+        foreach ($commands AS $command) {
             $commandOutput = [];
             $exitCode = 0;
             exec("$command 2>&1", $commandOutput, $exitCode);

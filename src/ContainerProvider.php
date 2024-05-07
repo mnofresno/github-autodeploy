@@ -4,7 +4,6 @@ namespace Mariano\GitAutoDeploy;
 
 use DI\Container;
 use DI\ContainerBuilder;
-use Monolog\Formatter\JsonFormatter;
 use Monolog\Handler\StreamHandler;
 use Monolog\Logger;
 use Ramsey\Uuid\Uuid;
