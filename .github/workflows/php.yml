@@ -26,4 +26,4 @@ jobs:
     - name: Run test suite
       run: composer run-script test
     - name: Run PHP-CS-Fixer
-      run: vendor/bin/php-cs-fixer fix --dry-run --diff --verbose --config=./test/.php_cs.dist ./src
+      run: vendor/bin/php-cs-fixer fix --dry-run --diff --verbose --config ./test/.php_cs.dist.php
