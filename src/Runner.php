@@ -35,7 +35,7 @@ class Runner {
     }
 
     function run(): void {
-        $this->response->addToBody(Header::show());
+        $this->response->addToBody((new Header())->render());
         try {
             $this->doRun();
             $this->response->setStatusCode(200);

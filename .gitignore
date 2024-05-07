@@ -4,4 +4,4 @@ config.json
 .phpunit.result.cache
 *.log*
 .vscode
-.phpunit.result.cache
+*.cache
