@@ -2,21 +2,27 @@
 
 namespace Mariano\GitAutoDeploy;
 
-use Ramsey\Uuid\Uuid;
+use Monolog\Logger;
 
 class Hamster {
     private $runner;
     private $request;
     private $response;
     private $configReader;
+    private $logger;
 
-    function __construct() {
-        $this->response = new Response($this->getLastRunId());
-        $this->runner = new Runner(
-            $this->request = Request::fromHttp(),
-            $this->response,
-            $this->configReader = new ConfigReader()
-        );
+    function __construct(
+        Logger $logger,
+        Runner $runner,
+        Response $response,
+        Request $request,
+        ConfigReader $configReader
+    ) {
+        $this->logger = $logger;
+        $this->runner = $runner;
+        $this->request = $request;
+        $this->response = $response;
+        $this->configReader = $configReader;
     }
 
     function run() {
@@ -33,7 +39,7 @@ class Hamster {
         } else {
             if ($this->request->getQueryParam('run_in_background') === 'true') {
                 ini_set('ignore_user_abort', 'On');
-                Logger::log($this->response->getRunId(), ['background_run' => true]);
+                $this->logger->info('Background run enabled');
                 $website = $this->configReader->get('website') ?? '-website-not-configured-';
                 $this->response->addToBody(
                     "Thinking in background...\n"
@@ -45,7 +51,7 @@ class Hamster {
                 $this->finishRequest();
                 $this->runner->run();
             } else {
-                Logger::log($this->response->getRunId(), ['background_run' => false]);
+                $this->logger->info('Background run disabled');
                 $this->runner->run();
                 $this->response->send();
             }
@@ -54,15 +60,11 @@ class Hamster {
 
     private function finishRequest(): void {
         if (function_exists('fastcgi_finish_request')) {
-            Logger::log($this->response->getRunId(), ['message' => 'Finishing request...']);
+            $this->logger->debug('Finishing request...');
             fastcgi_finish_request();
-            Logger::log($this->response->getRunId(), ['message' => 'Request finished OK']);
+            $this->logger->debug('Request finished OK');
         } else {
-            Logger::log($this->response->getRunId(), ['exception' => 'fatcgi_finish_request function not found']);
+            $this->logger->error('fatcgi_finish_request function not found');
         }
-    }
-
-    private function getLastRunId(): string {
-        return Uuid::uuid4();
     }
 }

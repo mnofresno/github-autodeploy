@@ -4,9 +4,16 @@ namespace Mariano\GitAutoDeploy;
 
 use Mariano\GitAutoDeploy\views\Forbidden;
 use Mariano\GitAutoDeploy\exceptions\ForbiddenException;
+use Monolog\Logger;
 
 class Security {
-    static function assert(string $runId, array $allowedIps, array $headers, string $remoteAddr) {
+    private $logger;
+
+    public function __construct(Logger $logger) {
+        $this->logger = $logger;
+    }
+
+    function assert(array $allowedIps, array $headers, string $remoteAddr) {
         $allowed = false;
         if (array_key_exists("x-forwarded-for", $headers)) {
             $ips = explode(",",$headers["x-forwarded-for"]);
@@ -20,15 +27,12 @@ class Security {
                 break;
             }
         }
-        self::throwIfAllowed($runId, $allowed);
+        $this->throwIfAllowed($allowed);
     }
 
-    private static function throwIfAllowed(string $runId, bool $allowed) {
+    private function throwIfAllowed(bool $allowed) {
         if (!$allowed) {
-            throw new ForbiddenException(
-                new Forbidden(),
-                $runId
-            );
+            throw new ForbiddenException(new Forbidden(), $this->logger);
         }
     }
 }

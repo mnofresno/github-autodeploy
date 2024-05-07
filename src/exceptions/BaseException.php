@@ -3,14 +3,14 @@
 namespace Mariano\GitAutoDeploy\exceptions;
 
 use Exception;
-use Mariano\GitAutoDeploy\Logger;
 use Mariano\GitAutoDeploy\views\BaseView;
+use Monolog\Logger;
 
 abstract class BaseException extends Exception {
     private $view;
 
-    function __construct(BaseView $view, string $runId) {
-        Logger::log($runId, ['exception' => get_class($this), 'statusCode' => $this->getStatusCode()]);
+    function __construct(BaseView $view, Logger $logger) {
+        $logger->error($this->getMessage(), ['statusCode' => $this->getStatusCode()]);
         $this->view = $view;
     }
 

@@ -10,17 +10,28 @@ use Mariano\GitAutoDeploy\exceptions\BadRequestException;
 use Mariano\GitAutoDeploy\exceptions\BaseException;
 use Mariano\GitAutoDeploy\views\Command;
 use Mariano\GitAutoDeploy\views\UnknownError;
+use Monolog\Logger;
 use Throwable;
 
 class Runner {
     private $request;
     private $response;
     private $configReader;
+    private $logger;
+    private $security;
 
-    function __construct(Request $request, Response &$response, ConfigReader $configReader) {
+    function __construct(
+        Request $request,
+        Response &$response,
+        ConfigReader $configReader,
+        Logger $logger,
+        Security $security
+    ) {
         $this->request = $request;
         $this->response = $response;
         $this->configReader = $configReader;
+        $this->logger = $logger;
+        $this->security = $security;
     }
 
     function run(): void {
@@ -44,8 +55,7 @@ class Runner {
     }
 
     private function doRun(): void {
-        Security::assert(
-            $this->response->getRunId(),
+        $this->security->assert(
             $this->configReader->get(ConfigReader::IPS_ALLOWLIST),
             $this->request->getHeaders(),
             $this->request->getRemoteAddress()
@@ -71,7 +81,8 @@ class Runner {
             $commandView->add($command, $commandOutput);
             $log []= ['command' => $command, 'output' => $commandOutput, 'exitCode' => $exitCode];
         }
-        Logger::log($this->response->getRunId(), ['updatingCommands' => $log]);
+        $commandsCount = count($commands);
+        $this->logger->info("Ran {$commandsCount} commands", ['updatingCommands' => $log]);
         $this->response->addToBody($commandView->render());
     }
 
@@ -112,10 +123,7 @@ class Runner {
 
     private function assertRepoAndKey(string $repo, string $key): void {
         if (!$repo || !$key) {
-            throw new BadRequestException(
-                new MissingRepoOrKey(),
-                $this->response->getRunId()
-            );
+            throw new BadRequestException(new MissingRepoOrKey(), $this->logger);
         }
     }
 }

@@ -2,28 +2,35 @@
 
 namespace Mariano\GitAutoDeploy\Test;
 
-use Mariano\GitAutoDeploy\ILoggerDriver;
-use Mariano\GitAutoDeploy\Logger;
+use Mariano\GitAutoDeploy\ConfigReader;
+use Mariano\GitAutoDeploy\ContainerProvider;
 use Mariano\GitAutoDeploy\Request;
+use Mariano\GitAutoDeploy\Response;
+use Monolog\Logger;
 use PHPUnit\Framework\TestCase;
 
 class LoggerTest extends TestCase {
     private $mockRequest;
-    private $mockDriver;
+    private $mockResponse;
+    private $subject;
 
     function setUp(): void {
         parent::setUp();
-        $this->mockDriver = $this->getMockBuilder(ILoggerDriver::class)
-            ->setMockClassName('SomeDriverForTests')
-            ->onlyMethods(['write'])
-            ->getMock();
+        $container = (new ContainerProvider())->provide();
+        $this->mockResponse = $this->createMock(Response::class);
+        $this->mockResponse->method('getRunId')->willReturn('run_id_for_tests');
         $this->mockRequest = $this->getMockBuilder(Request::class)
             ->onlyMethods(['getQueryParam', 'getHeaders', 'getBody', 'getRemoteAddress'])
             ->getMock();
+        $container->set(Request::class, $this->mockRequest);
+        $container->set(Response::class, $this->mockResponse);
+        $mockConfig = $this->createMock(ConfigReader::class);
+        $mockConfig->method('get')->willReturnMap([['debug_level', 'INFO']]);
+        $container->set(ConfigReader::class, $mockConfig);
+        $this->subject = $container->get(Logger::class);
     }
 
     function testWriteLogWithRequestBodyAndHeaders() {
-        $date = date('Y-m-d H:i:s');
         $this->mockRequest->expects($this->exactly(2))
             ->method('getQueryParam')
             ->will($this->returnValueMap([
@@ -42,29 +49,24 @@ class LoggerTest extends TestCase {
                 'first_request_body_field' => 'withavalue',
                 'andotherkey' => 'withData'
             ]));
-        $this->mockDriver->expects($this->once())
-            ->method('write')
-            ->with(
-                $this->equalTo(
-                    '{"context":'
-                    .'{"runId":"run_id_for_tests",'
-                    .'"timestamp":"'.$date.'",'
-                    .'"repo":"the-given-repo",'
-                    .'"key":"the-given-key",'
-                    .'"request":{'
-                        .'"body":{'
-                            .'"first_request_body_field":"withavalue",'
-                            .'"andotherkey":"withData"},'
-                        .'"headers":{"someheader":"somevalue"},'
-                        .'"remote_address":"181.241.11.9"}},'
-                    .'"message":{"this":"field","must":"belogged"}'
-                    .'}'
-                ), $this->equalTo($date));
-        Logger::log(
-            'run_id_for_tests',
-            ['this' => 'field', 'must' => 'belogged'],
-            $this->mockRequest,
-            $this->mockDriver
+        $this->subject->info('message for test');
+        $logContents = file_get_contents(ContainerProvider::LOG_FILE_PATH);
+        $logRows = explode('\n', $logContents);
+        $lastRow = end($logRows);
+        $this->assertStringContainsString('message for test', $lastRow);
+        $this->assertStringContainsString(
+            '{"context":'
+            .'{"runId":"run_id_for_tests",'
+            .'"repo":"the-given-repo",'
+            .'"key":"the-given-key",'
+            .'"request":{'
+                .'"body":{'
+                    .'"first_request_body_field":"withavalue",'
+                    .'"andotherkey":"withData"},'
+                .'"headers":{"someheader":"somevalue"},'
+                .'"remote_address":"181.241.11.9"}}'
+            .'}',
+            $lastRow
         );
     }
 }

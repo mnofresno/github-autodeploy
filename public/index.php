@@ -1,9 +1,12 @@
 <?php
+use Mariano\GitAutoDeploy\ContainerProvider;
 
 require __DIR__ . '/../Autoloader.php';
 
 Autoloader::load();
 
-$app = new Mariano\GitAutoDeploy\Hamster();
+$container = (new ContainerProvider())->provide();
+
+$app = $container->get(Mariano\GitAutoDeploy\Hamster::class);
 
 $app->run();

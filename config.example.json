@@ -1,4 +1,5 @@
 {
+    "debug_level": "WARNING",
     "website": "https://current-hosted-site-for-autopush.org",
     "IPsAllowList": [
         "X.Y.Z.W"

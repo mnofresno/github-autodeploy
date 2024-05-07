@@ -6,6 +6,8 @@ use Mariano\GitAutoDeploy\ConfigReader;
 use Mariano\GitAutoDeploy\Request;
 use Mariano\GitAutoDeploy\Response;
 use Mariano\GitAutoDeploy\Runner;
+use Mariano\GitAutoDeploy\Security;
+use Monolog\Logger;
 use PHPUnit\Framework\TestCase;
 
 class RunnerTest extends TestCase {
@@ -30,7 +32,9 @@ class RunnerTest extends TestCase {
         $this->subject = new Runner(
             $this->mockRequest,
             $this->mockResponse,
-            $this->mockConfigReader
+            $this->mockConfigReader,
+            $this->createMock(Logger::class),
+            $this->createMock(Security::class)
         );
     }
 
