@@ -17,7 +17,25 @@ class RunSearcher {
     }
 
     private function parse(string $logRow): array {
-        return json_decode(explode(' - ', $logRow)[1], true);
+        $context = explode(' - ', $logRow);
+        $jsonContext = @$context[1];
+        $date = @$context[0];
+        $logLevel = null;
+        $message = null;
+        if (!$jsonContext) {
+            $pattern = '/\[(.+)\]\s(.+):\s(.+)\s(\{.+\})\s\[\]/';
+            if (preg_match($pattern, $logRow, $matches)) {
+                $date = $matches[1];
+                $logLevel = $matches[2];
+                $message = $matches[3];
+                $jsonContext = $matches[4];
+            }
+        }
+        $result = json_decode($jsonContext, true);
+        $result['date'] = $date;
+        $result['logLevel'] = $logLevel;
+        $result['message'] = $message;
+        return $result;
     }
 
     private function read(string $runId): string {
