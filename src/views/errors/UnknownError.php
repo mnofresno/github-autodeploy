@@ -1,6 +1,8 @@
 <?php
 
-namespace Mariano\GitAutoDeploy\views;
+namespace Mariano\GitAutoDeploy\views\errors;
+
+use Mariano\GitAutoDeploy\views\BaseView;
 
 class UnknownError extends BaseView {
     private $message;

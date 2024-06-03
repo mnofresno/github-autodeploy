@@ -2,7 +2,7 @@
 
 namespace Mariano\GitAutoDeploy;
 
-use Mariano\GitAutoDeploy\views\Forbidden;
+use Mariano\GitAutoDeploy\views\errors\Forbidden;
 use Mariano\GitAutoDeploy\exceptions\ForbiddenException;
 use Monolog\Logger;
 

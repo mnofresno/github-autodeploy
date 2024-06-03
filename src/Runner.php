@@ -4,11 +4,11 @@ namespace Mariano\GitAutoDeploy;
 
 use Mariano\GitAutoDeploy\views\Footer;
 use Mariano\GitAutoDeploy\views\Header;
-use Mariano\GitAutoDeploy\views\MissingRepoOrKey;
+use Mariano\GitAutoDeploy\views\errors\MissingRepoOrKey;
 use Mariano\GitAutoDeploy\exceptions\BadRequestException;
 use Mariano\GitAutoDeploy\exceptions\BaseException;
 use Mariano\GitAutoDeploy\views\Command;
-use Mariano\GitAutoDeploy\views\UnknownError;
+use Mariano\GitAutoDeploy\views\errors\UnknownError;
 use Monolog\Logger;
 use Throwable;
 
