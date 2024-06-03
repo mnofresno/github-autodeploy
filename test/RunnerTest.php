@@ -18,13 +18,11 @@ class RunnerTest extends TestCase {
     private $mockRequest;
     private $mockResponse;
     private $mockConfigReader;
-    private $testRepoPath;
-    private $testRepoName;
+    private $mockRepoCreator;
 
     function setUp(): void {
-        $this->testRepoPath = "/tmp/" . ($this->testRepoName = uniqid('test-repo-name'));
-        mkdir($this->testRepoPath);
-        touch($this->testRepoPath  . '/test-file-in-repo');
+        $this->mockRepoCreator = new MockRepoCreator();
+        $this->mockRepoCreator->spinUp();
         parent::setUp();
         $this->mockRequest = $this->getMockBuilder(Request::class)
             ->onlyMethods(['getQueryParam', 'getHeaders', 'getRemoteAddress'])
@@ -47,7 +45,7 @@ class RunnerTest extends TestCase {
     }
 
     public function tearDown(): void {
-        shell_exec("rm -rf {$this->testRepoPath}");
+        $this->mockRepoCreator->spinDown();
     }
 
     function testRunNoQueryParamsGivenBadRequest() {
@@ -77,7 +75,7 @@ class RunnerTest extends TestCase {
         $this->mockRequest->expects($this->any())
             ->method('getQueryParam')
             ->will($this->returnValueMap([
-                [Request::REPO_QUERY_PARAM, $this->testRepoName],
+                [Request::REPO_QUERY_PARAM, $this->mockRepoCreator->testRepoName],
                 [Request::KEY_QUERY_PARAM, 'test-key-name']
             ]));
         $this->mockResponse->expects($this->once())
@@ -87,7 +85,7 @@ class RunnerTest extends TestCase {
             ->method('get')
             ->will($this->returnValueMap([
                 [ConfigReader::IPS_ALLOWLIST, ['127.0.0.1']],
-                [ConfigReader::REPOS_BASE_PATH, '/tmp'],
+                [ConfigReader::REPOS_BASE_PATH, $this->mockRepoCreator::BASE_REPO_DIR],
                 [ConfigReader::CUSTOM_UPDATE_COMMANDS, [ConfigReader::DEFAULT_COMMANDS => ['echo -n ""', 'ls -a']]]
             ]));
         $this->mockResponse->expects($this->any())

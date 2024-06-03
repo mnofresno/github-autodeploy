@@ -5,14 +5,19 @@ namespace Mariano\GitAutoDeploy\Test;
 use Mariano\GitAutoDeploy\ConfigReader;
 use Mariano\GitAutoDeploy\CustomCommands;
 use Mariano\GitAutoDeploy\Request;
+use Monolog\Logger;
 use PHPUnit\Framework\TestCase;
 
 class CustomCommandsTest extends TestCase {
     private $subject;
     private $mockConfigReader;
     private $mockRequest;
+    private $mockLogger;
+    private $mockRepoCreator;
 
-    function setUp(): void {
+    public function setUp(): void {
+        $this->mockRepoCreator = new MockRepoCreator();
+        $this->mockRepoCreator->spinUp();
         parent::setUp();
         $this->mockConfigReader = $this->getMockBuilder(ConfigReader::class)
             ->disableOriginalConstructor()
@@ -21,10 +26,15 @@ class CustomCommandsTest extends TestCase {
         $this->mockRequest = $this->getMockBuilder(Request::class)
             ->onlyMethods(['getQueryParam'])
             ->getMock();
-        $this->subject = new CustomCommands($this->mockConfigReader, $this->mockRequest);
+        $this->mockLogger = $this->createMock(Logger::class);
+        $this->subject = new CustomCommands(
+            $this->mockConfigReader,
+            $this->mockRequest,
+            $this->mockLogger
+        );
     }
 
-    function testCustomCommandsAreNotSpecified() {
+    public function testCustomCommandsAreNotSpecified() {
         $this->mockConfigReader->expects($this->once())
             ->method('get')
             ->with($this->equalTo(ConfigReader::CUSTOM_UPDATE_COMMANDS))
@@ -37,8 +47,8 @@ class CustomCommandsTest extends TestCase {
         $this->assertNull($customCommands);
     }
 
-    function testCustomCommandsAreSpecifiedAsCollection() {
-        $this->mockConfigReader->expects($this->exactly(17))
+    public function testCustomCommandsAreSpecifiedAsCollection() {
+        $this->mockConfigReader->expects($this->atLeast(3))
             ->method('get')
             ->will(
                 $this->returnValueMap([
@@ -54,11 +64,11 @@ class CustomCommandsTest extends TestCase {
                         'command8 $SSHKeysPath'
                     ]
                 ]],
-                [ConfigReader::REPOS_BASE_PATH, '/var/www/repos'],
+                [ConfigReader::REPOS_BASE_PATH, $this->mockRepoCreator::BASE_REPO_DIR],
                 [ConfigReader::SSH_KEYS_PATH, '/home/tests/.ssh']
             ])
             );
-        $this->mockRequest->expects($this->exactly(17))
+        $this->mockRequest->expects($this->atLeast(3))
             ->method('getQueryParam')
             ->will(
                 $this->returnValueMap([
@@ -73,14 +83,38 @@ class CustomCommandsTest extends TestCase {
             'command3',
             'command4 example-ssh-key',
             'command5',
-            'command6 /var/www/repos',
+            'command6 ' . $this->mockRepoCreator::BASE_REPO_DIR,
             'command7',
             'command8 /home/tests/.ssh'
         ], $customCommands);
     }
 
-    function testCustomCommandsAreSpecifiedAsPerRepo() {
-        $this->mockConfigReader->expects($this->exactly(17))
+    public function testCustomCommandsAreSpecifiedAsPerRepoWithRepoConfigFile() {
+        $this->mockRepoCreator->withConfig([
+            'ls -a $SSHKeysPath'
+        ]);
+        $this->mockConfigReader->expects($this->atLeast(4))
+            ->method('get')
+            ->will(
+                $this->returnValueMap($this->configMapForNoPerRepoConfig())
+            );
+        $this->mockRequest->expects($this->atLeast(3))
+            ->method('getQueryParam')
+            ->will(
+                $this->returnValueMap([
+                [Request::REPO_QUERY_PARAM, $this->mockRepoCreator->testRepoName],
+                [Request::KEY_QUERY_PARAM, 'example-ssh-key'],
+                ['CustomQueryParam', 'custom value']
+            ])
+            );
+        $customCommands = $this->subject->get();
+        $this->assertEquals([
+            'ls -a /home/tests/.ssh'
+        ], $customCommands);
+    }
+
+    public function testCustomCommandsAreSpecifiedAsPerRepo() {
+        $this->mockConfigReader->expects($this->atLeast(3))
             ->method('get')
             ->will(
                 $this->returnValueMap([
@@ -106,11 +140,11 @@ class CustomCommandsTest extends TestCase {
                             'command16 $SSHKeysPath'
                         ]
                     ]],
-                    [ConfigReader::REPOS_BASE_PATH, '/var/www/repos'],
+                    [ConfigReader::REPOS_BASE_PATH, $this->mockRepoCreator::BASE_REPO_DIR],
                     [ConfigReader::SSH_KEYS_PATH, '/home/tests/.ssh']
                 ])
             );
-        $this->mockRequest->expects($this->exactly(17))
+        $this->mockRequest->expects($this->atLeast(3))
             ->method('getQueryParam')
             ->will(
                 $this->returnValueMap([
@@ -125,50 +159,19 @@ class CustomCommandsTest extends TestCase {
             'command11',
             'command12 example-ssh-key',
             'command13',
-            'command14 /var/www/repos',
+            'command14 ' . $this->mockRepoCreator::BASE_REPO_DIR,
             'command15',
             'command16 /home/tests/.ssh'
         ], $customCommands);
     }
 
-    function testCustomCommandsAreSpecifiedAsPerRepoButNoRepoFound() {
-        $this->mockConfigReader->expects($this->exactly(9))
+    public function testCustomCommandsAreSpecifiedAsPerRepoButNoRepoFound() {
+        $this->mockConfigReader->expects($this->atLeast(4))
             ->method('get')
             ->will(
-                $this->returnValueMap([
-                    [ConfigReader::CUSTOM_UPDATE_COMMANDS, [
-                        'example-repo1' => [
-                            'command1',
-                            'command2 $repo',
-                            'command3',
-                            'command4 $key',
-                            'command5',
-                            'command6 $ReposBasePath',
-                            'command7',
-                            'command8 $SSHKeysPath'
-                        ],
-                        'example-repo2' => [
-                            'command9',
-                            'command10 $repo',
-                            'command11',
-                            'command12 $key',
-                            'command13',
-                            'command14 $ReposBasePath',
-                            'command15',
-                            'command16 $SSHKeysPath'
-                        ],
-                        '_default_' => [
-                            'simple',
-                            'commands',
-                            'for-the-generic-repo-behavior $repo',
-                            'finishing-command'
-                        ]
-                    ]],
-                    [ConfigReader::REPOS_BASE_PATH, '/var/www/repos'],
-                    [ConfigReader::SSH_KEYS_PATH, '/home/tests/.ssh']
-                ])
+                $this->returnValueMap($this->configMapForNoPerRepoConfig())
             );
-        $this->mockRequest->expects($this->exactly(9))
+        $this->mockRequest->expects($this->atLeast(3))
             ->method('getQueryParam')
             ->will(
                 $this->returnValueMap([
@@ -183,5 +186,40 @@ class CustomCommandsTest extends TestCase {
             'for-the-generic-repo-behavior other-repo-not-considered-in-config',
             'finishing-command'
         ], $customCommands);
+    }
+
+    private function configMapForNoPerRepoConfig(): array {
+        return [
+            [ConfigReader::CUSTOM_UPDATE_COMMANDS, [
+                'example-repo1' => [
+                    'command1',
+                    'command2 $repo',
+                    'command3',
+                    'command4 $key',
+                    'command5',
+                    'command6 $ReposBasePath',
+                    'command7',
+                    'command8 $SSHKeysPath'
+                ],
+                'example-repo2' => [
+                    'command9',
+                    'command10 $repo',
+                    'command11',
+                    'command12 $key',
+                    'command13',
+                    'command14 $ReposBasePath',
+                    'command15',
+                    'command16 $SSHKeysPath'
+                ],
+                '_default_' => [
+                    'simple',
+                    'commands',
+                    'for-the-generic-repo-behavior $repo',
+                    'finishing-command'
+                ]
+            ]],
+            [ConfigReader::REPOS_BASE_PATH, $this->mockRepoCreator::BASE_REPO_DIR],
+            [ConfigReader::SSH_KEYS_PATH, '/home/tests/.ssh']
+        ];
     }
 }

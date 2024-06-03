@@ -3,6 +3,7 @@
 namespace Mariano\GitAutoDeploy;
 
 use Closure;
+use Monolog\Logger;
 
 class CustomCommands {
     const CURRENT_PLACEHOLDERS = [
@@ -12,17 +13,24 @@ class CustomCommands {
         ConfigReader::SSH_KEYS_PATH => 'c_'
     ];
 
-    const CALLBACKS_MAP = [
-        'r_' => 'getFromRequestCallback',
-        'c_' => 'getFromConfigCallback'
+    public const CUSTOM_CONFIG_FILE_NAME = '.git-auto-deploy.json';
+    private const REQUEST_CALLBACK_PREFIX = 'r_';
+    private const CONFIG_CALLBACK_PREFIX = 'c_';
+
+    private const CALLBACKS_MAP = [
+        self::REQUEST_CALLBACK_PREFIX => 'getFromRequestCallback',
+        self::CONFIG_CALLBACK_PREFIX => 'getFromConfigCallback'
     ];
 
     private $configReader;
     private $request;
+    private $logger;
+    private $callbacksCache = [];
 
-    function __construct(ConfigReader $configReader, Request $request) {
+    function __construct(ConfigReader $configReader, Request $request, Logger $logger) {
         $this->configReader = $configReader;
         $this->request = $request;
+        $this->logger = $logger;
     }
 
     function get(): ?array {
@@ -58,7 +66,28 @@ class CustomCommands {
     private function getCommandsByRepo(string $repoName, array $commands): ?array {
         return array_key_exists($repoName, $commands)
             ? $commands[$repoName]
-            : null;
+            : $this->perRepoConfigFileContentsOrNull($repoName);
+    }
+
+    private function perRepoConfigFileContentsOrNull(string $repoName):?array {
+        $repoConfigFileName = implode(
+            DIRECTORY_SEPARATOR,
+            [
+                $this->configReader->get(ConfigReader::REPOS_BASE_PATH),
+                $repoName,
+                self::CUSTOM_CONFIG_FILE_NAME
+            ]
+        );
+        try {
+            if (file_exists($repoConfigFileName)) {
+                $contents = json_decode(file_get_contents($repoConfigFileName), true);
+                return empty($contents) ? null : $contents;
+            }
+        } catch (\JsonException $e) {
+            $this->logger->error($e->getMessage());
+            return null;
+        }
+        return null;
     }
 
     private function getDefaultCommands(array $commands): ?array {
@@ -68,14 +97,20 @@ class CustomCommands {
     }
 
     private function getFromRequestCallback(): Closure {
-        return function(string $k) {
-            return $this->request->getQueryParam($k);
+        return function(string $key) {
+            if (!isset($this->callbacksCache[self::CONFIG_CALLBACK_PREFIX . $key])) {
+                $this->callbacksCache[self::CONFIG_CALLBACK_PREFIX. $key] = $this->request->getQueryParam($key);
+            }
+            return $this->callbacksCache[self::CONFIG_CALLBACK_PREFIX. $key];
         };
     }
 
     private function getFromConfigCallback(): Closure {
-        return function(string $k) {
-            return $this->configReader->get($k);
+        return function(string $key) {
+            if (!isset($this->callbacksCache[self::CONFIG_CALLBACK_PREFIX . $key])) {
+                $this->callbacksCache[self::CONFIG_CALLBACK_PREFIX. $key] = $this->configReader->get($key);
+            }
+            return $this->callbacksCache[self::CONFIG_CALLBACK_PREFIX. $key];
         };
     }
 }

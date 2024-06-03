@@ -113,7 +113,8 @@ class Runner {
     private function getCustomCommands(): ?array {
         return (new CustomCommands(
             $this->configReader,
-            $this->request
+            $this->request,
+            $this->logger
         ))->get();
     }
 
