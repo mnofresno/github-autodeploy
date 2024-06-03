@@ -1,19 +1,27 @@
 <?php
 
 namespace Mariano\GitAutoDeploy\views;
+use JsonSerializable;
 
-class Command extends BaseView {
-    private $commands = [];
+class Command extends BaseView implements JsonSerializable {
+    private $ranCommands = [];
 
-    function add(string $command, array $commandOutput = []) {
-        $output = implode("\n", $commandOutput);
-        $html = "<span style=\"color: #6BE234;\">\$</span>";
-        $html .= "  <span style=\"color: #729FCF;\">{$command}\n</span>";
-        $html .= htmlentities(trim($output));
-        $this->commands[] = $html;
+    public function add(string $command, array $commandOutput = []): void {
+        $this->ranCommands[] = new RanCommand($command, $commandOutput);
     }
 
-    function render(): string {
-        return implode("\n", $this->commands);
+    public function render(): string {
+        return implode(
+            "\n",
+            array_map(function (RanCommand $command) {
+                return $command->render();
+            }, $this->ranCommands)
+        );
+    }
+
+    public function jsonSerialize(): array {
+        return array_map(function (RanCommand $command) {
+            return $command->jsonSerialize();
+        } , $this->ranCommands);
     }
 }

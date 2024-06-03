@@ -7,6 +7,9 @@ use Mariano\GitAutoDeploy\Request;
 use Mariano\GitAutoDeploy\Response;
 use Mariano\GitAutoDeploy\Runner;
 use Mariano\GitAutoDeploy\Security;
+use Mariano\GitAutoDeploy\views\BaseView;
+use Mariano\GitAutoDeploy\views\Footer;
+use Mariano\GitAutoDeploy\views\Header;
 use Monolog\Logger;
 use PHPUnit\Framework\TestCase;
 
@@ -15,8 +18,13 @@ class RunnerTest extends TestCase {
     private $mockRequest;
     private $mockResponse;
     private $mockConfigReader;
+    private $testRepoPath;
+    private $testRepoName;
 
     function setUp(): void {
+        $this->testRepoPath = "/tmp/" . ($this->testRepoName = uniqid('test-repo-name'));
+        mkdir($this->testRepoPath);
+        touch($this->testRepoPath  . '/test-file-in-repo');
         parent::setUp();
         $this->mockRequest = $this->getMockBuilder(Request::class)
             ->onlyMethods(['getQueryParam', 'getHeaders', 'getRemoteAddress'])
@@ -27,7 +35,7 @@ class RunnerTest extends TestCase {
             ->getMock();
         $this->mockResponse = $this->getMockBuilder(Response::class)
             ->disableOriginalConstructor()
-            ->onlyMethods(['addToBody', 'setStatusCode', 'getRunId'])
+            ->onlyMethods(['addViewToBody', 'setStatusCode', 'getRunId'])
             ->getMock();
         $this->subject = new Runner(
             $this->mockRequest,
@@ -36,6 +44,10 @@ class RunnerTest extends TestCase {
             $this->createMock(Logger::class),
             $this->createMock(Security::class)
         );
+    }
+
+    public function tearDown(): void {
+        shell_exec("rm -rf {$this->testRepoPath}");
     }
 
     function testRunNoQueryParamsGivenBadRequest() {
@@ -56,49 +68,54 @@ class RunnerTest extends TestCase {
     }
 
     function testAllAssertionsMetOk() {
-        $thisDirectory = __DIR__;
         $this->mockRequest->expects($this->once())
             ->method('getHeaders')
             ->will($this->returnValue([]));
         $this->mockRequest->expects($this->once())
             ->method('getRemoteAddress')
             ->will($this->returnValue('127.0.0.1'));
-        $this->mockRequest->expects($this->exactly(6))
+        $this->mockRequest->expects($this->any())
             ->method('getQueryParam')
             ->will($this->returnValueMap([
-                [Request::REPO_QUERY_PARAM, '.'],
+                [Request::REPO_QUERY_PARAM, $this->testRepoName],
                 [Request::KEY_QUERY_PARAM, 'test-key-name']
             ]));
         $this->mockResponse->expects($this->once())
             ->method('setStatusCode')
             ->with($this->equalTo(200));
-        $this->mockConfigReader->expects($this->exactly(5))
+        $this->mockConfigReader->expects($this->any())
             ->method('get')
             ->will($this->returnValueMap([
                 [ConfigReader::IPS_ALLOWLIST, ['127.0.0.1']],
-                [ConfigReader::REPOS_BASE_PATH, $thisDirectory],
-                [ConfigReader::CUSTOM_UPDATE_COMMANDS, [ConfigReader::DEFAULT_COMMANDS => ['echo -n ""']]]
+                [ConfigReader::REPOS_BASE_PATH, '/tmp'],
+                [ConfigReader::CUSTOM_UPDATE_COMMANDS, [ConfigReader::DEFAULT_COMMANDS => ['echo -n ""', 'ls -a']]]
             ]));
-        $this->mockResponse->expects($this->exactly(3))
-            ->method('addToBody')
+        $this->mockResponse->expects($this->any())
+            ->method('addViewToBody')
             ->withConsecutive(
-                ["<!DOCTYPE HTML>\n"
-                ."<html lang=\"en-US\">\n"
-                ."<head>\n"
-                ."    <meta charset=\"UTF-8\">\n"
-                ."    <title>Git Deployment Hamster</title>\n"
-                ."</head>\n"
-                ."<body style=\"background-color: #000000; color: #FFFFFF; font-weight: bold; padding: 0 10px;\">\n"
-                ."<pre>\n"
-                ."  o-o    Git Deployment Hamster\n"
-                ." /\\\"/\   v0.11\n"
-                ."(`=*=')\n"
-                ." ^---^`-."],
-                ["<span style=\"color: #6BE234;\">$</span>  <span style=\"color: #729FCF;\">echo -n \"\"\n"
-                ."</span>"],
-                ["</pre>\n"
-                ."<div><b>RUN ID: </b></div></body>\n"
-                ."</html>"]
+                [$this->callback(function (BaseView $view) {
+                    return $view instanceof Header;
+                })],
+                [$this->callback(function (BaseView $view) {
+                    $result = json_decode(json_encode($view), true);
+                    return $result === [
+                        [
+                            'command' => 'echo -n ""',
+                            'commandOutput' => []
+                        ],
+                        [
+                            'command' => "ls -a",
+                            'commandOutput' => [
+                                ".",
+                                "..",
+                                "test-file-in-repo"
+                            ]
+                        ]
+                    ];
+                })],
+                [$this->callback(function (BaseView $view) {
+                    return $view instanceof Footer;
+                })]
             );
         $this->subject->run();
     }

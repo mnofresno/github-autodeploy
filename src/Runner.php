@@ -34,7 +34,7 @@ class Runner {
     }
 
     function run(): void {
-        $this->response->addToBody((new Header())->render());
+        $this->response->addViewToBody(new Header());
         try {
             $this->doRun();
             $this->response->setStatusCode(200);
@@ -43,12 +43,10 @@ class Runner {
             $this->response->setStatusCode($e->getStatusCode());
         } catch (Throwable $e) {
             $view = new UnknownError($e->getMessage());
-            $this->response->addToBody($view->render());
+            $this->response->addViewToBody($view);
             $this->response->setStatusCode(500);
         } finally {
-            $this->response->addToBody(
-                (new Footer($this->response->getRunId()))->render()
-            );
+            $this->response->addViewToBody(new Footer($this->response->getRunId()));
         }
     }
 
@@ -81,7 +79,7 @@ class Runner {
         }
         $commandsCount = count($commands);
         $this->logger->info("Ran {$commandsCount} commands", ['updatingCommands' => $log]);
-        $this->response->addToBody($commandView->render());
+        $this->response->addViewToBody($commandView);
     }
 
     private function changeDirToRepoPath(): void {

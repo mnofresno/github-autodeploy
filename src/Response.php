@@ -2,6 +2,8 @@
 
 namespace Mariano\GitAutoDeploy;
 
+use Mariano\GitAutoDeploy\views\BaseView;
+
 class Response {
     const STATUS_MAP = [
         200 => 'OK',
@@ -21,11 +23,15 @@ class Response {
         return $this->runId;
     }
 
-    function addToBody(string $contents) {
+    public function addViewToBody(BaseView $view): void {
+        $this->addToBody($view->render());
+    }
+
+    function addToBody(string $contents): void {
         $this->body .= $contents;
     }
 
-    function setStatusCode(int $statusCode) {
+    function setStatusCode(int $statusCode): void {
         $this->statusCode = $statusCode;
     }
 
