@@ -35,10 +35,13 @@ class CustomCommandsTest extends TestCase {
     }
 
     public function testCustomCommandsAreNotSpecified() {
-        $this->mockConfigReader->expects($this->once())
+        $this->mockConfigReader->expects($this->atLeast(1))
             ->method('get')
-            ->with($this->equalTo(ConfigReader::CUSTOM_UPDATE_COMMANDS))
-            ->will($this->returnValue(null));
+            ->willReturnMap([
+                [$this->equalTo(ConfigReader::CUSTOM_UPDATE_COMMANDS), null],
+                [$this->equalTo(ConfigReader::REPOS_BASE_PATH), $this->mockRepoCreator::BASE_REPO_DIR],
+                [$this->equalTo(ConfigReader::DEFAULT_COMMANDS), null]
+            ]);
         $this->mockRequest->expects($this->once())
             ->method('getQueryParam')
             ->with($this->equalTo('repo'))

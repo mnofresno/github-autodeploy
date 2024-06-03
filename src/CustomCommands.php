@@ -34,7 +34,7 @@ class CustomCommands {
     }
 
     function get(): ?array {
-        $customCommands = $this->getCommandsByRepoOrNull();
+        $customCommands = $this->getCommandsByRepoDefaultOrNull();
         return $customCommands
             ? array_map(function (string $command) {
                 return $this->hydratePlaceHolders($command);
@@ -53,23 +53,33 @@ class CustomCommands {
         return $command;
     }
 
-    private function getCommandsByRepoOrNull(): ?array {
+    private function getCommandsByRepoDefaultOrNull(): ?array {
         $commandsConfig = $this->configReader->get(ConfigReader::CUSTOM_UPDATE_COMMANDS);
         $repoName = $this->request->getQueryParam(Request::REPO_QUERY_PARAM);
-        if (!$commandsConfig) {
-            return null;
+        $commandsPerRepoInGlobalConfig = $this->commandsPerRepoInGlobalConfig($repoName, $commandsConfig);
+        if ($commandsPerRepoInGlobalConfig) {
+            $this->logger->info("Using per-repo " . ConfigReader::CUSTOM_UPDATE_COMMANDS . " from global config file for repo {$repoName}");
+            return $commandsPerRepoInGlobalConfig;
         }
-        return $this->getCommandsByRepo($repoName, $commandsConfig)
-            ?? $this->getDefaultCommands($commandsConfig);
+        $commandsPerRepoInRepoConfig = $this->commandsPerRepoInRepoConfig($repoName);
+        if ($commandsPerRepoInRepoConfig) {
+            $this->logger->info("Using config file " . self::CUSTOM_CONFIG_FILE_NAME . " for repo {$repoName}");
+            return $commandsPerRepoInRepoConfig;
+        }
+        $defaultCommandsInGlobalConfig = $this->defaultCustomCommandsInGlobalConfig($commandsConfig);
+        if ($defaultCommandsInGlobalConfig) {
+            $this->logger->info("Using default " . ConfigReader::DEFAULT_COMMANDS . " in global config file for repo {$repoName}");
+            return $defaultCommandsInGlobalConfig;
+        }
+        $this->logger->info("Using default hardcoded commands for repo {$repoName}");
+        return null;
     }
 
-    private function getCommandsByRepo(string $repoName, array $commands): ?array {
-        return array_key_exists($repoName, $commands)
-            ? $commands[$repoName]
-            : $this->perRepoConfigFileContentsOrNull($repoName);
+    private function commandsPerRepoInGlobalConfig(string $repoName, ?array $commands): ?array {
+        return $commands[$repoName] ?? null;
     }
 
-    private function perRepoConfigFileContentsOrNull(string $repoName):?array {
+    private function commandsPerRepoInRepoConfig(string $repoName):?array {
         $repoConfigFileName = implode(
             DIRECTORY_SEPARATOR,
             [
@@ -90,10 +100,8 @@ class CustomCommands {
         return null;
     }
 
-    private function getDefaultCommands(array $commands): ?array {
-        return array_key_exists(ConfigReader::DEFAULT_COMMANDS, $commands)
-            ? $commands[ConfigReader::DEFAULT_COMMANDS]
-            : null;
+    private function defaultCustomCommandsInGlobalConfig(?array $commands): ?array {
+        return $commands[ConfigReader::DEFAULT_COMMANDS] ?? null;
     }
 
     private function getFromRequestCallback(): Closure {
