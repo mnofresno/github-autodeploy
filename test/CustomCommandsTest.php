@@ -94,7 +94,7 @@ class CustomCommandsTest extends TestCase {
 
     public function testCustomCommandsAreSpecifiedAsPerRepoWithRepoConfigFile() {
         $this->mockRepoCreator->withConfig([
-            'ls -a $SSHKeysPath'
+            ConfigReader::CUSTOM_UPDATE_COMMANDS => ['ls -a $SSHKeysPath']
         ]);
         $this->mockConfigReader->expects($this->atLeast(4))
             ->method('get')

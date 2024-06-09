@@ -5,6 +5,12 @@ namespace Mariano\GitAutoDeploy;
 use Ramsey\Uuid\Uuid;
 
 class RunSearcher {
+    private $logFileName = null;
+
+    public function __construct(?string $logFileName = null) {
+        $this->logFileName = $logFileName;
+    }
+
     public function search(string $runId): array {
         $logContents = $this->read($runId);
         $foundRows = [];
@@ -18,7 +24,12 @@ class RunSearcher {
 
     private function parse(string $logRow): array {
         $context = explode(' - ', $logRow);
-        $jsonContext = @$context[1];
+        $jsonContext = count($context) === 2
+            ? @$context[1]
+            : null;
+        if (!$this->isJson($jsonContext)) {
+            $jsonContext = null;
+        }
         $date = @$context[0];
         $logLevel = null;
         $message = null;
@@ -38,11 +49,16 @@ class RunSearcher {
         return $result;
     }
 
+    private function isJson(?string $input): bool {
+        json_decode($input);
+        return json_last_error() === JSON_ERROR_NONE;
+    }
+
     private function read(string $runId): string {
         if (!Uuid::isValid($runId)) {
             return '';
         }
-        $fileName = escapeshellarg($this->fileName());
+        $fileName = escapeshellarg($this->logFileName ?? $this->fileName());
         $runId = escapeshellarg($runId);
         exec("cat {$fileName} | grep {$runId}", $searchOutput);
         return implode('\n', $searchOutput);

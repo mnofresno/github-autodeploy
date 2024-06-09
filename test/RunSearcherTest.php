@@ -20,7 +20,42 @@ class RunSearcherTest extends TestCase {
         $this->assertEquals([], $result);
     }
 
-    public function testSearchFound(): void {
+    public function testSearchFoundOldFormatTrap(): void {
+        $testRunId = '7826dedf-52a5-4170-8d4f-ac6170f7df1d';
+        $subject = new RunSearcher(__DIR__ . DIRECTORY_SEPARATOR . 'RunSearcherLogExample.txt');
+        $result = $subject->search($testRunId);
+        $this->assertEquals([
+            [
+                'date' => '2024-06-09T02:27:39.414352+00:00',
+                'logLevel' => 'github-autodeploy.INFO',
+                'message' => 'Ran 2 commands',
+                'context' => [
+                    'runId' => $testRunId,
+                    'repo' => 'oh gran proyecto',
+                    'key' => 'oh_la_la_key',
+                    'request' => ['body' => []],
+                ],
+                'updatingCommands' => [
+                    [
+                        'command' => 'composer install',
+                        'output' => [
+                            'When running some commands like composer',
+                            '  Problem 1',
+                            '    - A command output like composer, with hyphens and spaces mixed'
+                        ],
+                        'exitCode' => 2
+                    ],
+                    [
+                        'command' => 'ls',
+                        'output' => ['one_file'],
+                        'exitCode' => 0
+                    ]
+                ]
+            ]
+        ], $result);
+    }
+
+    public function testSearchFoundWithOldFormat(): void {
         $testRunId = '9b7f5891-04e0-4216-b299-314965940b96';
         file_put_contents(__DIR__ . '/../deploy-log.log',  ($givenDate = date('Y-m-d H:i:s')) . ' - {"runId":"9b7f5891-04e0-4216-b299-314965940b96"}');
         $subject = new RunSearcher();
