@@ -91,7 +91,9 @@ class CustomCommands {
         try {
             if (file_exists($repoConfigFileName)) {
                 $contents = json_decode(file_get_contents($repoConfigFileName), true);
-                return empty($contents) ? null : $contents;
+                return empty($contents)
+                    ? null
+                    : $contents[ConfigReader::CUSTOM_UPDATE_COMMANDS] ?? null;
             }
         } catch (\JsonException $e) {
             $this->logger->error($e->getMessage());
