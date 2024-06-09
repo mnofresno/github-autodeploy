@@ -92,8 +92,8 @@ class CustomCommandsTest extends TestCase {
         ], $customCommands);
     }
 
-    public function testCustomCommandsAreSpecifiedAsPerRepoWithRepoConfigFile() {
-        $this->mockRepoCreator->withConfig([
+    public function testCustomCommandsAreSpecifiedAsPerRepoWithRepoJsonConfigFile() {
+        $this->mockRepoCreator->withConfigJson([
             ConfigReader::CUSTOM_UPDATE_COMMANDS => ['ls -a $SSHKeysPath']
         ]);
         $this->mockConfigReader->expects($this->atLeast(4))
@@ -113,6 +113,33 @@ class CustomCommandsTest extends TestCase {
         $customCommands = $this->subject->get();
         $this->assertEquals([
             'ls -a /home/tests/.ssh'
+        ], $customCommands);
+    }
+
+    /**
+     * @testWith ["yaml", "yml"]
+     */
+    public function testCustomCommandsAreSpecifiedAsPerRepoWithRepoYamlConfigFile(string $extension) {
+        $this->mockRepoCreator->withConfigYaml([
+            ConfigReader::CUSTOM_UPDATE_COMMANDS => ['runnotfound']
+        ], $extension);
+        $this->mockConfigReader->expects($this->atLeast(4))
+            ->method('get')
+            ->will(
+                $this->returnValueMap($this->configMapForNoPerRepoConfig())
+            );
+        $this->mockRequest->expects($this->atLeast(3))
+            ->method('getQueryParam')
+            ->will(
+                $this->returnValueMap([
+                [Request::REPO_QUERY_PARAM, $this->mockRepoCreator->testRepoName],
+                [Request::KEY_QUERY_PARAM, 'example-ssh-key'],
+                ['CustomQueryParam', 'custom value']
+            ])
+            );
+        $customCommands = $this->subject->get();
+        $this->assertEquals([
+            'runnotfound'
         ], $customCommands);
     }
 

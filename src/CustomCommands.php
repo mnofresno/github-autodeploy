@@ -4,6 +4,7 @@ namespace Mariano\GitAutoDeploy;
 
 use Closure;
 use Monolog\Logger;
+use Symfony\Component\Yaml\Yaml;
 
 class CustomCommands {
     const CURRENT_PLACEHOLDERS = [
@@ -13,7 +14,7 @@ class CustomCommands {
         ConfigReader::SSH_KEYS_PATH => 'c_'
     ];
 
-    public const CUSTOM_CONFIG_FILE_NAME = '.git-auto-deploy.json';
+    public const CUSTOM_CONFIG_FILE_NAME = '.git-auto-deploy';
     private const REQUEST_CALLBACK_PREFIX = 'r_';
     private const CONFIG_CALLBACK_PREFIX = 'c_';
 
@@ -63,7 +64,6 @@ class CustomCommands {
         }
         $commandsPerRepoInRepoConfig = $this->commandsPerRepoInRepoConfig($repoName);
         if ($commandsPerRepoInRepoConfig) {
-            $this->logger->info("Using config file " . self::CUSTOM_CONFIG_FILE_NAME . " for repo {$repoName}");
             return $commandsPerRepoInRepoConfig;
         }
         $defaultCommandsInGlobalConfig = $this->defaultCustomCommandsInGlobalConfig($commandsConfig);
@@ -79,6 +79,10 @@ class CustomCommands {
         return $commands[$repoName] ?? null;
     }
 
+    private function logConfigPerRepoFound(string $repoName, string $extension): void {
+        $this->logger->info("Using config file " . self::CUSTOM_CONFIG_FILE_NAME . ".$extension for repo {$repoName}");
+    }
+
     private function commandsPerRepoInRepoConfig(string $repoName):?array {
         $repoConfigFileName = implode(
             DIRECTORY_SEPARATOR,
@@ -89,8 +93,21 @@ class CustomCommands {
             ]
         );
         try {
-            if (file_exists($repoConfigFileName)) {
-                $contents = json_decode(file_get_contents($repoConfigFileName), true);
+            if (file_exists($repoConfigFileName . ".json")) {
+                $contents = json_decode(file_get_contents("$repoConfigFileName.json"), true);
+                $this->logConfigPerRepoFound($repoName, 'json');
+                return empty($contents)
+                    ? null
+                    : $contents[ConfigReader::CUSTOM_UPDATE_COMMANDS] ?? null;
+            } else if (file_exists($repoConfigFileName . ".yaml")) {
+                $this->logConfigPerRepoFound($repoName, 'yaml');
+                $contents = Yaml::parse(file_get_contents("$repoConfigFileName.yaml"));
+                return empty($contents)
+                    ? null
+                    : $contents[ConfigReader::CUSTOM_UPDATE_COMMANDS] ?? null;
+            } else if (file_exists($repoConfigFileName . ".yml")) {
+                $this->logConfigPerRepoFound($repoName, 'yml');
+                $contents = Yaml::parse(file_get_contents("$repoConfigFileName.yml"));
                 return empty($contents)
                     ? null
                     : $contents[ConfigReader::CUSTOM_UPDATE_COMMANDS] ?? null;

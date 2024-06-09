@@ -3,6 +3,7 @@
 namespace Mariano\GitAutoDeploy\Test;
 
 use Mariano\GitAutoDeploy\CustomCommands;
+use Symfony\Component\Yaml\Yaml;
 
 class MockRepoCreator {
     const BASE_REPO_DIR = "/tmp";
@@ -20,10 +21,17 @@ class MockRepoCreator {
         shell_exec("rm -rf {$this->testRepoPath}");
     }
 
-    public function withConfig(array $customRepoFileConfigContents): void {
+    public function withConfigJson(array $customRepoFileConfigContents): void {
         file_put_contents(
-            $this->testRepoPath . DIRECTORY_SEPARATOR . CustomCommands::CUSTOM_CONFIG_FILE_NAME,
+            $this->testRepoPath . DIRECTORY_SEPARATOR . CustomCommands::CUSTOM_CONFIG_FILE_NAME . '.json',
             json_encode($customRepoFileConfigContents, JSON_PRETTY_PRINT)
+        );
+    }
+
+    public function withConfigYaml(array $customRepoFileConfigContents, string $extension = 'yaml'): void {
+        file_put_contents(
+            $p = $this->testRepoPath . DIRECTORY_SEPARATOR . CustomCommands::CUSTOM_CONFIG_FILE_NAME . ".$extension",
+            Yaml::dump($customRepoFileConfigContents)
         );
     }
 }
