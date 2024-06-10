@@ -10,19 +10,22 @@ class Hamster {
     private $response;
     private $configReader;
     private $logger;
+    private $runSearcher;
 
     function __construct(
         Logger $logger,
         Runner $runner,
         Response $response,
         Request $request,
-        ConfigReader $configReader
+        ConfigReader $configReader,
+        RunSearcher $runSearcher
     ) {
         $this->logger = $logger;
         $this->runner = $runner;
         $this->request = $request;
         $this->response = $response;
         $this->configReader = $configReader;
+        $this->runSearcher = $runSearcher;
     }
 
     function run() {
@@ -31,7 +34,7 @@ class Hamster {
             $this->response->addToBody(
                 json_encode([
                     'message' => "Given run Id: $runId",
-                    'results' => (new RunSearcher())->search($runId)
+                    'results' => $this->runSearcher->search($runId)
                 ], JSON_PRETTY_PRINT)
             );
             $this->response->send('application/json; charset=utf-8');

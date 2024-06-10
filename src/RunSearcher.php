@@ -6,9 +6,11 @@ use Ramsey\Uuid\Uuid;
 
 class RunSearcher {
     private $logFileName = null;
+    private $configReader;
 
-    public function __construct(?string $logFileName = null) {
+    public function __construct(ConfigReader $configReader, ?string $logFileName = null) {
         $this->logFileName = $logFileName;
+        $this->configReader = $configReader;
     }
 
     public function search(string $runId): array {
@@ -49,6 +51,9 @@ class RunSearcher {
         $result['logLevel'] = $logLevel;
         $result['message'] = $message;
         $result['extra_context'] = @json_decode($extraContext, true) ?? [];
+        if ($this->configReader->get(ConfigReader::EXPOSE_RAW_LOG)) {
+            $result['raw_log'] = $logRow;
+        }
         return $result;
     }
 

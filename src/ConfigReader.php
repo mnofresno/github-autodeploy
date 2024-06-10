@@ -9,6 +9,7 @@ class ConfigReader {
     const CUSTOM_UPDATE_COMMANDS = 'CustomCommands';
     const DEFAULT_COMMANDS = '_default_';
     const LOG_REQUEST_BODY = 'log_request_body';
+    const EXPOSE_RAW_LOG = 'expose_raw_log';
 
     private $config;
 

@@ -13,5 +13,6 @@
             "GIT_SSH_COMMAND=\"ssh -i $SSHKeysPath/$key \" git pull"
         ]
     },
-    "log_request_body": false
+    "log_request_body": false,
+    "expose_raw_log": false
 }
