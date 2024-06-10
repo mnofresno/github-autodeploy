@@ -12,5 +12,6 @@
             "cd $ReposBasePath/$repo",
             "GIT_SSH_COMMAND=\"ssh -i $SSHKeysPath/$key \" git pull"
         ]
-    }
+    },
+    "log_request_body": false
 }

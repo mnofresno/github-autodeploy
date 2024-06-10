@@ -27,8 +27,9 @@ class RunSearcherTest extends TestCase {
         $this->assertEquals([
             [
                 'date' => '2024-06-09T02:27:39.414352+00:00',
-                'logLevel' => 'github-autodeploy.INFO',
+                'logLevel' => 'INFO',
                 'message' => 'Ran 2 commands',
+                'extra_context' => [],
                 'context' => [
                     'runId' => $testRunId,
                     'repo' => 'oh gran proyecto',
@@ -65,7 +66,8 @@ class RunSearcherTest extends TestCase {
                 'runId' => $testRunId,
                 'date' => $givenDate,
                 'logLevel' => null,
-                'message' => null
+                'message' => null,
+                'extra_context' => []
             ]
         ], $result);
     }
@@ -79,11 +81,12 @@ class RunSearcherTest extends TestCase {
             [
                 'context' => [
                     'runId' => '1a781415-67f7-4b1c-a8ed-c240bcdf66f7',
-                    'repo' => 'pepe_project'
+                    'repo' => 'pepe_project',
                 ],
                 'date' => '2024-05-08T03:09:04.454598+00:00',
-                'logLevel' => 'github-autodeploy.INFO',
-                'message' => 'Ran 4 commands'
+                'logLevel' => 'INFO',
+                'message' => 'Ran 4 commands',
+                'extra_context' => [],
             ]
         ], $result);
     }

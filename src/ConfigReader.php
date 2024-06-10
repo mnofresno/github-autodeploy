@@ -8,6 +8,7 @@ class ConfigReader {
     const REPOS_BASE_PATH = 'ReposBasePath';
     const CUSTOM_UPDATE_COMMANDS = 'CustomCommands';
     const DEFAULT_COMMANDS = '_default_';
+    const LOG_REQUEST_BODY = 'log_request_body';
 
     private $config;
 

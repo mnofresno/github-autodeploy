@@ -34,18 +34,21 @@ class RunSearcher {
         $logLevel = null;
         $message = null;
         if (!$jsonContext) {
-            $pattern = '/\[(.+)\]\s(.+):\s(.+)\s(\{.+\})\s\[\]/';
-            if (preg_match($pattern, $logRow, $matches)) {
-                $date = $matches[1];
-                $logLevel = $matches[2];
-                $message = $matches[3];
-                $jsonContext = $matches[4];
+            $pattern = '/\[(?P<date>.+?)\]\s+(?P<loggerName>\S+)\.(?P<level>\S+):\s+(?P<message>.+?)\s+(?P<context>\{.*\})(?P<extra>.+)/';
+            if (preg_match($pattern, $logRow, $matches, PREG_OFFSET_CAPTURE, 0)) {
+                $matches = array_filter($matches, "is_string", ARRAY_FILTER_USE_KEY);
+                $date = $matches['date'][0];
+                $logLevel = $matches['level'][0];
+                $message = $matches['message'][0];
+                $jsonContext = $matches['context'][0];
+                $extraContext = trim($matches['extra'][0]);
             }
         }
-        $result = json_decode($jsonContext, true);
+        $result = @json_decode($jsonContext, true) ?? [];
         $result['date'] = $date;
         $result['logLevel'] = $logLevel;
         $result['message'] = $message;
+        $result['extra_context'] = @json_decode($extraContext, true) ?? [];
         return $result;
     }
 
