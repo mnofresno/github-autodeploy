@@ -6,14 +6,24 @@ use Mariano\GitAutoDeploy\views\errors\Forbidden;
 use Mariano\GitAutoDeploy\exceptions\ForbiddenException;
 use Monolog\Logger;
 
-class Security {
+class Security implements ISecurity {
     private $logger;
+    private $params;
 
     public function __construct(Logger $logger) {
         $this->logger = $logger;
     }
 
-    function assert(array $allowedIps, array $headers, string $remoteAddr) {
+    public function setParams(...$params): self {
+        $this->params = $params;
+        return $this;
+    }
+
+    public function assert(): void {
+        $this->doAssert(...$this->params);
+    }
+
+    private function doAssert(array $allowedIps, array $headers, string $remoteAddr): void {
         $allowed = false;
         if (array_key_exists("x-forwarded-for", $headers)) {
             $ips = explode(",",$headers["x-forwarded-for"]);

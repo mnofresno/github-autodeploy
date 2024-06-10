@@ -21,19 +21,19 @@ class SecurityTest extends TestCase {
      */
     function testAssertBlockedIP() {
         $this->expectException(ForbiddenException::class);
-        $this->subject->assert(
+        $this->subject->setParams(
             ['127.0.0.2', '192.168.1.14'],
             [],
             '127.0.0.5'
-        );
+        )->assert();
     }
 
     function testAssertAllowedIP() {
-        $this->subject->assert(
+        $this->subject->setParams(
             ['127.0.0.2', '192.168.2.14', '192.168.1.'],
             [],
             '192.168.1.16'
-        );
+        )->assert();
         $this->assertTrue(true);
     }
 }

@@ -88,18 +88,20 @@ class RunnerTest extends TestCase {
                 [ConfigReader::REPOS_BASE_PATH, $this->mockRepoCreator::BASE_REPO_DIR],
                 [ConfigReader::CUSTOM_UPDATE_COMMANDS, [ConfigReader::DEFAULT_COMMANDS => ['echo -n ""', 'ls -a']]]
             ]));
+        $user = exec('whoami');
         $this->mockResponse->expects($this->any())
             ->method('addViewToBody')
             ->withConsecutive(
                 [$this->callback(function (BaseView $view) {
                     return $view instanceof Header;
                 })],
-                [$this->callback(function (BaseView $view) {
+                [$this->callback(function (BaseView $view) use ($user) {
                     $result = json_decode(json_encode($view), true);
                     return $result === [
                         [
                             'command' => 'echo -n ""',
-                            'commandOutput' => []
+                            'commandOutput' => [],
+                            'runningUser' => $user
                         ],
                         [
                             'command' => "ls -a",
@@ -107,7 +109,8 @@ class RunnerTest extends TestCase {
                                 ".",
                                 "..",
                                 "test-file-in-repo"
-                            ]
+                            ],
+                            'runningUser' => $user
                         ]
                     ];
                 })],

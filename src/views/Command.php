@@ -6,8 +6,8 @@ use JsonSerializable;
 class Command extends BaseView implements JsonSerializable {
     private $ranCommands = [];
 
-    public function add(string $command, array $commandOutput = []): void {
-        $this->ranCommands[] = new RanCommand($command, $commandOutput);
+    public function add(string $command, array $commandOutput = [], string $runningUser = null): void {
+        $this->ranCommands[] = new RanCommand($command, $commandOutput, $runningUser);
     }
 
     public function render(): string {

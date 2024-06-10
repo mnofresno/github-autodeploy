@@ -2,6 +2,7 @@
 
 namespace Mariano\GitAutoDeploy;
 
+use Mariano\GitAutoDeploy\cli\CliSecurity;
 use Mariano\GitAutoDeploy\views\Footer;
 use Mariano\GitAutoDeploy\views\Header;
 use Mariano\GitAutoDeploy\views\errors\MissingRepoOrKey;
@@ -17,26 +18,31 @@ class Runner {
     private $response;
     private $configReader;
     private $logger;
-    private $security;
 
     function __construct(
         Request $request,
         Response &$response,
         ConfigReader $configReader,
-        Logger $logger,
-        Security $security
+        Logger $logger
     ) {
         $this->request = $request;
         $this->response = $response;
         $this->configReader = $configReader;
         $this->logger = $logger;
-        $this->security = $security;
+    }
+
+    function runForCli(): void {
+        $this->doRun(new CliSecurity());
     }
 
     function run(): void {
+        $this->doRun(new Security($this->logger));
+    }
+
+    private function doRun(ISecurity $security): void {
         $this->response->addViewToBody(new Header());
         try {
-            $this->doRun();
+            $this->doRunWithSecurity($security);
             $this->response->setStatusCode(200);
         } catch (BaseException $e) {
             $this->response->addToBody($e->render());
@@ -50,12 +56,16 @@ class Runner {
         }
     }
 
-    private function doRun(): void {
-        $this->security->assert(
+    private function doRunWithSecurity(ISecurity $security): void {
+        $security->setParams(
             $this->configReader->get(ConfigReader::IPS_ALLOWLIST),
             $this->request->getHeaders(),
             $this->request->getRemoteAddress()
-        );
+        )->assert();
+        $this->doRunAfterSecurity();
+    }
+
+    private function doRunAfterSecurity(): void {
         $this->assertRepoAndKey(
             $this->request->getQueryParam(Request::REPO_QUERY_PARAM),
             $this->request->getQueryParam(Request::KEY_QUERY_PARAM)
@@ -74,12 +84,22 @@ class Runner {
             $commandOutput = [];
             $exitCode = 0;
             exec("$command 2>&1", $commandOutput, $exitCode);
-            $commandView->add($command, $commandOutput);
-            $log []= ['command' => $command, 'output' => $commandOutput, 'exitCode' => $exitCode];
+            $whoami = $this->whoami();
+            $commandView->add($command, $commandOutput, $whoami);
+            $log []= [
+                'command' => $command,
+                'output' => $commandOutput,
+                'running_user' => $whoami,
+                'exitCode' => $exitCode
+            ];
         }
         $commandsCount = count($commands);
         $this->logger->info("Ran {$commandsCount} commands", ['updatingCommands' => $log]);
         $this->response->addViewToBody($commandView);
+    }
+
+    private function whoami(): string {
+        return exec('whoami');
     }
 
     private function changeDirToRepoPath(): void {

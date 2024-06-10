@@ -1,0 +1,41 @@
+#!/usr/bin/php
+<?php
+
+use Mariano\GitAutoDeploy\ContainerProvider;
+use Mariano\GitAutoDeploy\Request;
+use Mariano\GitAutoDeploy\Response;
+
+$repo=$argv[1];
+$key=$argv[2];
+
+error_reporting(E_ERROR | E_PARSE);
+
+echo "\nTriggering for repo: $repo and key: $key\n";
+
+require __DIR__ . '/../Autoloader.php';
+
+Autoloader::load();
+
+$container = (new ContainerProvider())->provide();
+$container->set(Request::class, new class ($repo, $key) extends Request {
+    private $repo;
+    private $key;
+
+    function __construct(string $repo, string $key) {
+        $this->repo = $repo;
+        $this->key = $key;
+    }
+
+    function getQueryParam(string $queryParamName): string {
+        if ($queryParamName === self::REPO_QUERY_PARAM) {
+            return $this->repo;
+        }
+        if ($queryParamName === self::KEY_QUERY_PARAM) {
+            return $this->key;
+        }
+        return parent::getQueryParam($queryParamName);
+    }
+});
+$app = $container->get(Mariano\GitAutoDeploy\Runner::class);
+$app->runForCli();
+$container->get(Response::class)->send();
