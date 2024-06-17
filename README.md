@@ -1,5 +1,7 @@
 # Git Auto Deployment Tool
 
+[![Git Autodeploy CI](https://github.com/mnofresno/github-autodeploy/actions/workflows/push.yml/badge.svg)](https://github.com/mnofresno/github-autodeploy/actions/workflows/push.yml)
+
 ## Introduction:
 
 This project was inspired in: [This Gist](https://gist.github.com/nichtich/5290675)
