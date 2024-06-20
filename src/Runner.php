@@ -36,7 +36,7 @@ class Runner {
     }
 
     public function run(): void {
-        $this->doRun(new Security($this->logger));
+        $this->doRun(new Security($this->logger, new GithubClient()));
     }
 
     private function doRun(ISecurity $security): void {
