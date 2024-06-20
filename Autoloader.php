@@ -1,10 +1,10 @@
 <?php
 
 class Autoloader {
-    const NAMESPACE = 'Mariano\\GitAutoDeploy';
-    const SRC_PATH = 'src';
+    public const NAMESPACE = 'Mariano\\GitAutoDeploy';
+    public const SRC_PATH = 'src';
 
-    static function load() {
+    public static function load() {
         require_once __DIR__ . '/vendor/autoload.php';
         spl_autoload_register(function ($class_name) {
             $class_name_without_root_ns = str_replace(
@@ -18,10 +18,11 @@ class Autoloader {
                 $class_name_without_root_ns
             ) . '.php';
             $require_file_path = implode(
-                DIRECTORY_SEPARATOR, [
+                DIRECTORY_SEPARATOR,
+                [
                     __DIR__,
                     self::SRC_PATH,
-                    $class
+                    $class,
                 ]
             );
             if (file_exists($require_file_path)) {

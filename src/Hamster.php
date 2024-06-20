@@ -12,7 +12,7 @@ class Hamster {
     private $logger;
     private $runSearcher;
 
-    function __construct(
+    public function __construct(
         Logger $logger,
         Runner $runner,
         Response $response,
@@ -28,13 +28,13 @@ class Hamster {
         $this->runSearcher = $runSearcher;
     }
 
-    function run() {
+    public function run() {
         if (($runId = $this->request->getQueryParam('previous_run_id')) !== '') {
             $this->response->setStatusCode(200);
             $this->response->addToBody(
                 json_encode([
                     'message' => "Given run Id: $runId",
-                    'results' => $this->runSearcher->search($runId)
+                    'results' => $this->runSearcher->search($runId),
                 ], JSON_PRETTY_PRINT)
             );
             $this->response->send('application/json; charset=utf-8');
@@ -46,8 +46,8 @@ class Hamster {
                 $website = $this->configReader->get('website') ?? '-website-not-configured-';
                 $this->response->addToBody(
                     "Thinking in background...\n"
-                    ."Please consume this:\n"
-                    ."\tcurl {$website}?previous_run_id={$this->response->getRunId()}"
+                    . "Please consume this:\n"
+                    . "\tcurl {$website}?previous_run_id={$this->response->getRunId()}"
                 );
                 $this->response->setStatusCode(201);
                 $this->response->send();

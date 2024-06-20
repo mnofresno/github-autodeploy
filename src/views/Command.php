@@ -1,6 +1,7 @@
 <?php
 
 namespace Mariano\GitAutoDeploy\views;
+
 use JsonSerializable;
 
 class Command extends BaseView implements JsonSerializable {
@@ -22,6 +23,6 @@ class Command extends BaseView implements JsonSerializable {
     public function jsonSerialize(): array {
         return array_map(function (RanCommand $command) {
             return $command->jsonSerialize();
-        } , $this->ranCommands);
+        }, $this->ranCommands);
     }
 }

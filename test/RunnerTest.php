@@ -20,7 +20,7 @@ class RunnerTest extends TestCase {
     private $mockConfigReader;
     private $mockRepoCreator;
 
-    function setUp(): void {
+    public function setUp(): void {
         $this->mockRepoCreator = new MockRepoCreator();
         $this->mockRepoCreator->spinUp();
         parent::setUp();
@@ -48,7 +48,7 @@ class RunnerTest extends TestCase {
         $this->mockRepoCreator->spinDown();
     }
 
-    function testRunNoQueryParamsGivenBadRequest() {
+    public function testRunNoQueryParamsGivenBadRequest() {
         $this->mockRequest->expects($this->once())
             ->method('getHeaders')
             ->will($this->returnValue([]));
@@ -65,7 +65,7 @@ class RunnerTest extends TestCase {
         $this->subject->run();
     }
 
-    function testAllAssertionsMetOk() {
+    public function testAllAssertionsMetOk() {
         $this->mockRequest->expects($this->once())
             ->method('getHeaders')
             ->will($this->returnValue([]));
@@ -76,7 +76,7 @@ class RunnerTest extends TestCase {
             ->method('getQueryParam')
             ->will($this->returnValueMap([
                 [Request::REPO_QUERY_PARAM, $this->mockRepoCreator->testRepoName],
-                [Request::KEY_QUERY_PARAM, 'test-key-name']
+                [Request::KEY_QUERY_PARAM, 'test-key-name'],
             ]));
         $this->mockResponse->expects($this->once())
             ->method('setStatusCode')
@@ -86,7 +86,7 @@ class RunnerTest extends TestCase {
             ->will($this->returnValueMap([
                 [ConfigReader::IPS_ALLOWLIST, ['127.0.0.1']],
                 [ConfigReader::REPOS_BASE_PATH, $this->mockRepoCreator::BASE_REPO_DIR],
-                [ConfigReader::CUSTOM_UPDATE_COMMANDS, [ConfigReader::DEFAULT_COMMANDS => ['echo -n ""', 'ls -a']]]
+                [ConfigReader::CUSTOM_UPDATE_COMMANDS, [ConfigReader::DEFAULT_COMMANDS => ['echo -n ""', 'ls -a']]],
             ]));
         $user = exec('whoami');
         $this->mockResponse->expects($this->any())
@@ -101,17 +101,17 @@ class RunnerTest extends TestCase {
                         [
                             'command' => 'echo -n ""',
                             'commandOutput' => [],
-                            'runningUser' => $user
+                            'runningUser' => $user,
                         ],
                         [
                             'command' => "ls -a",
                             'commandOutput' => [
                                 ".",
                                 "..",
-                                "test-file-in-repo"
+                                "test-file-in-repo",
                             ],
-                            'runningUser' => $user
-                        ]
+                            'runningUser' => $user,
+                        ],
                     ];
                 })],
                 [$this->callback(function (BaseView $view) {

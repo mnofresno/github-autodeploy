@@ -22,9 +22,9 @@ class LoggerContext {
                 'request' => [
                     'body' => $this->config->get(ConfigReader::LOG_REQUEST_BODY) ? $this->request->getBody() : [],
                     'headers' => $this->request->getHeaders(),
-                    'remote_address' => $this->request->getRemoteAddress()
-                ]
-            ]
+                    'remote_address' => $this->request->getRemoteAddress(),
+                ],
+            ],
         ];
         return array_merge($contextualizedMessage, $context);
     }

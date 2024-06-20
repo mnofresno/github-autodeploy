@@ -3,5 +3,5 @@
 namespace Mariano\GitAutoDeploy\views;
 
 abstract class BaseView {
-    abstract function render(): string;
+    abstract public function render(): string;
 }

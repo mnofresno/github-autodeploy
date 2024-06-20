@@ -3,7 +3,6 @@
 namespace Mariano\GitAutoDeploy\Test;
 
 use DI\Container;
-use DI\DependencyException;
 use Mariano\GitAutoDeploy\ConfigReader;
 use Mariano\GitAutoDeploy\ContainerProvider;
 use Mariano\GitAutoDeploy\Hamster;

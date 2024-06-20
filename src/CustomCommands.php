@@ -7,11 +7,11 @@ use Monolog\Logger;
 use Symfony\Component\Yaml\Yaml;
 
 class CustomCommands {
-    const CURRENT_PLACEHOLDERS = [
+    public const CURRENT_PLACEHOLDERS = [
         Request::REPO_QUERY_PARAM => 'r_',
         Request::KEY_QUERY_PARAM => 'r_',
         ConfigReader::REPOS_BASE_PATH => 'c_',
-        ConfigReader::SSH_KEYS_PATH => 'c_'
+        ConfigReader::SSH_KEYS_PATH => 'c_',
     ];
 
     public const CUSTOM_CONFIG_FILE_NAME = '.git-auto-deploy';
@@ -20,7 +20,7 @@ class CustomCommands {
 
     private const CALLBACKS_MAP = [
         self::REQUEST_CALLBACK_PREFIX => 'getFromRequestCallback',
-        self::CONFIG_CALLBACK_PREFIX => 'getFromConfigCallback'
+        self::CONFIG_CALLBACK_PREFIX => 'getFromConfigCallback',
     ];
 
     private $configReader;
@@ -28,13 +28,13 @@ class CustomCommands {
     private $logger;
     private $callbacksCache = [];
 
-    function __construct(ConfigReader $configReader, Request $request, Logger $logger) {
+    public function __construct(ConfigReader $configReader, Request $request, Logger $logger) {
         $this->configReader = $configReader;
         $this->request = $request;
         $this->logger = $logger;
     }
 
-    function get(): ?array {
+    public function get(): ?array {
         $customCommands = $this->getCommandsByRepoDefaultOrNull();
         return $customCommands
             ? array_map(function (string $command) {
@@ -83,13 +83,13 @@ class CustomCommands {
         $this->logger->info("Using config file " . self::CUSTOM_CONFIG_FILE_NAME . ".$extension for repo {$repoName}");
     }
 
-    private function commandsPerRepoInRepoConfig(string $repoName):?array {
+    private function commandsPerRepoInRepoConfig(string $repoName): ?array {
         $repoConfigFileName = implode(
             DIRECTORY_SEPARATOR,
             [
                 $this->configReader->get(ConfigReader::REPOS_BASE_PATH),
                 $repoName,
-                self::CUSTOM_CONFIG_FILE_NAME
+                self::CUSTOM_CONFIG_FILE_NAME,
             ]
         );
         try {
@@ -99,13 +99,13 @@ class CustomCommands {
                 return empty($contents)
                     ? null
                     : $contents[ConfigReader::CUSTOM_UPDATE_COMMANDS] ?? null;
-            } else if (file_exists($repoConfigFileName . ".yaml")) {
+            } elseif (file_exists($repoConfigFileName . ".yaml")) {
                 $this->logConfigPerRepoFound($repoName, 'yaml');
                 $contents = Yaml::parse(file_get_contents("$repoConfigFileName.yaml"));
                 return empty($contents)
                     ? null
                     : $contents[ConfigReader::CUSTOM_UPDATE_COMMANDS] ?? null;
-            } else if (file_exists($repoConfigFileName . ".yml")) {
+            } elseif (file_exists($repoConfigFileName . ".yml")) {
                 $this->logConfigPerRepoFound($repoName, 'yml');
                 $contents = Yaml::parse(file_get_contents("$repoConfigFileName.yml"));
                 return empty($contents)
@@ -124,20 +124,20 @@ class CustomCommands {
     }
 
     private function getFromRequestCallback(): Closure {
-        return function(string $key) {
+        return function (string $key) {
             if (!isset($this->callbacksCache[self::CONFIG_CALLBACK_PREFIX . $key])) {
-                $this->callbacksCache[self::CONFIG_CALLBACK_PREFIX. $key] = $this->request->getQueryParam($key);
+                $this->callbacksCache[self::CONFIG_CALLBACK_PREFIX . $key] = $this->request->getQueryParam($key);
             }
-            return $this->callbacksCache[self::CONFIG_CALLBACK_PREFIX. $key];
+            return $this->callbacksCache[self::CONFIG_CALLBACK_PREFIX . $key];
         };
     }
 
     private function getFromConfigCallback(): Closure {
-        return function(string $key) {
+        return function (string $key) {
             if (!isset($this->callbacksCache[self::CONFIG_CALLBACK_PREFIX . $key])) {
-                $this->callbacksCache[self::CONFIG_CALLBACK_PREFIX. $key] = $this->configReader->get($key);
+                $this->callbacksCache[self::CONFIG_CALLBACK_PREFIX . $key] = $this->configReader->get($key);
             }
-            return $this->callbacksCache[self::CONFIG_CALLBACK_PREFIX. $key];
+            return $this->callbacksCache[self::CONFIG_CALLBACK_PREFIX . $key];
         };
     }
 }

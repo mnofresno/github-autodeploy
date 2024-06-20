@@ -9,7 +9,7 @@ class CliSecurity implements ISecurity {
         return $this;
     }
 
-    function assert(): void {
+    public function assert(): void {
         $sapiName = php_sapi_name();
 
         if ($sapiName !== 'cli') {

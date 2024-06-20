@@ -3,7 +3,6 @@
 namespace Mariano\GitAutoDeploy\Test;
 
 use Mariano\GitAutoDeploy\exceptions\ForbiddenException;
-use Mariano\GitAutoDeploy\Response;
 use Mariano\GitAutoDeploy\Security;
 use Monolog\Logger;
 use PHPUnit\Framework\TestCase;
@@ -19,7 +18,7 @@ class SecurityTest extends TestCase {
      * @runInSeparateProcess
      * Need separated process to be able to assert header modification by exception thrown
      */
-    function testAssertBlockedIP() {
+    public function testAssertBlockedIP() {
         $this->expectException(ForbiddenException::class);
         $this->subject->setParams(
             ['127.0.0.2', '192.168.1.14'],
@@ -28,7 +27,7 @@ class SecurityTest extends TestCase {
         )->assert();
     }
 
-    function testAssertAllowedIP() {
+    public function testAssertAllowedIP() {
         $this->subject->setParams(
             ['127.0.0.2', '192.168.2.14', '192.168.1.'],
             [],

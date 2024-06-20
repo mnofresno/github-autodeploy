@@ -13,7 +13,7 @@ class ContainerProvider {
 
     public const LOG_FILE_PATH = __DIR__ . '/../deploy-log.log';
 
-    function provide(): Container {
+    public function provide(): Container {
         $containerBuilder = new ContainerBuilder();
         $containerBuilder->addDefinitions([
             Logger::class => static function (ConfigReader $configReader, LoggerContext $loggerContext): Logger {
@@ -36,7 +36,7 @@ class ContainerProvider {
             },
             Response::class => function () {
                 return new Response($this->getLastRunId());
-            }
+            },
         ]);
         return $containerBuilder->build();
     }

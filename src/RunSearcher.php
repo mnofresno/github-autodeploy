@@ -5,7 +5,7 @@ namespace Mariano\GitAutoDeploy;
 use Ramsey\Uuid\Uuid;
 
 class RunSearcher {
-    private $logFileName = null;
+    private $logFileName;
     private $configReader;
 
     public function __construct(ConfigReader $configReader, ?string $logFileName = null) {
@@ -18,7 +18,7 @@ class RunSearcher {
         $foundRows = [];
         foreach (explode('\n', $logContents) as $logRow) {
             if (strpos($logRow, $runId) !== false) {
-                $foundRows []= $this->parse($logRow);
+                $foundRows [] = $this->parse($logRow);
             }
         }
         return $foundRows;
@@ -76,7 +76,7 @@ class RunSearcher {
         return implode(DIRECTORY_SEPARATOR, [
             __DIR__,
             '..',
-            'deploy-log.log'
+            'deploy-log.log',
         ]);
     }
 }

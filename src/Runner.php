@@ -19,7 +19,7 @@ class Runner {
     private $configReader;
     private $logger;
 
-    function __construct(
+    public function __construct(
         Request $request,
         Response &$response,
         ConfigReader $configReader,
@@ -31,11 +31,11 @@ class Runner {
         $this->logger = $logger;
     }
 
-    function runForCli(): void {
+    public function runForCli(): void {
         $this->doRun(new CliSecurity());
     }
 
-    function run(): void {
+    public function run(): void {
         $this->doRun(new Security($this->logger));
     }
 
@@ -80,17 +80,17 @@ class Runner {
         flush();
         $log = [];
         $commandView = new Command();
-        foreach ($commands AS $command) {
+        foreach ($commands as $command) {
             $commandOutput = [];
             $exitCode = 0;
             exec("$command 2>&1", $commandOutput, $exitCode);
             $whoami = $this->whoami();
             $commandView->add($command, $commandOutput, $whoami);
-            $log []= [
+            $log [] = [
                 'command' => $command,
                 'output' => $commandOutput,
                 'running_user' => $whoami,
-                'exitCode' => $exitCode
+                'exitCode' => $exitCode,
             ];
         }
         $commandsCount = count($commands);

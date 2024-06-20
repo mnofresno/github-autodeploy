@@ -1,4 +1,5 @@
 <?php
+
 use Mariano\GitAutoDeploy\ContainerProvider;
 
 require __DIR__ . '/../Autoloader.php';

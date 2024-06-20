@@ -7,13 +7,13 @@ use Mariano\GitAutoDeploy\views\BaseView;
 class UnknownError extends BaseView {
     private $message;
 
-    function __construct(string $message = null) {
+    public function __construct(string $message = null) {
         $this->message = $message;
     }
 
-    function render(): string {
+    public function render(): string {
         return "<span style=\"color: #ff0000\">Unknown error making the hamster run:"
-            ."  <span>{$this->message}</span>\n"
-            ."</span>\n";
+            . "  <span>{$this->message}</span>\n"
+            . "</span>\n";
     }
 }

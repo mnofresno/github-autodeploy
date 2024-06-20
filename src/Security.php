@@ -26,7 +26,7 @@ class Security implements ISecurity {
     private function doAssert(array $allowedIps, array $headers, string $remoteAddr): void {
         $allowed = false;
         if (array_key_exists("x-forwarded-for", $headers)) {
-            $ips = explode(",",$headers["x-forwarded-for"]);
+            $ips = explode(",", $headers["x-forwarded-for"]);
             $ip  = $ips[0];
         } else {
             $ip = $remoteAddr;

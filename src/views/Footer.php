@@ -9,7 +9,7 @@ class Footer extends BaseView {
         $this->runId = $runId;
     }
 
-    function render(): string {
+    public function render(): string {
         return "</pre>\n<div><b>RUN ID: {$this->runId}</b></div></body>\n</html>";
     }
 }

@@ -5,15 +5,15 @@ namespace Mariano\GitAutoDeploy;
 use JsonException;
 
 class Request {
-    const REPO_QUERY_PARAM = 'repo';
-    const KEY_QUERY_PARAM = 'key';
+    public const REPO_QUERY_PARAM = 'repo';
+    public const KEY_QUERY_PARAM = 'key';
 
     private $headers = [];
     private $queryParams = [];
     private $remoteAddr;
     private $body;
 
-    static function fromHttp(array $givenServerVars = null): Request {
+    public static function fromHttp(array $givenServerVars = null): Request {
         $serverVars = $givenServerVars ?? $_SERVER;
         $result = new self();
         $result->headers = self::computeHeaders($serverVars);
@@ -57,22 +57,22 @@ class Request {
         return $output;
     }
 
-    function getHeaders(): array {
+    public function getHeaders(): array {
         return $this->headers;
     }
 
-    function getRemoteAddress(): ?string {
+    public function getRemoteAddress(): ?string {
         return $this->remoteAddr;
     }
 
-    function getQueryParam(string $queryParamName): string {
+    public function getQueryParam(string $queryParamName): string {
         $value = array_key_exists($queryParamName, $this->queryParams)
             ? $this->queryParams[$queryParamName]
             : '';
         return self::sanitizeQueryparam($value);
     }
 
-    function getBody(): array {
+    public function getBody(): array {
         return $this->body;
     }
 

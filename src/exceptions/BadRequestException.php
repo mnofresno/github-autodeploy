@@ -3,7 +3,7 @@
 namespace Mariano\GitAutoDeploy\exceptions;
 
 class BadRequestException extends BaseException {
-    function getStatusCode(): int {
+    public function getStatusCode(): int {
         return 400;
     }
 }

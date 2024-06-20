@@ -15,7 +15,7 @@ class LoggerTest extends TestCase {
     private $subject;
     private $mockConfig;
 
-    function setUp(): void {
+    public function setUp(): void {
         parent::setUp();
         $container = (new ContainerProvider())->provide();
         $this->mockResponse = $this->createMock(Response::class);
@@ -30,13 +30,13 @@ class LoggerTest extends TestCase {
         $this->subject = $container->get(Logger::class);
     }
 
-    function testWriteLogWithRequestBodyAndHeaders() {
+    public function testWriteLogWithRequestBodyAndHeaders() {
         $this->mockConfig->method('get')->willReturnMap([['debug_level', 'INFO'], [ConfigReader::LOG_REQUEST_BODY, true]]);
         $this->mockRequest->expects($this->exactly(2))
             ->method('getQueryParam')
             ->will($this->returnValueMap([
                 ['repo', 'the-given-repo'],
-                ['key', 'the-given-key']
+                ['key', 'the-given-key'],
             ]));
         $this->mockRequest->expects($this->once())
             ->method('getRemoteAddress')
@@ -48,7 +48,7 @@ class LoggerTest extends TestCase {
             ->method('getBody')
             ->will($this->returnValue([
                 'first_request_body_field' => 'withavalue',
-                'andotherkey' => 'withData'
+                'andotherkey' => 'withData',
             ]));
         $this->subject->info('message for test');
         $logContents = file_get_contents(ContainerProvider::LOG_FILE_PATH);
@@ -57,27 +57,27 @@ class LoggerTest extends TestCase {
         $this->assertStringContainsString('message for test', $lastRow);
         $this->assertStringContainsString(
             '{"context":'
-            .'{"runId":"run_id_for_tests",'
-            .'"repo":"the-given-repo",'
-            .'"key":"the-given-key",'
-            .'"request":{'
-                .'"body":{'
-                    .'"first_request_body_field":"withavalue",'
-                    .'"andotherkey":"withData"},'
-                .'"headers":{"someheader":"somevalue"},'
-                .'"remote_address":"181.241.11.9"}}'
-            .'}',
+            . '{"runId":"run_id_for_tests",'
+            . '"repo":"the-given-repo",'
+            . '"key":"the-given-key",'
+            . '"request":{'
+                . '"body":{'
+                    . '"first_request_body_field":"withavalue",'
+                    . '"andotherkey":"withData"},'
+                . '"headers":{"someheader":"somevalue"},'
+                . '"remote_address":"181.241.11.9"}}'
+            . '}',
             $lastRow
         );
     }
 
-    function testWriteLogWithoutRequestBodyJustHeaders() {
+    public function testWriteLogWithoutRequestBodyJustHeaders() {
         $this->mockConfig->method('get')->willReturnMap([['debug_level', 'INFO'], [ConfigReader::LOG_REQUEST_BODY, false]]);
         $this->mockRequest->expects($this->exactly(2))
             ->method('getQueryParam')
             ->will($this->returnValueMap([
                 ['repo', 'the-given-repo'],
-                ['key', 'the-given-key']
+                ['key', 'the-given-key'],
             ]));
         $this->mockRequest->expects($this->once())
             ->method('getRemoteAddress')
@@ -89,7 +89,7 @@ class LoggerTest extends TestCase {
             ->method('getBody')
             ->will($this->returnValue([
                 'first_request_body_field' => 'withavalue',
-                'andotherkey' => 'withData'
+                'andotherkey' => 'withData',
             ]));
         $this->subject->info('message for test');
         $logContents = file_get_contents(ContainerProvider::LOG_FILE_PATH);
@@ -98,14 +98,14 @@ class LoggerTest extends TestCase {
         $this->assertStringContainsString('message for test', $lastRow);
         $this->assertStringContainsString(
             '{"context":'
-            .'{"runId":"run_id_for_tests",'
-            .'"repo":"the-given-repo",'
-            .'"key":"the-given-key",'
-            .'"request":{'
-                .'"body":[],'
-                .'"headers":{"someheader":"somevalue"},'
-                .'"remote_address":"181.241.11.9"}}'
-            .'}',
+            . '{"runId":"run_id_for_tests",'
+            . '"repo":"the-given-repo",'
+            . '"key":"the-given-key",'
+            . '"request":{'
+                . '"body":[],'
+                . '"headers":{"someheader":"somevalue"},'
+                . '"remote_address":"181.241.11.9"}}'
+            . '}',
             $lastRow
         );
     }

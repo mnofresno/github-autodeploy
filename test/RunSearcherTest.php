@@ -25,7 +25,7 @@ class RunSearcherTest extends TestCase {
 
     public function testSearchFoundInvalidUUID(): void {
         $testRunId = 'this-is_not_valid-uuid';
-        file_put_contents(__DIR__ . '/../deploy-log.log',  \date('Y-m-d H:i:s') . ' - {"runId":"9b7f5891-04e0-4216-b299-314965940b96"}');
+        file_put_contents(__DIR__ . '/../deploy-log.log', \date('Y-m-d H:i:s') . ' - {"runId":"9b7f5891-04e0-4216-b299-314965940b96"}');
         $subject = new RunSearcher($this->mockConfig);
         $result = $subject->search($testRunId);
         $this->assertEquals([], $result);
@@ -53,23 +53,23 @@ class RunSearcherTest extends TestCase {
                         'output' => [
                             'When running some commands like composer',
                             '  Problem 1',
-                            '    - A command output like composer, with hyphens and spaces mixed'
+                            '    - A command output like composer, with hyphens and spaces mixed',
                         ],
-                        'exitCode' => 2
+                        'exitCode' => 2,
                     ],
                     [
                         'command' => 'ls',
                         'output' => ['one_file'],
-                        'exitCode' => 0
-                    ]
-                ]
-            ]
+                        'exitCode' => 0,
+                    ],
+                ],
+            ],
         ], $result);
     }
 
     public function testSearchFoundWithOldFormat(): void {
         $testRunId = '9b7f5891-04e0-4216-b299-314965940b96';
-        file_put_contents(__DIR__ . '/../deploy-log.log',  ($givenDate = date('Y-m-d H:i:s')) . ' - {"runId":"9b7f5891-04e0-4216-b299-314965940b96"}');
+        file_put_contents(__DIR__ . '/../deploy-log.log', ($givenDate = date('Y-m-d H:i:s')) . ' - {"runId":"9b7f5891-04e0-4216-b299-314965940b96"}');
         $subject = new RunSearcher($this->mockConfig);
         $result = $subject->search($testRunId);
         $this->assertEquals([
@@ -78,8 +78,8 @@ class RunSearcherTest extends TestCase {
                 'date' => $givenDate,
                 'logLevel' => null,
                 'message' => null,
-                'extra_context' => []
-            ]
+                'extra_context' => [],
+            ],
         ], $result);
     }
 
@@ -98,7 +98,7 @@ class RunSearcherTest extends TestCase {
                 'logLevel' => 'INFO',
                 'message' => 'Ran 4 commands',
                 'extra_context' => [],
-            ]
+            ],
         ], $result);
     }
 }

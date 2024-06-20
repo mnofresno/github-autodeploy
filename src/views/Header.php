@@ -3,7 +3,7 @@
 namespace Mariano\GitAutoDeploy\views;
 
 class Header extends BaseView {
-    function render(): string {
+    public function render(): string {
         $TITLE   = 'Git Deployment Hamster';
         $VERSION = '0.11';
         return <<<EOT

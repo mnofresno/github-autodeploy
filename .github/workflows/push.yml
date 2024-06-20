@@ -27,3 +27,11 @@ jobs:
       run: composer run-script test
     - name: Run PHP-CS-Fixer
       run: vendor/bin/php-cs-fixer fix --dry-run --diff --verbose --config ./test/.php_cs.dist.php
+
+  lint-php-code:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+      - name: Lint PHP code (Dry Run)
+        run: ./linter/lint.sh --dry-run

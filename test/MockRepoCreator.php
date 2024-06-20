@@ -6,7 +6,7 @@ use Mariano\GitAutoDeploy\CustomCommands;
 use Symfony\Component\Yaml\Yaml;
 
 class MockRepoCreator {
-    const BASE_REPO_DIR = "/tmp";
+    public const BASE_REPO_DIR = "/tmp";
 
     private $testRepoPath;
     public $testRepoName;
@@ -14,7 +14,7 @@ class MockRepoCreator {
     public function spinUp(): void {
         $this->testRepoPath = self::BASE_REPO_DIR . DIRECTORY_SEPARATOR . ($this->testRepoName = uniqid('test-repo-name'));
         mkdir($this->testRepoPath, 0777, true);
-        touch($this->testRepoPath  . '/test-file-in-repo');
+        touch($this->testRepoPath . '/test-file-in-repo');
     }
 
     public function spinDown(): void {
