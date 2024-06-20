@@ -9,11 +9,11 @@ use Monolog\Logger;
 class Security implements ISecurity {
     private $logger;
     private $params;
-    private $githubClient;
+    private $ipAllowListManager;
 
-    public function __construct(Logger $logger, GithubClient $githubClient) {
+    public function __construct(Logger $logger, IPAllowListManager $ipAllowListManager) {
         $this->logger = $logger;
-        $this->githubClient = $githubClient;
+        $this->ipAllowListManager = $ipAllowListManager;
     }
 
     public function setParams(...$params): self {
@@ -25,24 +25,19 @@ class Security implements ISecurity {
         $this->doAssert(...$this->params);
     }
 
-    private function doAssert(array $allowedIps, array $headers, string $remoteAddr): void {
-        $allowedIpsFromFile = $this->readAllowList();
-        $allowedIps = array_merge($allowedIps, $allowedIpsFromFile);
-
+    private function doAssert(array $allowedIpsOrRanges, array $headers, string $remoteAddr): void {
         $ip = $this->getClientIp($headers, $remoteAddr);
-
-        if ($this->isIpAllowed($ip, $allowedIps)) {
-            $this->throwIfAllowed(true);
+        $allowedIpsOrRanges = array_merge($allowedIpsOrRanges, $this->ipAllowListManager->getAllowedIpsOrRanges());
+        if ($this->isIpAllowed($ip, $allowedIpsOrRanges)) {
+            $this->throwIfApplies(true);
             return;
         }
-
-        // If IP is not in the allow list, fetch additional ranges from GitHub
-        $githubCidrs = $this->githubClient->fetchActionsCidrs();
-        $this->updateAllowList($githubCidrs);
-
-        // Re-check the IP against the updated allow list
-        $allowedIps = array_merge($allowedIps, $githubCidrs);
-        $this->throwIfAllowed($this->isIpAllowed($ip, $allowedIps));
+        $this->throwIfApplies(
+            $this->isIpAllowed(
+                $ip,
+                $this->ipAllowListManager->updateAllowListWithGithubCidrs()
+            )
+        );
     }
 
     private function getClientIp(array $headers, string $remoteAddr): string {
@@ -53,22 +48,15 @@ class Security implements ISecurity {
         return $remoteAddr;
     }
 
-    private function readAllowList(): array {
-        $filePath = 'allow-list.txt';
-        if (!file_exists($filePath)) {
-            return [];
-        }
-        $lines = file($filePath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-        return $lines !== false ? $lines : [];
-    }
-
-    private function isIpAllowed(string $ip, array $allowedIps): bool {
-        foreach ($allowedIps as $allow) {
+    private function isIpAllowed(string $ip, array $allowedIpsOrRanges): bool {
+        foreach ($allowedIpsOrRanges as $allow) {
             if (strpos($allow, '/') !== false) {
                 if ($this->ipInRange($ip, $allow)) {
+                    $this->logger->debug("IP $ip was detected in range: " . print_r($allow, true));
                     return true;
                 }
-            } elseif (stripos($ip, $allow) !== false) {
+            } else if (stripos($ip, $allow) !== false) {
+                $this->logger->debug("IP $ip was directly detected in allow list: " . print_r($allow, true));
                 return true;
             }
         }
@@ -83,18 +71,8 @@ class Security implements ISecurity {
         return ($ip & $mask) == ($subnet & $mask);
     }
 
-    private function updateAllowList(array $githubCidrs): void {
-        $filePath = 'allow-list.txt';
-        $currentAllowList = $this->readAllowList();
-        $newEntries = array_diff($githubCidrs, $currentAllowList);
-
-        if (!empty($newEntries)) {
-            file_put_contents($filePath, implode(PHP_EOL, $newEntries) . PHP_EOL, FILE_APPEND);
-        }
-    }
-
-    private function throwIfAllowed(bool $allowed) {
-        if (!$allowed) {
+    private function throwIfApplies(bool $doThrow) {
+        if (!$doThrow) {
             throw new ForbiddenException(new Forbidden(), $this->logger);
         }
     }

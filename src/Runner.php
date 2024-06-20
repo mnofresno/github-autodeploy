@@ -18,17 +18,20 @@ class Runner {
     private $response;
     private $configReader;
     private $logger;
+    private $ipAllowListManager;
 
     public function __construct(
         Request $request,
         Response &$response,
         ConfigReader $configReader,
-        Logger $logger
+        Logger $logger,
+        IPAllowListManager $ipAllowListManager
     ) {
         $this->request = $request;
         $this->response = $response;
         $this->configReader = $configReader;
         $this->logger = $logger;
+        $this->ipAllowListManager = $ipAllowListManager;
     }
 
     public function runForCli(): void {
@@ -36,7 +39,7 @@ class Runner {
     }
 
     public function run(): void {
-        $this->doRun(new Security($this->logger, new GithubClient()));
+        $this->doRun(new Security($this->logger, $this->ipAllowListManager));
     }
 
     private function doRun(ISecurity $security): void {
@@ -58,7 +61,10 @@ class Runner {
 
     private function doRunWithSecurity(ISecurity $security): void {
         $security->setParams(
-            $this->configReader->get(ConfigReader::IPS_ALLOWLIST),
+            array_merge(
+                $this->configReader->get(ConfigReader::IPS_ALLOWLIST),
+                $this->ipAllowListManager->getAllowedIpsOrRanges()
+            ),
             $this->request->getHeaders(),
             $this->request->getRemoteAddress()
         )->assert();
