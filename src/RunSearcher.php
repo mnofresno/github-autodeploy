@@ -13,12 +13,16 @@ class RunSearcher {
         $this->configReader = $configReader;
     }
 
-    public function search(string $runId): array {
+    public function search(string $runId, ?array $fields = null): array {
         $logContents = $this->read($runId);
         $foundRows = [];
-        foreach (explode('\n', $logContents) as $logRow) {
+        foreach (explode("\n", $logContents) as $logRow) {
             if (strpos($logRow, $runId) !== false) {
-                $foundRows [] = $this->parse($logRow);
+                $parsedRow = $this->parse($logRow);
+                if ($fields && !empty($fields)) {
+                    $parsedRow = array_intersect_key($parsedRow, array_flip($fields));
+                }
+                $foundRows [] = $parsedRow;
             }
         }
         return $foundRows;
@@ -26,9 +30,7 @@ class RunSearcher {
 
     private function parse(string $logRow): array {
         $context = explode(' - ', $logRow);
-        $jsonContext = count($context) === 2
-            ? @$context[1]
-            : null;
+        $jsonContext = count($context) === 2 ? @$context[1] : null;
         if (!$this->isJson($jsonContext)) {
             $jsonContext = null;
         }
@@ -69,7 +71,7 @@ class RunSearcher {
         $fileName = escapeshellarg($this->logFileName ?? $this->fileName());
         $runId = escapeshellarg($runId);
         exec("cat {$fileName} | grep {$runId}", $searchOutput);
-        return implode('\n', $searchOutput);
+        return implode("\n", $searchOutput);
     }
 
     private function fileName(): string {

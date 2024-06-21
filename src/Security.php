@@ -38,7 +38,6 @@ class Security implements ISecurity {
         }
     }
 
-
     private function getClientIp(array $headers, string $remoteAddr): string {
         if (array_key_exists("x-forwarded-for", $headers)) {
             $ips = explode(",", $headers["x-forwarded-for"]);

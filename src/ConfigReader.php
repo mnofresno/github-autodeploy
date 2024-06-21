@@ -10,7 +10,7 @@ class ConfigReader {
     public const DEFAULT_COMMANDS = '_default_';
     public const LOG_REQUEST_BODY = 'log_request_body';
     public const EXPOSE_RAW_LOG = 'expose_raw_log';
-
+    public const SECRETS = 'secrets';
     private $config;
 
     public function __construct() {

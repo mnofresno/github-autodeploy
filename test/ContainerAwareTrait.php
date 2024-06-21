@@ -6,6 +6,8 @@ use DI\Container;
 use Mariano\GitAutoDeploy\ContainerProvider;
 
 trait ContainerAwareTrait {
+    private $container;
+
     protected function set($id, $object): void {
         $this->getContainer()->set($id, $object);
     }
@@ -15,8 +17,10 @@ trait ContainerAwareTrait {
     }
 
     private function getContainer(): Container {
-        $provider = new ContainerProvider();
-        return $provider->provide();
-
+        if (!$this->container) {
+            $provider = new ContainerProvider();
+            return $this->container = $provider->provide();
+        }
+        return $this->container;
     }
 }

@@ -88,6 +88,6 @@ class Request {
     }
 
     private static function sanitizeQueryparam(string $input): string {
-        return preg_replace('/[^A-Za-z0-9_\-]/', '_', $input);
+        return preg_replace('/[^A-Za-z0-9_,\-]/', '_', $input); // Allow commas
     }
 }

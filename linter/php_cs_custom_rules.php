@@ -45,15 +45,19 @@ return (new PhpCsFixer\Config())
         'type_declaration_spaces'         => true,
         'no_unused_imports'               => true,
         'no_leading_import_slash'         => true,
-        // // Use PSR-12 standard
-        '@PSR12' => true,
-        "braces_position" => [
+        '@PSR12'                          => true,
+        'braces_position'                 => [
             'classes_opening_brace'            => 'same_line',
             'control_structures_opening_brace' => 'same_line',
             'functions_opening_brace'          => 'same_line',
         ],
-        "statement_indentation" => true,
-        "trailing_comma_in_multiline" => true,
-        "trim_array_spaces" => true,
+        'statement_indentation'           => true,
+        'trailing_comma_in_multiline'     => true,
+        'trim_array_spaces'               => true,
+        'class_attributes_separation'     => [
+            'elements' => [
+                'method' => 'one',
+            ],
+        ],
     ])
     ->setFinder($finder);

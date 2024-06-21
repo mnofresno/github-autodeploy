@@ -101,4 +101,31 @@ class RunSearcherTest extends TestCase {
             ],
         ], $result);
     }
+
+    public function testSearchWithFields(): void {
+        $line = '[2024-05-08T03:09:04.454598+00:00] github-autodeploy.INFO: Ran 4 commands {"context":{"runId":"1a781415-67f7-4b1c-a8ed-c240bcdf66f7","repo":"pepe_project"}} []';
+        file_put_contents(__DIR__ . '/../deploy-log.log', $line);
+        $subject = new RunSearcher($this->mockConfig);
+        $result = $subject->search('1a781415-67f7-4b1c-a8ed-c240bcdf66f7', ['date', 'message']);
+        $this->assertEquals([
+            [
+                'date' => '2024-05-08T03:09:04.454598+00:00',
+                'message' => 'Ran 4 commands',
+            ],
+        ], $result);
+    }
+
+    public function testSearchWithMultipleFields(): void {
+        $line = '[2024-05-08T03:09:04.454598+00:00] github-autodeploy.INFO: Ran 4 commands {"context":{"runId":"1a781415-67f7-4b1c-a8ed-c240bcdf66f7","repo":"pepe_project"}} []';
+        file_put_contents(__DIR__ . '/../deploy-log.log', $line);
+        $subject = new RunSearcher($this->mockConfig);
+        $result = $subject->search('1a781415-67f7-4b1c-a8ed-c240bcdf66f7', ['date', 'message', 'logLevel']);
+        $this->assertEquals([
+            [
+                'date' => '2024-05-08T03:09:04.454598+00:00',
+                'message' => 'Ran 4 commands',
+                'logLevel' => 'INFO',
+            ],
+        ], $result);
+    }
 }
