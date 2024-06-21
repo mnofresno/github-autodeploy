@@ -3,10 +3,10 @@
 namespace Mariano\GitAutoDeploy\Test;
 
 use Mariano\GitAutoDeploy\ConfigReader;
+use Mariano\GitAutoDeploy\IPAllowListManager;
 use Mariano\GitAutoDeploy\Request;
 use Mariano\GitAutoDeploy\Response;
 use Mariano\GitAutoDeploy\Runner;
-use Mariano\GitAutoDeploy\Security;
 use Mariano\GitAutoDeploy\views\BaseView;
 use Mariano\GitAutoDeploy\views\Footer;
 use Mariano\GitAutoDeploy\views\Header;
@@ -40,7 +40,7 @@ class RunnerTest extends TestCase {
             $this->mockResponse,
             $this->mockConfigReader,
             $this->createMock(Logger::class),
-            $this->createMock(Security::class)
+            $this->createMock(IPAllowListManager::class)
         );
     }
 
