@@ -7,7 +7,6 @@ use Mariano\GitAutoDeploy\IPAllowListManager;
 use Mariano\GitAutoDeploy\Request;
 use Mariano\GitAutoDeploy\Response;
 use Mariano\GitAutoDeploy\Runner;
-use Mariano\GitAutoDeploy\Security;
 use Mariano\GitAutoDeploy\views\BaseView;
 use Mariano\GitAutoDeploy\views\Footer;
 use Mariano\GitAutoDeploy\views\Header;

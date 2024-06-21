@@ -3,7 +3,7 @@
 namespace Mariano\GitAutoDeploy\Test;
 
 use Mariano\GitAutoDeploy\ConfigReader;
-use Mariano\GitAutoDeploy\exceptions\ForbiddenException;
+use Mariano\GitAutoDeploy\Exceptions\ForbiddenException;
 use Mariano\GitAutoDeploy\GithubClient;
 use Mariano\GitAutoDeploy\IPAllowListManager;
 use Mariano\GitAutoDeploy\Security;
@@ -105,5 +105,15 @@ class SecurityTest extends TestCase {
         $this->assertCount(3, $updatedAllowList); // Original + 2 new CIDR ranges
         $this->assertContains('192.168.3.0/24', $updatedAllowList);
         $this->assertContains('192.168.4.0/24', $updatedAllowList);
+    }
+
+    public function testAssertIpWithInvalidCidrInFile() {
+        file_put_contents($this->allowListFile, "invalid_cidr\n");
+        $this->expectException(ForbiddenException::class);
+        $this->subject->setParams(
+            [],
+            [],
+            '192.168.1.16'
+        )->assert();
     }
 }

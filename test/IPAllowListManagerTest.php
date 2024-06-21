@@ -38,6 +38,12 @@ class IPAllowListManagerTest extends TestCase {
         $this->assertEmpty($this->ipAllowListManager->getAllowedIpsOrRanges());
     }
 
+    public function testGetAllowedIpsOrRangesInvalidCidr(): void {
+        file_put_contents($this->allowListFile, "invalid_cidr\n");
+        $allowedIpsOrRanges = $this->ipAllowListManager->getAllowedIpsOrRanges();
+        $this->assertEmpty($allowedIpsOrRanges);
+    }
+
     public function testUpdateAllowListWithGithubCidrsNoNewEntries(): void {
         $this->githubClientMock->expects($this->once())
             ->method('fetchActionsCidrs')
@@ -60,6 +66,17 @@ class IPAllowListManagerTest extends TestCase {
         $updatedAllowList = $this->ipAllowListManager->updateAllowListWithGithubCidrs();
 
         // Expecting the initial allow list (empty in this case) to be returned
+        $this->assertEquals($initialAllowList, $updatedAllowList);
+    }
+
+    public function testUpdateAllowListWithInvalidGithubCidrs(): void {
+        $this->githubClientMock->expects($this->once())
+            ->method('fetchActionsCidrs')
+            ->willReturn(['invalid_cidr']);
+
+        $initialAllowList = $this->ipAllowListManager->getAllowedIpsOrRanges();
+        $updatedAllowList = $this->ipAllowListManager->updateAllowListWithGithubCidrs();
+
         $this->assertEquals($initialAllowList, $updatedAllowList);
     }
 }

@@ -28,16 +28,17 @@ class Security implements ISecurity {
     private function doAssert(array $allowedIpsOrRanges, array $headers, string $remoteAddr): void {
         $ip = $this->getClientIp($headers, $remoteAddr);
         $allowedIpsOrRanges = array_merge($allowedIpsOrRanges, $this->ipAllowListManager->getAllowedIpsOrRanges());
+        $this->logger->info("Checking IP $ip against allowed IPs or ranges.");
+
         if ($this->isIpAllowed($ip, $allowedIpsOrRanges)) {
             $this->throwIfApplies(true);
             return;
         }
-        $this->throwIfApplies(
-            $this->isIpAllowed(
-                $ip,
-                $this->ipAllowListManager->updateAllowListWithGithubCidrs()
-            )
-        );
+
+        $updatedAllowList = $this->ipAllowListManager->updateAllowListWithGithubCidrs();
+        $this->logger->info("Updated allow list from GitHub CIDRs.");
+
+        $this->throwIfApplies($this->isIpAllowed($ip, $updatedAllowList));
     }
 
     private function getClientIp(array $headers, string $remoteAddr): string {
@@ -51,11 +52,13 @@ class Security implements ISecurity {
     private function isIpAllowed(string $ip, array $allowedIpsOrRanges): bool {
         foreach ($allowedIpsOrRanges as $allow) {
             if (strpos($allow, '/') !== false) {
-                if ($this->ipInRange($ip, $allow)) {
+                if (!$this->ipInRange($ip, $allow)) {
+                    $this->logger->warning("Invalid CIDR format detected: $allow");
+                } elseif ($this->ipInRange($ip, $allow)) {
                     $this->logger->debug("IP $ip was detected in range: " . print_r($allow, true));
                     return true;
                 }
-            } else if (stripos($ip, $allow) !== false) {
+            } elseif (stripos($ip, $allow) !== false) {
                 $this->logger->debug("IP $ip was directly detected in allow list: " . print_r($allow, true));
                 return true;
             }
@@ -65,6 +68,9 @@ class Security implements ISecurity {
 
     private function ipInRange(string $ip, string $cidr): bool {
         list($subnet, $maskLength) = explode('/', $cidr);
+        if (!filter_var($subnet, FILTER_VALIDATE_IP) || !is_numeric($maskLength)) {
+            return false;
+        }
         $ip = ip2long($ip);
         $subnet = ip2long($subnet);
         $mask = -1 << (32 - $maskLength);
@@ -73,6 +79,7 @@ class Security implements ISecurity {
 
     private function throwIfApplies(bool $doThrow) {
         if (!$doThrow) {
+            $this->logger->warning("Access denied: IP not in allowed list or ranges.");
             throw new ForbiddenException(new Forbidden(), $this->logger);
         }
     }

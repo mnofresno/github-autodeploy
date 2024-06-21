@@ -23,11 +23,17 @@ class IPAllowListManager {
     }
 
     public function getAllowedIpsOrRanges(): array {
-        if (!file_exists($this->filePath())) {
+        $filePath = $this->filePath();
+        if (!file_exists($filePath)) {
+            $this->logger->info("Allow list file does not exist: {$filePath}");
             return [];
         }
-        $lines = file($this->filePath(), FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-        return $lines !== false ? $lines : [];
+        $this->logger->info("Reading allow list file: {$filePath}");
+        $lines = file($filePath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        $validLines = array_filter($lines, function ($line) {
+            return $this->isValidCidr($line) || filter_var($line, FILTER_VALIDATE_IP);
+        });
+        return $validLines !== false ? $validLines : [];
     }
 
     public function updateAllowListWithGithubCidrs(): array {
@@ -39,7 +45,14 @@ class IPAllowListManager {
         }
 
         $currentAllowList = $this->getAllowedIpsOrRanges();
-        $newEntries = array_diff($githubCidrs, $currentAllowList);
+        $newEntries = [];
+        foreach ($githubCidrs as $cidr) {
+            if ($this->isValidCidr($cidr) && !in_array($cidr, $currentAllowList)) {
+                $newEntries[] = $cidr;
+            } else {
+                $this->logger->warning("Invalid or duplicate CIDR detected: {$cidr}");
+            }
+        }
 
         if (!empty($newEntries)) {
             $newEntriesString = json_encode($newEntries);
@@ -49,6 +62,15 @@ class IPAllowListManager {
             $this->logger->info("No new IPs or ranges fetched from GitHub.");
         }
 
-        return array_merge($currentAllowList, $newEntries);
+        return $this->getAllowedIpsOrRanges();
+    }
+
+    private function isValidCidr(string $cidr): bool {
+        $parts = explode('/', $cidr);
+        if (count($parts) !== 2 || !filter_var($parts[0], FILTER_VALIDATE_IP) || !is_numeric($parts[1])) {
+            return false;
+        }
+        $mask = (int) $parts[1];
+        return $mask >= 0 && $mask <= 32;
     }
 }
