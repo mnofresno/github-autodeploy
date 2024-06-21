@@ -14,5 +14,7 @@
         ]
     },
     "log_request_body": false,
-    "expose_raw_log": false
+    "expose_raw_log": false,
+    "github_meta_api_url": "https://api.github.com/meta",
+    "github_ranges_lists": ["actions", "hooks"]
 }

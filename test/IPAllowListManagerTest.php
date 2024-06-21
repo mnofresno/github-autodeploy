@@ -46,7 +46,7 @@ class IPAllowListManagerTest extends TestCase {
 
     public function testUpdateAllowListWithGithubCidrsNoNewEntries(): void {
         $this->githubClientMock->expects($this->once())
-            ->method('fetchActionsCidrs')
+            ->method('fetchAllowedRangesLists')
             ->willReturn(['192.168.1.0/24', '192.168.2.0/24']);
 
         $initialAllowList = $this->ipAllowListManager->getAllowedIpsOrRanges();
@@ -59,7 +59,7 @@ class IPAllowListManagerTest extends TestCase {
     public function testUpdateAllowListWithGithubCidrsWithNewEntries(): void {
         // Simulate that the GitHub client returns an empty array (no new entries)
         $this->githubClientMock->expects($this->once())
-            ->method('fetchActionsCidrs')
+            ->method('fetchAllowedRangesLists')
             ->willReturn([]);
 
         $initialAllowList = $this->ipAllowListManager->getAllowedIpsOrRanges();
@@ -71,7 +71,7 @@ class IPAllowListManagerTest extends TestCase {
 
     public function testUpdateAllowListWithInvalidGithubCidrs(): void {
         $this->githubClientMock->expects($this->once())
-            ->method('fetchActionsCidrs')
+            ->method('fetchAllowedRangesLists')
             ->willReturn(['invalid_cidr']);
 
         $initialAllowList = $this->ipAllowListManager->getAllowedIpsOrRanges();

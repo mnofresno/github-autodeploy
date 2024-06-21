@@ -73,7 +73,7 @@ class SecurityTest extends TestCase {
 
     public function testAssertIpNotInAllowListOrCidrAndFetchFromGithub() {
         $this->githubClientMock->expects($this->once())
-            ->method('fetchActionsCidrs')
+            ->method('fetchAllowedRangesLists')
             ->willReturn(['192.168.2.0/24']);
 
         file_put_contents($this->allowListFile, "192.168.1.0/24\n");
@@ -91,7 +91,7 @@ class SecurityTest extends TestCase {
         file_put_contents($this->allowListFile, "192.168.1.0/24\n");
 
         $this->githubClientMock->expects($this->once())
-            ->method('fetchActionsCidrs')
+            ->method('fetchAllowedRangesLists')
             ->willReturn($cidrs);
 
         $this->subject->setParams(

@@ -42,7 +42,7 @@ class IPAllowListManager {
 
     public function updateAllowListWithGithubCidrs(): array {
         try {
-            $githubCidrs = $this->githubClient->fetchActionsCidrs();
+            $githubCidrs = $this->githubClient->fetchAllowedRangesLists();
         } catch (\Exception $e) {
             $this->logger->error("Failed to fetch GitHub CIDRs: " . $e->getMessage());
             return [];
