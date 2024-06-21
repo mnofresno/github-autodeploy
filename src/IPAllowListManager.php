@@ -6,11 +6,15 @@ use Monolog\Logger;
 
 class IPAllowListManager {
     public const ALLOW_LIST_FILE_KEY = 'ips_allow_list_file';
-    public const DEFAULT_ALLOW_LIST_FILE = __DIR__ . "/../ips-allow-list.txt";
+    public const DEFAULT_ALLOW_LIST_FILE = __DIR__ . "/../ips-allow-list.list";
 
     private $configReader;
     private $githubClient;
     private $logger;
+    private $invalidCidrs = [];
+    private $logThreshold = 10;  // Log after collecting 10 invalid CIDRs
+    private $lastLogTime = 0;
+    private $logInterval = 60; // Log at most once every 60 seconds
 
     public function __construct(ConfigReader $configReader, GithubClient $githubClient, Logger $logger) {
         $this->configReader = $configReader;
@@ -46,11 +50,13 @@ class IPAllowListManager {
 
         $currentAllowList = $this->getAllowedIpsOrRanges();
         $newEntries = [];
+
         foreach ($githubCidrs as $cidr) {
             if ($this->isValidCidr($cidr) && !in_array($cidr, $currentAllowList)) {
                 $newEntries[] = $cidr;
             } else {
-                $this->logger->warning("Invalid or duplicate CIDR detected: {$cidr}");
+                $this->invalidCidrs[] = $cidr;
+                $this->logInvalidCidrs();
             }
         }
 
@@ -65,12 +71,31 @@ class IPAllowListManager {
         return $this->getAllowedIpsOrRanges();
     }
 
+    private function logInvalidCidrs() {
+        $currentTime = time();
+        if (count($this->invalidCidrs) >= $this->logThreshold || ($currentTime - $this->lastLogTime) >= $this->logInterval) {
+            $invalidCidrsString = json_encode($this->invalidCidrs);
+            $this->logger->warning("Invalid or duplicate CIDRs detected: {$invalidCidrsString}");
+            $this->invalidCidrs = [];  // Clear the invalid CIDRs
+            $this->lastLogTime = $currentTime;
+        }
+    }
+
     private function isValidCidr(string $cidr): bool {
         $parts = explode('/', $cidr);
-        if (count($parts) !== 2 || !filter_var($parts[0], FILTER_VALIDATE_IP) || !is_numeric($parts[1])) {
+        if (count($parts) !== 2 || !is_numeric($parts[1])) {
             return false;
         }
+        $ip = $parts[0];
         $mask = (int) $parts[1];
-        return $mask >= 0 && $mask <= 32;
+
+        // Check if the IP is valid and the mask is within the correct range for IPv4 or IPv6
+        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) && $mask >= 0 && $mask <= 32) {
+            return true;
+        } elseif (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) && $mask >= 0 && $mask <= 128) {
+            return true;
+        }
+
+        return false;
     }
 }

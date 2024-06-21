@@ -26,20 +26,18 @@ class Security implements ISecurity {
     }
 
     private function doAssert(array $allowedIpsOrRanges, array $headers, string $remoteAddr): void {
-        $ip = $this->getClientIp($headers, $remoteAddr);
-        $allowedIpsOrRanges = array_merge($allowedIpsOrRanges, $this->ipAllowListManager->getAllowedIpsOrRanges());
-        $this->logger->info("Checking IP $ip against allowed IPs or ranges.");
-
-        if ($this->isIpAllowed($ip, $allowedIpsOrRanges)) {
-            $this->throwIfApplies(true);
+        $clientIp = $this->getClientIp($headers, $remoteAddr);
+        $this->logger->info("Checking IP $clientIp against allowed IPs or ranges.");
+        if ($this->isIpAllowed($clientIp, $allowedIpsOrRanges)) {
             return;
         }
-
         $updatedAllowList = $this->ipAllowListManager->updateAllowListWithGithubCidrs();
         $this->logger->info("Updated allow list from GitHub CIDRs.");
-
-        $this->throwIfApplies($this->isIpAllowed($ip, $updatedAllowList));
+        if (!$this->isIpAllowed($clientIp, $updatedAllowList)) {
+            $this->throwForbidden();
+        }
     }
+
 
     private function getClientIp(array $headers, string $remoteAddr): string {
         if (array_key_exists("x-forwarded-for", $headers)) {
@@ -52,9 +50,7 @@ class Security implements ISecurity {
     private function isIpAllowed(string $ip, array $allowedIpsOrRanges): bool {
         foreach ($allowedIpsOrRanges as $allow) {
             if (strpos($allow, '/') !== false) {
-                if (!$this->ipInRange($ip, $allow)) {
-                    $this->logger->warning("Invalid CIDR format detected: $allow");
-                } elseif ($this->ipInRange($ip, $allow)) {
+                if ($this->ipInRange($ip, $allow)) {
                     $this->logger->debug("IP $ip was detected in range: " . print_r($allow, true));
                     return true;
                 }
@@ -68,19 +64,33 @@ class Security implements ISecurity {
 
     private function ipInRange(string $ip, string $cidr): bool {
         list($subnet, $maskLength) = explode('/', $cidr);
-        if (!filter_var($subnet, FILTER_VALIDATE_IP) || !is_numeric($maskLength)) {
+
+        if (filter_var($subnet, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+            // IPv4
+            if ($maskLength < 0 || $maskLength > 32) {
+                return false;
+            }
+            $ip = ip2long($ip);
+            $subnet = ip2long($subnet);
+            $mask = -1 << (32 - $maskLength);
+            return ($ip & $mask) == ($subnet & $mask);
+        } elseif (filter_var($subnet, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
+            // IPv6
+            if ($maskLength < 0 || $maskLength > 128) {
+                return false;
+            }
+            $ip = inet_pton($ip);
+            $subnet = inet_pton($subnet);
+            $mask = str_repeat("f", $maskLength / 4) . str_repeat("0", 32 - $maskLength / 4);
+            $mask = pack("H*", $mask);
+            return ($ip & $mask) == ($subnet & $mask);
+        } else {
             return false;
         }
-        $ip = ip2long($ip);
-        $subnet = ip2long($subnet);
-        $mask = -1 << (32 - $maskLength);
-        return ($ip & $mask) == ($subnet & $mask);
     }
 
-    private function throwIfApplies(bool $doThrow) {
-        if (!$doThrow) {
-            $this->logger->warning("Access denied: IP not in allowed list or ranges.");
-            throw new ForbiddenException(new Forbidden(), $this->logger);
-        }
+    private function throwForbidden() {
+        $this->logger->warning("Access denied: IP not in allowed list or ranges.");
+        throw new ForbiddenException(new Forbidden(), $this->logger);
     }
 }

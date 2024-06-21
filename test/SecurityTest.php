@@ -116,4 +116,35 @@ class SecurityTest extends TestCase {
             '192.168.1.16'
         )->assert();
     }
+
+    // New test cases
+    public function testAssertAllowedIPv6() {
+        file_put_contents($this->allowListFile, "2001:db8::/32\n");
+        $this->subject->setParams(
+            [],
+            [],
+            '2001:db8::1'
+        )->assert();
+        $this->assertTrue(true);
+    }
+
+    public function testAssertBlockedIPv6() {
+        file_put_contents($this->allowListFile, "2001:db8::/32\n");
+        $this->expectException(ForbiddenException::class);
+        $this->subject->setParams(
+            [],
+            [],
+            '2001:db9::1'
+        )->assert();
+    }
+
+    public function testAssertIPv6InvalidCidr() {
+        file_put_contents($this->allowListFile, "2001:db8::/129\n"); // Invalid mask
+        $this->expectException(ForbiddenException::class);
+        $this->subject->setParams(
+            [],
+            [],
+            '2001:db8::1'
+        )->assert();
+    }
 }
