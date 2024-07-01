@@ -19,19 +19,30 @@ class Runner {
     private $configReader;
     private $logger;
     private $ipAllowListManager;
+    private $customCommands;
+    private $deployConfigReader;
+    private $executer;
+
+    private $runningLog = [];
 
     public function __construct(
         Request $request,
         Response &$response,
         ConfigReader $configReader,
         Logger $logger,
-        IPAllowListManager $ipAllowListManager
+        IPAllowListManager $ipAllowListManager,
+        CustomCommands $customCommands,
+        DeployConfigReader $deployConfigReader,
+        Executer $executer
     ) {
         $this->request = $request;
         $this->response = $response;
         $this->configReader = $configReader;
         $this->logger = $logger;
         $this->ipAllowListManager = $ipAllowListManager;
+        $this->customCommands = $customCommands;
+        $this->deployConfigReader = $deployConfigReader;
+        $this->executer = $executer;
     }
 
     public function runForCli(): void {
@@ -51,6 +62,7 @@ class Runner {
             $this->response->addToBody($e->render());
             $this->response->setStatusCode($e->getStatusCode());
         } catch (Throwable $e) {
+            file_put_contents('/tmp/logcom', $e->getMessage(), FILE_APPEND);
             $view = new UnknownError($e->getMessage());
             $this->response->addViewToBody($view);
             $this->response->setStatusCode(500);
@@ -77,31 +89,25 @@ class Runner {
             $this->request->getQueryParam(Request::KEY_QUERY_PARAM)
         );
         $this->changeDirToRepoPath();
-        $this->updateRepository(
-            $this->getCommands()
-        );
+        $this->updateRepository();
     }
 
-    private function updateRepository(array $commands): void {
+    private function updateRepository(): void {
         flush();
-        $log = [];
+        $this->runningLog = [];
         $commandView = new Command();
-        foreach ($commands as $command) {
-            $commandOutput = [];
-            $exitCode = 0;
-            exec("$command 2>&1", $commandOutput, $exitCode);
-            $whoami = $this->whoami();
-            $commandView->add($command, $commandOutput, $whoami);
-            $log [] = [
-                'command' => $command,
-                'output' => $commandOutput,
-                'running_user' => $whoami,
-                'exitCode' => $exitCode,
-            ];
-        }
-        $commandsCount = count($commands);
-        $this->logger->info("Ran {$commandsCount} commands", ['updatingCommands' => $log]);
+        $this->runCollectionOfCommands($fetchCommands = $this->getFetchCommands(), $commandView);
+        $this->runCollectionOfCommands($postFetchCommands = $this->getPostFetchCommands(), $commandView);
+        $commandsCount = count($fetchCommands) + count($postFetchCommands);
+        $this->logger->info("Ran {$commandsCount} commands", ['updating_commands' => $this->runningLog]);
         $this->response->addViewToBody($commandView);
+    }
+
+    private function runCollectionOfCommands(array $commands, Command $view) {
+        foreach ($commands as $command) {
+            $view->add($afterRan = $this->executer->run($command));
+            $this->runningLog [] = $afterRan->jsonSerialize();
+        }
     }
 
     private function whoami(): string {
@@ -116,8 +122,18 @@ class Runner {
         );
     }
 
-    private function getCommands(): array {
+    private function getFetchCommands(): array {
+        if ($this->getPostFetchCommands()) {
+            return $this->builtInCommands();
+        }
         return $this->getCustomCommands() ?? $this->builtInCommands();
+    }
+
+    private function getPostFetchCommands(): array {
+        $deployConfig = $this->deployConfigReader->fetchRepoConfig($this->request->getQueryParam(Request::REPO_QUERY_PARAM));
+        return $deployConfig
+            ? $deployConfig->postFetchCommands()
+            : [];
     }
 
     private function builtInCommands(): array {
@@ -128,20 +144,13 @@ class Runner {
                 . $this->configReader->get(ConfigReader::SSH_KEYS_PATH)
                 . '/'
                 . $this->request->getQueryParam(Request::KEY_QUERY_PARAM)
-                . '" git pull',
-            'git status',
-            'git submodule sync',
-            'git submodule update',
-            'git submodule status',
+                . '" git fetch origin',
+            'git reset --hard origin/$(git symbolic-ref --short HEAD)',
         ];
     }
 
     private function getCustomCommands(): ?array {
-        return (new CustomCommands(
-            $this->configReader,
-            $this->request,
-            $this->logger
-        ))->get();
+        return $this->customCommands->get();
     }
 
     private function assertRepoAndKey(string $repo, string $key): void {

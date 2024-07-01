@@ -6,7 +6,8 @@ class ConfigReader {
     public const IPS_ALLOWLIST = 'IPsAllowList';
     public const SSH_KEYS_PATH = 'SSHKeysPath';
     public const REPOS_BASE_PATH = 'ReposBasePath';
-    public const CUSTOM_UPDATE_COMMANDS = 'CustomCommands';
+    public const CUSTOM_UPDATE_COMMANDS = 'custom_commands';
+    public const POST_FETCH_COMMANDS = 'post_fetch_commands';
     public const DEFAULT_COMMANDS = '_default_';
     public const LOG_REQUEST_BODY = 'log_request_body';
     public const EXPOSE_RAW_LOG = 'expose_raw_log';
