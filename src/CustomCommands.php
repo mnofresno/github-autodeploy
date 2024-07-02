@@ -3,7 +3,6 @@
 namespace Mariano\GitAutoDeploy;
 
 use Monolog\Logger;
-use Symfony\Component\Yaml\Yaml;
 
 class CustomCommands {
     public const CURRENT_PLACEHOLDERS = [
@@ -14,17 +13,22 @@ class CustomCommands {
         ConfigReader::SECRETS => 'getFromConfigSecretsCallback',
     ];
 
-    public const CUSTOM_CONFIG_FILE_NAME = '.git-auto-deploy';
-
     private $configReader;
     private $request;
     private $logger;
+    private $deployConfigReader;
     private $callbacksCache = [];
 
-    public function __construct(ConfigReader $configReader, Request $request, Logger $logger) {
+    public function __construct(
+        ConfigReader $configReader,
+        Request $request,
+        Logger $logger,
+        DeployConfigReader $deployConfigReader
+    ) {
         $this->configReader = $configReader;
         $this->request = $request;
         $this->logger = $logger;
+        $this->deployConfigReader = $deployConfigReader ?? new DeployConfigReader($configReader, $logger);
     }
 
     public function get(): ?array {
@@ -69,7 +73,10 @@ class CustomCommands {
             return $commandsPerRepoInGlobalConfig;
         }
 
-        $commandsPerRepoInRepoConfig = $this->commandsPerRepoInRepoConfig($repoName);
+        $repoDeployFileConfig = $this->deployConfigReader->fetchRepoConfig($repoName);
+        $commandsPerRepoInRepoConfig = $repoDeployFileConfig
+            ? $repoDeployFileConfig->customCommands()
+            : [];
         if ($commandsPerRepoInRepoConfig) {
             return $commandsPerRepoInRepoConfig;
         }
@@ -86,39 +93,6 @@ class CustomCommands {
 
     private function commandsPerRepoInGlobalConfig(string $repoName, ?array $commands): ?array {
         return $commands[$repoName] ?? null;
-    }
-
-    private function logConfigPerRepoFound(string $repoName, string $extension): void {
-        $this->logger->info("Using config file " . self::CUSTOM_CONFIG_FILE_NAME . ".$extension for repo {$repoName}");
-    }
-
-    private function commandsPerRepoInRepoConfig(string $repoName): ?array {
-        $repoConfigFileName = implode(DIRECTORY_SEPARATOR, [
-            $this->configReader->get(ConfigReader::REPOS_BASE_PATH),
-            $repoName,
-            self::CUSTOM_CONFIG_FILE_NAME,
-        ]);
-
-        try {
-            if (file_exists("$repoConfigFileName.json")) {
-                $contents = json_decode(file_get_contents("$repoConfigFileName.json"), true);
-                $this->logConfigPerRepoFound($repoName, 'json');
-                return $contents[ConfigReader::CUSTOM_UPDATE_COMMANDS] ?? null;
-            } elseif (file_exists("$repoConfigFileName.yaml")) {
-                $this->logConfigPerRepoFound($repoName, 'yaml');
-                $contents = Yaml::parse(file_get_contents("$repoConfigFileName.yaml"));
-                return $contents[ConfigReader::CUSTOM_UPDATE_COMMANDS] ?? null;
-            } elseif (file_exists("$repoConfigFileName.yml")) {
-                $this->logConfigPerRepoFound($repoName, 'yml');
-                $contents = Yaml::parse(file_get_contents("$repoConfigFileName.yml"));
-                return $contents[ConfigReader::CUSTOM_UPDATE_COMMANDS] ?? null;
-            }
-        } catch (\JsonException $e) {
-            $this->logger->error($e->getMessage());
-            return null;
-        }
-
-        return null;
     }
 
     private function defaultCustomCommandsInGlobalConfig(?array $commands): ?array {

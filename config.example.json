@@ -6,11 +6,11 @@
     ],
     "SSHKeysPath": "/home/myusername/.ssh",
     "ReposBasePath": "/var/www",
-    "CustomCommands": {
+    "custom_commands": {
         "repo_name": [
             "ls /home",
             "cd $ReposBasePath/$repo",
-            "GIT_SSH_COMMAND=\"ssh -i $SSHKeysPath/$key \" git pull"
+            "GIT_SSH_COMMAND=\"ssh -i $SSHKeysPath/$key \" git fetch origin"
         ]
     },
     "log_request_body": false,

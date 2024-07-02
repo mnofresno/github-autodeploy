@@ -36,7 +36,7 @@ Base path where the SSH keys are stored
 
 Base path where the git repositories are stored
 
-### CustomCommands (array|object, optional)
+### custom_commands (array|object, optional)
 
 Is the list of commands that are needed to be executed in order to update and refresh a deployment (it could include for instance a docker-compose restart service command)
 
@@ -47,7 +47,7 @@ For example, if you have this config in your config.js file as a collection of c
 ```
 {
     "ReposBasePath": "repos_with_code",
-    "CustomCommands": [
+    "custom_commands": [
         "ls /var/www",
         "cd $ReposBasePath",
         "rm tempfile"
@@ -62,7 +62,7 @@ Additionally you could configure the custom commands parameter with an object us
 ```
 {
     "ReposBasePath": "repos_with_code",
-    "CustomCommands": {
+    "custom_commands": {
         "example-repo1": [
             "ls /var/www",
             "cd $ReposBasePath",
@@ -81,7 +81,7 @@ Additionally you could configure the custom commands parameter with an object us
 ```
 So, when you request the endpoint with the query parameter localhost?repo=example-repo1, you will run the first set of commands and if you trigger the hook with localhost?repo=example-repo2 query param, you will run "other, set, of commands".
 
-And if you pass a value for repo query param localhost?repo=other-repo that is not in available as a key of CustomCommands config param, the _default_ key will be used as the list of commands: "default, commands to run".
+And if you pass a value for repo query param localhost?repo=other-repo that is not in available as a key of custom_commands config param, the _default_ key will be used as the list of commands: "default, commands to run".
 
 The placeholders options available by now are these:
 
@@ -99,11 +99,8 @@ This parameter is optional because there's a list of commands that are executed 
 cd $ReposBasePath
 echo $PWD
 whoami
-GIT_SSH_COMMAND="ssh -i $SSHKeysPath/$key git pull
-git status
-git submodule sync
-git submodule update
-git submodule status
+GIT_SSH_COMMAND="ssh -i $SSHKeysPath/$key git fetch origin
+git reset --hard origin/$(git symbolic-ref --short HEAD)
 ```
 
 ## Contributing

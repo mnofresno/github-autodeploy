@@ -4,6 +4,7 @@ namespace Mariano\GitAutoDeploy\Test;
 
 use Mariano\GitAutoDeploy\ConfigReader;
 use Mariano\GitAutoDeploy\CustomCommands;
+use Mariano\GitAutoDeploy\DeployConfigReader;
 use Mariano\GitAutoDeploy\Request;
 use Monolog\Logger;
 use PHPUnit\Framework\TestCase;
@@ -30,7 +31,11 @@ class CustomCommandsTest extends TestCase {
         $this->subject = new CustomCommands(
             $this->mockConfigReader,
             $this->mockRequest,
-            $this->mockLogger
+            $this->mockLogger,
+            new DeployConfigReader(
+                $this->mockConfigReader,
+                $this->mockLogger
+            )
         );
     }
 
@@ -49,7 +54,7 @@ class CustomCommandsTest extends TestCase {
         $this->assertNull($customCommands);
     }
 
-    public function testCustomCommandsAreSpecifiedAsCollection() {
+    public function testGlobalCustomCommandsAreSpecifiedAsCollection() {
         $this->mockConfigReader->expects($this->atLeast(3))
             ->method('get')
             ->willReturnMap([
@@ -154,6 +159,36 @@ class CustomCommandsTest extends TestCase {
         $customCommands = $this->subject->get();
         $this->assertEquals([
             'runnotfound',
+        ], $customCommands);
+    }
+
+    public function testYamlConfigWithUnknownKeysFallbackToGlobal() {
+        $this->mockRepoCreator->withConfigYaml([
+            'AUnknownKeyInTheConfigFile' => ['runnotfound'],
+        ], 'yml');
+        $this->mockConfigReader->expects($this->exactly(3))
+            ->method('get')
+            ->willReturnMap([
+                [ConfigReader::CUSTOM_UPDATE_COMMANDS, [
+                    '_default_' => [
+                        'command45',
+                        'command46 $ReposBasePath',
+                        'command47 $key',
+                    ],
+                ]],
+                [ConfigReader::REPOS_BASE_PATH, $this->mockRepoCreator::BASE_REPO_DIR],
+            ]);
+        $this->mockRequest->expects($this->atLeast(1))
+            ->method('getQueryParam')
+            ->willReturnMap([
+                [Request::REPO_QUERY_PARAM, $this->mockRepoCreator->testRepoName],
+                [Request::KEY_QUERY_PARAM, 'example-ssh-key'],
+            ]);
+        $customCommands = $this->subject->get();
+        $this->assertEquals([
+            'command45',
+            'command46 ' . $this->mockRepoCreator::BASE_REPO_DIR,
+            'command47 example-ssh-key',
         ], $customCommands);
     }
 

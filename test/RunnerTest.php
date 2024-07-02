@@ -3,6 +3,9 @@
 namespace Mariano\GitAutoDeploy\Test;
 
 use Mariano\GitAutoDeploy\ConfigReader;
+use Mariano\GitAutoDeploy\CustomCommands;
+use Mariano\GitAutoDeploy\DeployConfigReader;
+use Mariano\GitAutoDeploy\Executer;
 use Mariano\GitAutoDeploy\IPAllowListManager;
 use Mariano\GitAutoDeploy\Request;
 use Mariano\GitAutoDeploy\Response;
@@ -14,11 +17,14 @@ use Monolog\Logger;
 use PHPUnit\Framework\TestCase;
 
 class RunnerTest extends TestCase {
+    use ContainerAwareTrait;
+
     private $subject;
     private $mockRequest;
     private $mockResponse;
     private $mockConfigReader;
     private $mockRepoCreator;
+    private $executerMock;
 
     public function setUp(): void {
         $this->mockRepoCreator = new MockRepoCreator();
@@ -35,12 +41,18 @@ class RunnerTest extends TestCase {
             ->disableOriginalConstructor()
             ->onlyMethods(['addViewToBody', 'setStatusCode', 'getRunId'])
             ->getMock();
+        $this->set(Request::class, $this->mockRequest);
+        $this->set(Response::class, $this->mockResponse);
+        $this->set(ConfigReader::class, $this->mockConfigReader);
         $this->subject = new Runner(
             $this->mockRequest,
             $this->mockResponse,
             $this->mockConfigReader,
             $this->createMock(Logger::class),
-            $this->createMock(IPAllowListManager::class)
+            $this->createMock(IPAllowListManager::class),
+            $this->get(CustomCommands::class),
+            $this->get(DeployConfigReader::class),
+            $this->get(Executer::class)
         );
     }
 
@@ -66,10 +78,10 @@ class RunnerTest extends TestCase {
     }
 
     public function testAllAssertionsMetOk() {
-        $this->mockRequest->expects($this->once())
+        $this->mockRequest->expects($this->exactly(6))
             ->method('getHeaders')
             ->will($this->returnValue([]));
-        $this->mockRequest->expects($this->once())
+        $this->mockRequest->expects($this->exactly(6))
             ->method('getRemoteAddress')
             ->will($this->returnValue('127.0.0.1'));
         $this->mockRequest->expects($this->any())
@@ -100,23 +112,81 @@ class RunnerTest extends TestCase {
                     return $result === [
                         [
                             'command' => 'echo -n ""',
-                            'commandOutput' => [],
-                            'runningUser' => $user,
+                            'command_output' => [],
+                            'running_user' => $user,
+                            'exit_code' => 0,
                         ],
                         [
                             'command' => "ls -a",
-                            'commandOutput' => [
+                            'command_output' => [
                                 ".",
                                 "..",
                                 "test-file-in-repo",
                             ],
-                            'runningUser' => $user,
+                            'running_user' => $user,
+                            'exit_code' => 0,
                         ],
                     ];
                 })],
                 [$this->callback(function (BaseView $view) {
                     return $view instanceof Footer;
                 })]
+            );
+        $this->subject->run();
+    }
+
+    public function testUsePostFetchCommands(): void {
+        $this->mockConfigReader->expects($this->any())
+            ->method('get')
+            ->will($this->returnValueMap([
+                [ConfigReader::IPS_ALLOWLIST, ['127.0.0.1']],
+                [ConfigReader::REPOS_BASE_PATH, $this->mockRepoCreator::BASE_REPO_DIR],
+                [ConfigReader::CUSTOM_UPDATE_COMMANDS, [ConfigReader::DEFAULT_COMMANDS => ['echo -n ""', 'ls -a']]],
+            ]));
+        $this->mockRequest->expects($this->once())
+            ->method('getHeaders')
+            ->will($this->returnValue([]));
+        $this->mockRequest->expects($this->once())
+            ->method('getRemoteAddress')
+            ->will($this->returnValue('127.0.0.1'));
+        $this->subject = new Runner(
+            $this->mockRequest,
+            $this->mockResponse,
+            $this->mockConfigReader,
+            $this->createMock(Logger::class),
+            $this->createMock(IPAllowListManager::class),
+            $this->get(CustomCommands::class),
+            $deployMock = $this->createMock(DeployConfigReader::class),
+            $this->executerMock = $this->createMock(Executer::class)
+        );
+        $this->mockRequest->expects($this->any())
+            ->method('getQueryParam')
+            ->will($this->returnValueMap([
+                [Request::REPO_QUERY_PARAM, $this->mockRepoCreator->testRepoName],
+                [Request::KEY_QUERY_PARAM, 'test-key-name'],
+            ]));
+        $deployMock
+            ->expects($this->atLeast(1))
+            ->method('fetchRepoConfig')
+            ->willReturn(new class () {
+                public function customCommands(): ?array {
+                    return null;
+                }
+
+                public function postFetchCommands(): ?array {
+                    return ['install_deps', 'restart_services'];
+                }
+            });
+        $this->executerMock
+            ->expects($this->exactly(6))
+            ->method('run')
+            ->withConsecutive(
+                ['echo $PWD'],
+                ['whoami'],
+                ['GIT_SSH_COMMAND="ssh -i /test-key-name" git fetch origin'],
+                ['git reset --hard origin/$(git symbolic-ref --short HEAD)'],
+                ['install_deps'],
+                ['restart_services'],
             );
         $this->subject->run();
     }

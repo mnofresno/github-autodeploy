@@ -1,5 +1,3 @@
 ---
-CustomCommands:
-    - GIT_SSH_COMMAND='ssh -i $SSHKeysPath/$key' git fetch origin
-    - git reset --hard origin/$(git symbolic-ref --short HEAD)
+post_fetch_commands:
     - composer install
