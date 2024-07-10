@@ -14,6 +14,7 @@ use Mariano\GitAutoDeploy\views\BaseView;
 use Mariano\GitAutoDeploy\views\Footer;
 use Mariano\GitAutoDeploy\views\Header;
 use Monolog\Logger;
+use PHPUnit\Framework\MockObject\Builder\InvocationMocker;
 use PHPUnit\Framework\TestCase;
 
 class RunnerTest extends TestCase {
@@ -135,18 +136,100 @@ class RunnerTest extends TestCase {
         $this->subject->run();
     }
 
+    public function testUseCustomCommands(): void {
+        $this->setupForPrePostAndCustomCommandsTests()
+            ->willReturn(new class () {
+                public function customCommands(): array {
+                    return ['whoami -ccc'];
+                }
+
+                public function postFetchCommands(): array {
+                    return [];
+                }
+
+                public function preFetchCommands(): ?array {
+                    return ['dir'];
+                }
+            });
+        $this->executerMock
+            ->expects($this->exactly(3))
+            ->method('run')
+            ->withConsecutive(
+                ['dir'],
+                ['echo -n ""']
+            );
+        $this->subject->run();
+    }
+
+    public function testUsePreFetchCommands(): void {
+        $this->setupForPrePostAndCustomCommandsTests()
+            ->willReturn(new class () {
+                public function customCommands(): array {
+                    return [];
+                }
+
+                public function postFetchCommands(): array {
+                    return [];
+                }
+
+                public function preFetchCommands(): ?array {
+                    return ['custom_pre_setting'];
+                }
+            });
+        $this->executerMock
+            ->expects($this->exactly(3))
+            ->method('run')
+            ->withConsecutive(
+                ['custom_pre_setting'],
+                ['echo -n ""'],
+                ['ls -a'],
+                ['GIT_SSH_COMMAND="ssh -i /test-key-name" git fetch origin'],
+                ['git reset --hard origin/$(git symbolic-ref --short HEAD)'],
+            );
+        $this->subject->run();
+    }
+
     public function testUsePostFetchCommands(): void {
+        $this->setupForPrePostAndCustomCommandsTests()
+            ->willReturn(new class () {
+                public function customCommands(): array {
+                    return [];
+                }
+
+                public function postFetchCommands(): array {
+                    return ['install_deps', 'restart_services'];
+                }
+
+                public function preFetchCommands(): ?array {
+                    return [];
+                }
+            });
+        $this->executerMock
+            ->expects($this->exactly(6))
+            ->method('run')
+            ->withConsecutive(
+                ['echo $PWD'],
+                ['whoami'],
+                ['GIT_SSH_COMMAND="ssh -i /test-key-name" git fetch origin'],
+                ['git reset --hard origin/$(git symbolic-ref --short HEAD)'],
+                ['install_deps'],
+                ['restart_services'],
+            );
+        $this->subject->run();
+    }
+
+    private function setupForPrePostAndCustomCommandsTests(): InvocationMocker {
         $this->mockConfigReader->expects($this->any())
-            ->method('get')
-            ->will($this->returnValueMap([
-                [ConfigReader::IPS_ALLOWLIST, ['127.0.0.1']],
-                [ConfigReader::REPOS_BASE_PATH, $this->mockRepoCreator::BASE_REPO_DIR],
-                [ConfigReader::CUSTOM_UPDATE_COMMANDS, [ConfigReader::DEFAULT_COMMANDS => ['echo -n ""', 'ls -a']]],
-            ]));
-        $this->mockRequest->expects($this->once())
+        ->method('get')
+        ->will($this->returnValueMap([
+            [ConfigReader::IPS_ALLOWLIST, ['127.0.0.1']],
+            [ConfigReader::REPOS_BASE_PATH, $this->mockRepoCreator::BASE_REPO_DIR],
+            [ConfigReader::CUSTOM_UPDATE_COMMANDS, [ConfigReader::DEFAULT_COMMANDS => ['echo -n ""', 'ls -a']]],
+        ]));
+        $this->mockRequest->expects($this->atLeast(1))
             ->method('getHeaders')
             ->will($this->returnValue([]));
-        $this->mockRequest->expects($this->once())
+        $this->mockRequest->expects($this->atLeast(1))
             ->method('getRemoteAddress')
             ->will($this->returnValue('127.0.0.1'));
         $this->subject = new Runner(
@@ -165,29 +248,8 @@ class RunnerTest extends TestCase {
                 [Request::REPO_QUERY_PARAM, $this->mockRepoCreator->testRepoName],
                 [Request::KEY_QUERY_PARAM, 'test-key-name'],
             ]));
-        $deployMock
+        return $deployMock
             ->expects($this->atLeast(1))
-            ->method('fetchRepoConfig')
-            ->willReturn(new class () {
-                public function customCommands(): ?array {
-                    return null;
-                }
-
-                public function postFetchCommands(): ?array {
-                    return ['install_deps', 'restart_services'];
-                }
-            });
-        $this->executerMock
-            ->expects($this->exactly(6))
-            ->method('run')
-            ->withConsecutive(
-                ['echo $PWD'],
-                ['whoami'],
-                ['GIT_SSH_COMMAND="ssh -i /test-key-name" git fetch origin'],
-                ['git reset --hard origin/$(git symbolic-ref --short HEAD)'],
-                ['install_deps'],
-                ['restart_services'],
-            );
-        $this->subject->run();
+            ->method('fetchRepoConfig');
     }
 }

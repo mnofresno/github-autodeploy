@@ -96,9 +96,10 @@ class Runner {
         flush();
         $this->runningLog = [];
         $commandView = new Command();
+        $this->runCollectionOfCommands($preFetchCommands = $this->getPreFetchCommands(), $commandView);
         $this->runCollectionOfCommands($fetchCommands = $this->getFetchCommands(), $commandView);
         $this->runCollectionOfCommands($postFetchCommands = $this->getPostFetchCommands(), $commandView);
-        $commandsCount = count($fetchCommands) + count($postFetchCommands);
+        $commandsCount = count($preFetchCommands) + count($fetchCommands) + count($postFetchCommands);
         $this->logger->info("Ran {$commandsCount} commands", ['updating_commands' => $this->runningLog]);
         $this->response->addViewToBody($commandView);
     }
@@ -133,6 +134,13 @@ class Runner {
         $deployConfig = $this->deployConfigReader->fetchRepoConfig($this->request->getQueryParam(Request::REPO_QUERY_PARAM));
         return $deployConfig
             ? $deployConfig->postFetchCommands()
+            : [];
+    }
+
+    private function getPreFetchCommands(): array {
+        $deployConfig = $this->deployConfigReader->fetchRepoConfig($this->request->getQueryParam(Request::REPO_QUERY_PARAM));
+        return $deployConfig
+            ? $deployConfig->preFetchCommands()
             : [];
     }
 
