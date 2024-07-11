@@ -1,0 +1,5 @@
+---
+pre_fetch_commands:
+    - ls
+post_fetch_commands:
+    - composer install

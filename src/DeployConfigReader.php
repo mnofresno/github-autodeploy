@@ -27,17 +27,14 @@ class DeployConfigReader {
             if (file_exists("$repoConfigFileName.json")) {
                 $contents = json_decode(file_get_contents("$repoConfigFileName.json"), true);
                 $this->logConfigPerRepoFound($repoName, 'json');
-                // return $contents[ConfigReader::CUSTOM_UPDATE_COMMANDS] ?? null;
                 return $this->generateConfig($contents);
             } elseif (file_exists("$repoConfigFileName.yaml")) {
                 $this->logConfigPerRepoFound($repoName, 'yaml');
                 $contents = Yaml::parse(file_get_contents("$repoConfigFileName.yaml"));
-                // return $contents[ConfigReader::CUSTOM_UPDATE_COMMANDS] ?? null;
                 return $this->generateConfig($contents);
             } elseif (file_exists("$repoConfigFileName.yml")) {
                 $this->logConfigPerRepoFound($repoName, 'yml');
                 $contents = Yaml::parse(file_get_contents("$repoConfigFileName.yml"));
-                // return $contents[ConfigReader::CUSTOM_UPDATE_COMMANDS] ?? null;
                 return $this->generateConfig($contents);
             }
         } catch (\JsonException $e) {
@@ -64,6 +61,10 @@ class DeployConfigReader {
 
             public function postFetchCommands(): array {
                 return $this->configData[ConfigReader::POST_FETCH_COMMANDS] ?? [];
+            }
+
+            public function preFetchCommands(): array {
+                return $this->configData[ConfigReader::PRE_FETCH_COMMANDS] ?? [];
             }
         };
     }

@@ -8,6 +8,7 @@ class ConfigReader {
     public const REPOS_BASE_PATH = 'ReposBasePath';
     public const CUSTOM_UPDATE_COMMANDS = 'custom_commands';
     public const POST_FETCH_COMMANDS = 'post_fetch_commands';
+    public const PRE_FETCH_COMMANDS = 'pre_fetch_commands';
     public const DEFAULT_COMMANDS = '_default_';
     public const LOG_REQUEST_BODY = 'log_request_body';
     public const EXPOSE_RAW_LOG = 'expose_raw_log';
