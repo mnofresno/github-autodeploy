@@ -2,6 +2,7 @@
 
 namespace Mariano\GitAutoDeploy;
 
+use Mariano\GitAutoDeploy\exceptions\InvalidDeployFileException;
 use Monolog\Logger;
 use Symfony\Component\Yaml\Exception\ParseException as YamlException;
 use Symfony\Component\Yaml\Yaml;
@@ -26,6 +27,9 @@ class DeployConfigReader {
         try {
             if (file_exists("$repoConfigFileName.json")) {
                 $contents = json_decode(file_get_contents("$repoConfigFileName.json"), true);
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    throw new \JsonException(json_last_error_msg());
+                }
                 $this->logConfigPerRepoFound($repoName, 'json');
                 return $this->generateConfig($contents);
             } elseif (file_exists("$repoConfigFileName.yaml")) {
@@ -48,6 +52,7 @@ class DeployConfigReader {
     }
 
     private function generateConfig(array $contents): object {
+        $this->assertCommands($contents);
         return new class ($contents) {
             private $configData;
 
@@ -71,5 +76,15 @@ class DeployConfigReader {
 
     private function logConfigPerRepoFound(string $repoName, string $extension): void {
         $this->logger->info("Using config file " . self::CUSTOM_CONFIG_FILE_NAME . ".$extension for repo {$repoName}");
+    }
+
+    private function assertCommands(array $commandsData): void {
+        foreach ($commandsData as $commandsList) {
+            foreach ($commandsList as $command) {
+                if (!is_string($command)) {
+                    throw InvalidDeployFileException::build($command, $this->logger);
+                }
+            }
+        }
     }
 }

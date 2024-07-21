@@ -10,8 +10,9 @@ abstract class BaseException extends Exception {
     private $view;
 
     public function __construct(BaseView $view, Logger $logger) {
-        $logger->error($this->getMessage(), ['statusCode' => $this->getStatusCode()]);
         $this->view = $view;
+        parent::__construct((string)$this->view);
+        $logger->error($this->getMessage(), ['statusCode' => $this->getStatusCode()]);
     }
 
     public function render(): string {

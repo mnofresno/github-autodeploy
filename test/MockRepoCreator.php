@@ -30,8 +30,16 @@ class MockRepoCreator {
 
     public function withConfigYaml(array $customRepoFileConfigContents, string $extension = 'yaml'): void {
         file_put_contents(
-            $p = $this->testRepoPath . DIRECTORY_SEPARATOR . DeployConfigReader::CUSTOM_CONFIG_FILE_NAME . ".$extension",
+            $this->testRepoPath . DIRECTORY_SEPARATOR . DeployConfigReader::CUSTOM_CONFIG_FILE_NAME . ".$extension",
             Yaml::dump($customRepoFileConfigContents)
         );
+    }
+
+    public function withYmlFile(string $sourceFilePath): void {
+        copy($sourceFilePath, $this->testRepoPath . DIRECTORY_SEPARATOR . DeployConfigReader::CUSTOM_CONFIG_FILE_NAME . '.yml');
+    }
+
+    public function getTestRepoPath(): string {
+        return $this->testRepoPath;
     }
 }
