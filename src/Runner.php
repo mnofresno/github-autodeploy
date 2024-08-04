@@ -9,6 +9,7 @@ use Mariano\GitAutoDeploy\views\errors\MissingRepoOrKey;
 use Mariano\GitAutoDeploy\exceptions\BadRequestException;
 use Mariano\GitAutoDeploy\exceptions\BaseException;
 use Mariano\GitAutoDeploy\views\Command;
+use Mariano\GitAutoDeploy\views\errors\RepoNotExists;
 use Mariano\GitAutoDeploy\views\errors\UnknownError;
 use Monolog\Logger;
 use Throwable;
@@ -22,6 +23,8 @@ class Runner {
     private $customCommands;
     private $deployConfigReader;
     private $executer;
+    private $createRepoIfNotExists = false;
+    private $createdNewRepo = false;
 
     private $runningLog = [];
 
@@ -49,7 +52,9 @@ class Runner {
         $this->doRun(new CliSecurity());
     }
 
-    public function run(): void {
+    public function run(bool $createRepoIfNotExists = false): void {
+        $this->runningLog = [];
+        $this->createRepoIfNotExists = $createRepoIfNotExists;
         $this->doRun(new Security($this->logger, $this->ipAllowListManager));
     }
 
@@ -57,12 +62,11 @@ class Runner {
         $this->response->addViewToBody(new Header());
         try {
             $this->doRunWithSecurity($security);
-            $this->response->setStatusCode(200);
+            $this->response->setStatusCode($this->createdNewRepo ? 201 : 200);
         } catch (BaseException $e) {
             $this->response->addToBody($e->render());
             $this->response->setStatusCode($e->getStatusCode());
         } catch (Throwable $e) {
-            file_put_contents('/tmp/logcom', $e->getMessage(), FILE_APPEND);
             $view = new UnknownError($e->getMessage());
             $this->response->addViewToBody($view);
             $this->response->setStatusCode(500);
@@ -88,14 +92,13 @@ class Runner {
             $this->request->getQueryParam(Request::REPO_QUERY_PARAM),
             $this->request->getQueryParam(Request::KEY_QUERY_PARAM)
         );
-        $this->changeDirToRepoPath();
-        $this->updateRepository();
+        $commandView = new Command();
+        $this->changeDirToRepoPath($commandView);
+        $this->updateRepository($commandView);
     }
 
-    private function updateRepository(): void {
+    private function updateRepository(Command $commandView): void {
         flush();
-        $this->runningLog = [];
-        $commandView = new Command();
         $this->runCollectionOfCommands($preFetchCommands = $this->getPreFetchCommands(), $commandView);
         $this->runCollectionOfCommands($fetchCommands = $this->getFetchCommands(), $commandView);
         $this->runCollectionOfCommands($postFetchCommands = $this->getPostFetchCommands(), $commandView);
@@ -115,12 +118,24 @@ class Runner {
         return exec('whoami');
     }
 
-    private function changeDirToRepoPath(): void {
-        chdir(
-            $this->configReader->get(ConfigReader::REPOS_BASE_PATH)
+    private function changeDirToRepoPath(Command $commandView): void {
+        $repoDirectory = $this->configReader->get(ConfigReader::REPOS_BASE_PATH)
             . DIRECTORY_SEPARATOR
-            . $this->request->getQueryParam(Request::REPO_QUERY_PARAM)
-        );
+            . $this->request->getQueryParam(Request::REPO_QUERY_PARAM);
+        if (!is_dir($repoDirectory)) {
+            if ($this->createRepoIfNotExists) {
+                $parentDirectory = dirname($repoDirectory);
+                chdir($parentDirectory);
+                $this->runCollectionOfCommands(
+                    $this->cloneRepoCommands($repoDirectory),
+                    $commandView
+                );
+                $this->createdNewRepo = true;
+            } else {
+                throw new BadRequestException(new RepoNotExists(), $this->logger);
+            }
+        }
+        chdir($repoDirectory);
     }
 
     private function getFetchCommands(): array {
@@ -142,6 +157,18 @@ class Runner {
         return $deployConfig
             ? $deployConfig->preFetchCommands()
             : [];
+    }
+
+    private function cloneRepoCommands(string $repoDirectory): array {
+        return [
+            'echo $PWD',
+            'GIT_SSH_COMMAND="ssh -i '
+                . $this->configReader->get(ConfigReader::SSH_KEYS_PATH)
+                . '/'
+                . $this->request->getQueryParam(Request::KEY_QUERY_PARAM)
+                . "\" git clone '" . $this->request->getQueryParam(Request::CLONE_PATH_QUERY_PARAM) . "'"
+                . " '$repoDirectory'",
+        ];
     }
 
     private function builtInCommands(): array {

@@ -11,7 +11,7 @@ abstract class BaseException extends Exception {
 
     public function __construct(BaseView $view, Logger $logger) {
         $this->view = $view;
-        parent::__construct((string)$this->view);
+        parent::__construct((string) $this->view);
         $logger->error($this->getMessage(), ['statusCode' => $this->getStatusCode()]);
     }
 

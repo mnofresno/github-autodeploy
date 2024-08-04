@@ -55,13 +55,19 @@ class Hamster {
                 $this->response->setStatusCode(201);
                 $this->response->send();
                 $this->finishRequest();
-                $this->runner->run();
+                $this->executeTrigger();
             } else {
                 $this->logger->info('Background run disabled');
-                $this->runner->run();
+                $this->executeTrigger();
                 $this->response->send();
             }
         }
+    }
+
+    private function executeTrigger(): void {
+        $this->runner->run(
+            $this->request->getQueryParam('create_repo_if_not_exists') === 'true'
+        );
     }
 
     private function finishRequest(): void {
