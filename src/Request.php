@@ -7,6 +7,7 @@ use JsonException;
 class Request {
     public const REPO_QUERY_PARAM = 'repo';
     public const KEY_QUERY_PARAM = 'key';
+    public const CLONE_PATH_QUERY_PARAM = 'clone_path';
 
     private $headers = [];
     private $queryParams = [];
@@ -88,6 +89,6 @@ class Request {
     }
 
     private static function sanitizeQueryparam(string $input): string {
-        return preg_replace('/[^A-Za-z0-9_,\-]/', '_', $input); // Allow commas
+        return preg_replace('/[^A-Za-z0-9_,\-]/', '_', $input);
     }
 }

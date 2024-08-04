@@ -218,14 +218,71 @@ class RunnerTest extends TestCase {
         $this->subject->run();
     }
 
+    public function testRepoNotExistsAndNotAllowedToCreate(): void {
+        $this->setupForRepoName(
+            uniqid('not-existing-repo-test'),
+            0
+        );
+        $this->executerMock
+            ->expects($this->exactly(0))
+            ->method('run')
+            ->withConsecutive(
+                ['custom_pre_setting'],
+                ['echo -n ""'],
+                ['ls -a'],
+                ['GIT_SSH_COMMAND="ssh -i /test-key-name" git fetch origin'],
+                ['git reset --hard origin/$(git symbolic-ref --short HEAD)'],
+            );
+        $this->mockResponse->expects($this->once())
+            ->method('setStatusCode')
+            ->with($this->equalTo(400));
+        $this->subject->run(false);
+    }
+
+    public function testRepoNotExistsAndIsAllowedToCreate(): void {
+        $this->setupForRepoName(
+            $repoName = uniqid('not-existing-repo-test'),
+            1,
+            [['clone_path', 'https://repo-to-clone']]
+        );
+        $repoFullPath = "/tmp/$repoName";
+        $this->executerMock
+            ->expects($this->exactly(4))
+            ->method('run')
+            ->withConsecutive(
+                ['echo $PWD'],
+                [$this->callback(function ($command) use ($repoFullPath) {
+                    if ($command === "GIT_SSH_COMMAND=\"ssh -i /test-key-name\" git clone 'https://repo-to-clone' '$repoFullPath'") {
+                        if (!is_dir($repoFullPath)) {
+                            mkdir($repoFullPath, 0777, true);
+                        }
+                        return true;
+                    }
+                    return false;
+                })],
+                ['echo -n ""'],
+                ['ls -a'],
+                ['GIT_SSH_COMMAND="ssh -i /test-key-name" git fetch origin'],
+                ['git reset --hard origin/$(git symbolic-ref --short HEAD)'],
+            );
+        $this->mockResponse->expects($this->once())
+            ->method('setStatusCode')
+            ->with($this->equalTo(201));
+        $this->subject->run(true);
+    }
+
     private function setupForPrePostAndCustomCommandsTests(): InvocationMocker {
+        return $this->setupForRepoName($this->mockRepoCreator->testRepoName, 1, []);
+    }
+
+    private function setupForRepoName(string $repoName, int $countOfRepoReads, array $extraQueryParams = []): InvocationMocker {
         $this->mockConfigReader->expects($this->any())
-        ->method('get')
-        ->will($this->returnValueMap([
-            [ConfigReader::IPS_ALLOWLIST, ['127.0.0.1']],
-            [ConfigReader::REPOS_BASE_PATH, $this->mockRepoCreator::BASE_REPO_DIR],
-            [ConfigReader::CUSTOM_UPDATE_COMMANDS, [ConfigReader::DEFAULT_COMMANDS => ['echo -n ""', 'ls -a']]],
-        ]));
+            ->method('get')
+            ->will($this->returnValueMap([
+                [ConfigReader::IPS_ALLOWLIST, ['127.0.0.1']],
+                [ConfigReader::REPOS_BASE_PATH, $this->mockRepoCreator::BASE_REPO_DIR],
+                [ConfigReader::CUSTOM_UPDATE_COMMANDS, [ConfigReader::DEFAULT_COMMANDS => ['echo -n ""', 'ls -a']]],
+            ]));
         $this->mockRequest->expects($this->atLeast(1))
             ->method('getHeaders')
             ->will($this->returnValue([]));
@@ -244,12 +301,12 @@ class RunnerTest extends TestCase {
         );
         $this->mockRequest->expects($this->any())
             ->method('getQueryParam')
-            ->will($this->returnValueMap([
-                [Request::REPO_QUERY_PARAM, $this->mockRepoCreator->testRepoName],
+            ->will($this->returnValueMap(array_merge([
+                [Request::REPO_QUERY_PARAM, $repoName],
                 [Request::KEY_QUERY_PARAM, 'test-key-name'],
-            ]));
+            ], $extraQueryParams)));
         return $deployMock
-            ->expects($this->atLeast(1))
+            ->expects($this->atLeast($countOfRepoReads))
             ->method('fetchRepoConfig');
     }
 }
