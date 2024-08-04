@@ -21,5 +21,6 @@
     "secrets": {
         "github_ghcr_token":"my secret token",
         "github_ghcr_username":"myusername"
-    }
+    },
+    "whitelisted_command_strings": ["$(git symbolic-ref --short HEAD)"]
 }

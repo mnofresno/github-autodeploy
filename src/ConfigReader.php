@@ -15,6 +15,7 @@ class ConfigReader {
     public const SECRETS = 'secrets';
     public const REPOS_TEMPLATE_URI = 'repos_template_uri';
     public const REPO_KEY_TEMPLATE_PLACEHOLDER = '{$repo_key}';
+    public const WHITELISTED_STRINGS_KEY = 'whitelisted_command_strings';
 
     private $config;
 
