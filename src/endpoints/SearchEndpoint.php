@@ -2,6 +2,7 @@
 
 namespace Mariano\GitAutoDeploy;
 
+use Mariano\GitAutoDeploy\config\ConfigReader;
 use Monolog\Logger;
 
 class Hamster {
@@ -28,22 +29,22 @@ class Hamster {
         $this->runSearcher = $runSearcher;
     }
 
-    public function run() {
-        if (($runId = $this->request->getQueryParam('previous_run_id')) !== '') {
-            $this->response->setStatusCode(200);
-            $fieldsParam = $this->request->getQueryParam('fields');
-            $fields = $fieldsParam ? explode(',', $fieldsParam) : null;
-            $this->logger->debug("Fields choosen for log run searcher: $fieldsParam");
-            $this->response->addToBody(
-                json_encode([
-                    'message' => "Given run Id: $runId",
-                    'results' => $this->runSearcher->search($runId, $fields),
-                ], JSON_PRETTY_PRINT)
-            );
-            $this->response->send('application/json; charset=utf-8');
-            return;
-        } else {
-            if ($this->request->getQueryParam('run_in_background') === 'true') {
+    public function __invoke() {
+        switch (true) {
+            case ($runId = $this->request->getQueryParam('previous_run_id')) !== '':
+                $this->response->setStatusCode(200);
+                $fieldsParam = $this->request->getQueryParam('fields');
+                $fields = $fieldsParam ? explode(',', $fieldsParam) : null;
+                $this->logger->debug("Fields choosen for log run searcher: $fieldsParam");
+                $this->response->addToBody(
+                    json_encode([
+                        'message' => "Given run Id: $runId",
+                        'results' => $this->runSearcher->search($runId, $fields),
+                    ], JSON_PRETTY_PRINT)
+                );
+                $this->response->send('application/json; charset=utf-8');
+                return;
+            case $this->request->getQueryParam('run_in_background') === 'true':
                 ini_set('ignore_user_abort', 'On');
                 $this->logger->info('Background run enabled');
                 $website = $this->configReader->get('website') ?? '-website-not-configured-';
@@ -55,19 +56,14 @@ class Hamster {
                 $this->response->setStatusCode(201);
                 $this->response->send();
                 $this->finishRequest();
-                $this->executeTrigger();
-            } else {
+                $this->runner->run();
+                return;
+            default:
                 $this->logger->info('Background run disabled');
-                $this->executeTrigger();
+                $this->runner->run();
                 $this->response->send();
-            }
+                return;
         }
-    }
-
-    private function executeTrigger(): void {
-        $this->runner->run(
-            $this->request->getQueryParam('create_repo_if_not_exists') === 'true'
-        );
     }
 
     private function finishRequest(): void {

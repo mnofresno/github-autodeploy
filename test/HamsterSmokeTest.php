@@ -85,4 +85,25 @@ class HamsterTest extends TestCase {
 
         $this->hamster->run();
     }
+
+    /**
+     * @testWith [true, false]
+     */
+    public function testRunnerReceivesCorrectBooleanForCreateRepoIfNotExists(bool $createRepo): void {
+        $this->request
+            ->expects($this->exactly(3))
+            ->method('getQueryParam')
+            ->will($this->returnValueMap([
+                ['previous_run_id', ''],
+                ['run_in_background', 'false'],
+                ['create_repo_if_not_exists', json_encode($createRepo)],
+            ]));
+
+        $this->runner
+            ->expects($this->exactly(1))
+            ->method('run')
+            ->with($this->equalTo($createRepo));
+
+        $this->hamster->run();
+    }
 }
