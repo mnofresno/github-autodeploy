@@ -66,7 +66,7 @@ class Hamster {
 
     private function executeTrigger(): void {
         $this->runner->run(
-            $this->request->getQueryParam('create_repo_if_not_exists') === 'true'
+            $this->request->getQueryParam(Request::CREATE_REPO_IF_NOT_EXISTS) === 'true'
         );
     }
 

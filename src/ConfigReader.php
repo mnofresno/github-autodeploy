@@ -13,6 +13,9 @@ class ConfigReader {
     public const LOG_REQUEST_BODY = 'log_request_body';
     public const EXPOSE_RAW_LOG = 'expose_raw_log';
     public const SECRETS = 'secrets';
+    public const REPOS_TEMPLATE_URI = 'repos_template_uri';
+    public const REPO_KEY_TEMPLATE_PLACEHOLDER = '{$repo_key}';
+
     private $config;
 
     public function __construct() {

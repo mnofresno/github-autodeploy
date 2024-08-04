@@ -242,8 +242,7 @@ class RunnerTest extends TestCase {
     public function testRepoNotExistsAndIsAllowedToCreate(): void {
         $this->setupForRepoName(
             $repoName = uniqid('not-existing-repo-test'),
-            1,
-            [['clone_path', 'git@github.com:popi/poli-pity-toqui.git']]
+            1
         );
         $repoFullPath = "/tmp/$repoName";
         $this->executerMock
@@ -251,8 +250,8 @@ class RunnerTest extends TestCase {
             ->method('run')
             ->withConsecutive(
                 ['echo $PWD'],
-                [$this->callback(function ($command) use ($repoFullPath) {
-                    if ($command === "GIT_SSH_COMMAND=\"ssh -i /test-key-name\" git clone 'git@github.com:popi/poli-pity-toqui.git' '$repoFullPath'") {
+                [$this->callback(function ($command) use ($repoFullPath, $repoName) {
+                    if ($command === "GIT_SSH_COMMAND=\"ssh -i /test-key-name\" git clone 'git@github.com:testuser/'$repoName'.git' '$repoFullPath'") {
                         if (!is_dir($repoFullPath)) {
                             mkdir($repoFullPath, 0777, true);
                         }
@@ -275,11 +274,12 @@ class RunnerTest extends TestCase {
         return $this->setupForRepoName($this->mockRepoCreator->testRepoName, 1, []);
     }
 
-    private function setupForRepoName(string $repoName, int $countOfRepoReads, array $extraQueryParams = []): InvocationMocker {
+    private function setupForRepoName(string $repoName, int $countOfRepoReads): InvocationMocker {
         $this->mockConfigReader->expects($this->any())
             ->method('get')
             ->will($this->returnValueMap([
                 [ConfigReader::IPS_ALLOWLIST, ['127.0.0.1']],
+                [ConfigReader::REPOS_TEMPLATE_URI, 'git@github.com:testuser/{$repo_key}.git'],
                 [ConfigReader::REPOS_BASE_PATH, $this->mockRepoCreator::BASE_REPO_DIR],
                 [ConfigReader::CUSTOM_UPDATE_COMMANDS, [ConfigReader::DEFAULT_COMMANDS => ['echo -n ""', 'ls -a']]],
             ]));
@@ -301,10 +301,10 @@ class RunnerTest extends TestCase {
         );
         $this->mockRequest->expects($this->any())
             ->method('getQueryParam')
-            ->will($this->returnValueMap(array_merge([
+            ->will($this->returnValueMap([
                 [Request::REPO_QUERY_PARAM, $repoName],
                 [Request::KEY_QUERY_PARAM, 'test-key-name'],
-            ], $extraQueryParams)));
+            ]));
         return $deployMock
             ->expects($this->atLeast($countOfRepoReads))
             ->method('fetchRepoConfig');

@@ -6,6 +6,7 @@
     ],
     "SSHKeysPath": "/home/myusername/.ssh",
     "ReposBasePath": "/var/www",
+    "repos_template_uri": "git@github.com:testuser/{$repo_key}.git",
     "custom_commands": {
         "repo_name": [
             "ls /home",

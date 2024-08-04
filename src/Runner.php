@@ -160,13 +160,16 @@ class Runner {
     }
 
     private function cloneRepoCommands(string $repoDirectory): array {
+        $repoKey = escapeshellarg($this->request->getQueryParam(Request::REPO_QUERY_PARAM));
+        $reposTemplatePath = $this->configReader->get(ConfigReader::REPOS_TEMPLATE_URI);
+        $repoCloneUri = str_replace(ConfigReader::REPO_KEY_TEMPLATE_PLACEHOLDER, $repoKey, $reposTemplatePath);
         return [
             'echo $PWD',
             'GIT_SSH_COMMAND="ssh -i '
                 . $this->configReader->get(ConfigReader::SSH_KEYS_PATH)
                 . '/'
                 . $this->request->getQueryParam(Request::KEY_QUERY_PARAM)
-                . "\" git clone '" . $this->request->getQueryParam(Request::CLONE_PATH_QUERY_PARAM) . "'"
+                . "\" git clone '$repoCloneUri'"
                 . " '$repoDirectory'",
         ];
     }
