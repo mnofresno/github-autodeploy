@@ -9,6 +9,7 @@ class Executer {
 
     public const WHITELISTED_STRINGS = [
         '$(git symbolic-ref --short HEAD)',
+        'echo $PWD',
     ];
 
     public function __construct(ConfigReader $configReader) {
