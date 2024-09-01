@@ -18,11 +18,18 @@ class RanCommand extends BaseView implements JsonSerializable {
     }
 
     public function render(): string {
-        $output = implode("\n", $this->commandOutput);
-        $html = "<span style=\"color: #6BE234;\">\$</span>";
-        $html .= "  <span style=\"color: #729FCF;\">{$this->runningUser}@host {$this->command}\n</span>";
-        $html .= "  <span style=\"color: #729FCF;\">exit code: {$this->exitCode}</span>";
-        $html .= htmlentities(trim($output));
+        $output = htmlentities(trim(implode("\n", $this->commandOutput)));
+        $html = sprintf(
+            '<span style="color: #729FCF;">%s@host <span style="color: #6BE234;">$</span> %s</span>',
+            $this->runningUser,
+            $this->command
+        );
+        $html .= sprintf(
+            '<br/><span style="color: #729FCF;">exit code: %s</span><br/>',
+            $this->exitCode
+        );
+        $html .= $output;
+
         return $html;
     }
 
