@@ -278,6 +278,7 @@ class RunnerTest extends TestCase {
         $this->mockConfigReader->expects($this->any())
             ->method('get')
             ->will($this->returnValueMap([
+                [ConfigReader::ENABLE_CLONE, true],
                 [ConfigReader::IPS_ALLOWLIST, ['127.0.0.1']],
                 [ConfigReader::REPOS_TEMPLATE_URI, 'git@github.com:testuser/{$repo_key}.git'],
                 [ConfigReader::REPOS_BASE_PATH, $this->mockRepoCreator::BASE_REPO_DIR],
@@ -302,6 +303,7 @@ class RunnerTest extends TestCase {
         $this->mockRequest->expects($this->any())
             ->method('getQueryParam')
             ->will($this->returnValueMap([
+                [Request::CLONE_PATH_QUERY_PARAM, 'git@github.com:testuser/{$repo_key}.git'],
                 [Request::REPO_QUERY_PARAM, $repoName],
                 [Request::KEY_QUERY_PARAM, 'test-key-name'],
             ]));

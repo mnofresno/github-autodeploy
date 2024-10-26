@@ -7,6 +7,7 @@ use JsonException;
 class Request {
     public const REPO_QUERY_PARAM = 'repo';
     public const KEY_QUERY_PARAM = 'key';
+    public const CLONE_PATH_QUERY_PARAM = 'clone_path';
     public const CREATE_REPO_IF_NOT_EXISTS = 'create_repo_if_not_exists';
 
     private $headers = [];

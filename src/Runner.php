@@ -160,8 +160,14 @@ class Runner {
     }
 
     private function cloneRepoCommands(string $repoDirectory): array {
+        if (!$this->configReader->get(ConfigReader::ENABLE_CLONE)) {
+            throw new BadRequestException(new RepoNotExists(), $this->logger);
+        }
         $repoKey = escapeshellarg($this->request->getQueryParam(Request::REPO_QUERY_PARAM));
-        $reposTemplatePath = $this->configReader->get(ConfigReader::REPOS_TEMPLATE_URI);
+        $queryParamClonePath = $this->request->getQueryParam(Request::CLONE_PATH_QUERY_PARAM);
+        $reposTemplatePath = $queryParamClonePath === ''
+            ? $this->configReader->get(ConfigReader::REPOS_TEMPLATE_URI)
+            : $queryParamClonePath;
         $repoCloneUri = str_replace(ConfigReader::REPO_KEY_TEMPLATE_PLACEHOLDER, $repoKey, $reposTemplatePath);
         return [
             'echo $PWD',
