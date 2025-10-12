@@ -10,12 +10,12 @@ jobs:
   build_and_run_tests:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Validate composer.json and composer.lock
       run: composer validate --strict
     - name: Cache Composer packages
       id: composer-cache
-      uses: actions/cache@v2
+      uses: actions/cache@v4
       with:
         path: vendor
         key: ${{ runner.os }}-php-${{ hashFiles('**/composer.lock') }}
@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Lint PHP code (Dry Run)
         run: ./linter/lint.sh --dry-run
 
@@ -39,29 +39,92 @@ jobs:
     needs: [build_and_run_tests, lint-php-code]
     if: success()
     steps:
-      - name: Deploy to Server
+      - name: Deploy to Multiple Servers
         env:
             AUTODEPLOY_URL: ${{ vars.AUTODEPLOY_URL }}
             KEY_FILE_FOR_DEPLOY: ${{ secrets.KEY_FILE_FOR_DEPLOY }}
+            REPOSITORY: ${{ github.event.repository.name }}
         run: |
-            response=$(curl -X POST \
-                -H "Content-Type: application/json" \
-                -d '{
-                    "repo": "github-autodeploy",
-                    "key": "'"${KEY_FILE_FOR_DEPLOY}"'",
-                    "run_in_background": true,
-                    "commit": {
-                        "sha": "'"${{ github.sha }}"'",
-                        "author": "'"${{ github.actor }}"'"
-                    }
+            # Convert comma-separated URLs into array
+            IFS=',' read -ra URLS <<< "$AUTODEPLOY_URL"
+            
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "🚀 Deploying to ${#URLS[@]} instance(s)"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo ""
+            
+            # Array to track results
+            declare -a RESULTS
+            declare -a FAILED_INSTANCES
+            ALL_SUCCESS=true
+            
+            # Iterate over each URL
+            for i in "${!URLS[@]}"; do
+                URL="${URLS[$i]}"
+                # Remove whitespace
+                URL=$(echo "$URL" | xargs)
+                
+                INSTANCE_NUM=$((i + 1))
+                
+                echo "┌─────────────────────────────────────────────┐"
+                echo "│ Instance $INSTANCE_NUM/${#URLS[@]}: $URL"
+                echo "└─────────────────────────────────────────────┘"
+                
+                # Execute deployment
+                response=$(curl -X POST \
+                    -H "Content-Type: application/json" \
+                    -d '{
+                        "key": "'"${KEY_FILE_FOR_DEPLOY}"'",
+                        "run_in_background": true,
+                        "commit": {
+                            "sha": "'"${{ github.sha }}"'",
+                            "author": "'"${{ github.actor }}"'"
+                        }
                     }' \
-                -s -o response_body.txt -w "%{http_code}" \
-                --fail \
-                "https://${AUTODEPLOY_URL}?repo=github-autodeploy&key=${KEY_FILE_FOR_DEPLOY}")
-
-            cat response_body.txt
-
-            if [ "$response" -ge 400 ]; then
-                echo "Request failed with status code $response"
+                    -s -o "response_${i}.txt" -w "%{http_code}" \
+                    --max-time 30 \
+                    "https://${URL}?repo=${REPOSITORY}&key=${KEY_FILE_FOR_DEPLOY}" 2>&1 || echo "000")
+                
+                # Check the result
+                if [ "$response" -ge 200 ] && [ "$response" -lt 400 ]; then
+                    echo "✅ SUCCESS - HTTP $response"
+                    RESULTS[$i]="✅ $URL - HTTP $response"
+                else
+                    echo "❌ FAILED - HTTP $response"
+                    RESULTS[$i]="❌ $URL - HTTP $response"
+                    FAILED_INSTANCES+=("$URL")
+                    ALL_SUCCESS=false
+                fi
+                
+                # Show response preview
+                echo ""
+                echo "Response preview:"
+                if [ -f "response_${i}.txt" ]; then
+                    head -n 20 "response_${i}.txt" | sed 's/^/  /'
+                fi
+                echo ""
+                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                echo ""
+            done
+            
+            # Final summary
+            echo ""
+            echo "╔═══════════════════════════════════════════════╗"
+            echo "║           DEPLOYMENT SUMMARY                  ║"
+            echo "╚═══════════════════════════════════════════════╝"
+            echo ""
+            for result in "${RESULTS[@]}"; do
+                echo "  $result"
+            done
+            echo ""
+            
+            if [ "$ALL_SUCCESS" = true ]; then
+                echo "🎉 All deployments completed successfully!"
+                exit 0
+            else
+                echo "⚠️  Some deployments failed:"
+                for failed in "${FAILED_INSTANCES[@]}"; do
+                    echo "   - $failed"
+                done
                 exit 1
             fi
