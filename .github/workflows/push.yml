@@ -39,17 +39,15 @@ jobs:
     needs: [build_and_run_tests, lint-php-code]
     if: success()
     steps:
-      - name: Deploy to Multiple Servers
+      - name: Self-Update All Instances
         env:
             AUTODEPLOY_URL: ${{ vars.AUTODEPLOY_URL }}
-            KEY_FILE_FOR_DEPLOY: ${{ secrets.KEY_FILE_FOR_DEPLOY }}
-            REPOSITORY: ${{ github.event.repository.name }}
         run: |
             # Convert comma-separated URLs into array
             IFS=',' read -ra URLS <<< "$AUTODEPLOY_URL"
             
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            echo "🚀 Deploying to ${#URLS[@]} instance(s)"
+            echo "🔄 Self-updating ${#URLS[@]} instance(s)"
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             echo ""
             
@@ -70,28 +68,19 @@ jobs:
                 echo "│ Instance $INSTANCE_NUM/${#URLS[@]}: $URL"
                 echo "└─────────────────────────────────────────────┘"
                 
-                # Execute deployment
-                response=$(curl -X POST \
-                    -H "Content-Type: application/json" \
-                    -d '{
-                        "key": "'"${KEY_FILE_FOR_DEPLOY}"'",
-                        "run_in_background": true,
-                        "commit": {
-                            "sha": "'"${{ github.sha }}"'",
-                            "author": "'"${{ github.actor }}"'"
-                        }
-                    }' \
+                # Call /self-update endpoint
+                response=$(curl -X GET \
                     -s -o "response_${i}.txt" -w "%{http_code}" \
-                    --max-time 30 \
-                    "https://${URL}?repo=${REPOSITORY}&key=${KEY_FILE_FOR_DEPLOY}" 2>&1 || echo "000")
+                    --max-time 60 \
+                    "https://${URL}/self-update" 2>&1 || echo "000")
                 
                 # Check the result
                 if [ "$response" -ge 200 ] && [ "$response" -lt 400 ]; then
-                    echo "✅ SUCCESS - HTTP $response"
-                    RESULTS[$i]="✅ $URL - HTTP $response"
+                    echo "✅ SUCCESS - Self-update completed (HTTP $response)"
+                    RESULTS[$i]="✅ $URL - Self-updated (HTTP $response)"
                 else
-                    echo "❌ FAILED - HTTP $response"
-                    RESULTS[$i]="❌ $URL - HTTP $response"
+                    echo "❌ FAILED - Self-update failed (HTTP $response)"
+                    RESULTS[$i]="❌ $URL - Self-update failed (HTTP $response)"
                     FAILED_INSTANCES+=("$URL")
                     ALL_SUCCESS=false
                 fi
@@ -110,7 +99,7 @@ jobs:
             # Final summary
             echo ""
             echo "╔═══════════════════════════════════════════════╗"
-            echo "║           DEPLOYMENT SUMMARY                  ║"
+            echo "║           SELF-UPDATE SUMMARY                 ║"
             echo "╚═══════════════════════════════════════════════╝"
             echo ""
             for result in "${RESULTS[@]}"; do
@@ -119,10 +108,10 @@ jobs:
             echo ""
             
             if [ "$ALL_SUCCESS" = true ]; then
-                echo "🎉 All deployments completed successfully!"
+                echo "🎉 All instances self-updated successfully!"
                 exit 0
             else
-                echo "⚠️  Some deployments failed:"
+                echo "⚠️  Some self-updates failed:"
                 for failed in "${FAILED_INSTANCES[@]}"; do
                     echo "   - $failed"
                 done

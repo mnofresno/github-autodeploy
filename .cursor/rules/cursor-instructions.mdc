@@ -1,0 +1,311 @@
+---
+description: Direct instructions for Cursor AI when generating or modifying code
+globs: ["**/*"]
+---
+
+# Instructions for Cursor AI
+
+## Code Generation Guidelines
+
+When generating or modifying code in this project, you MUST follow these rules:
+
+### 1. Always Run the Linter Before Committing
+
+After making ANY changes to PHP files:
+```bash
+./linter/lint.sh --dry-run
+```
+
+If there are errors, fix them with:
+```bash
+./linter/lint.sh
+```
+
+### 2. Code Style Requirements
+
+#### Blank Lines
+- **CRITICAL**: Blank lines must be COMPLETELY empty
+- ❌ No spaces or tabs on blank lines
+- ❌ No trailing whitespace on any line
+
+```php
+// CORRECT
+public function method1(): void {
+    // code
+}
+
+public function method2(): void {
+    // code  
+}
+
+// WRONG (blank line has spaces)
+public function method1(): void {
+    // code
+}
+    
+public function method2(): void {
+    // code
+}
+```
+
+#### Braces
+- Always on the **same line** as declaration
+- For classes, functions, and control structures
+
+```php
+// CORRECT
+class MyClass {
+    public function myMethod(): void {
+        if ($condition) {
+            // code
+        }
+    }
+}
+
+// WRONG
+class MyClass
+{
+    public function myMethod(): void
+    {
+        // code
+    }
+}
+```
+
+#### Arrays
+- Use short syntax: `[]` not `array()`
+- Space after commas: `['a', 'b', 'c']`
+
+### 3. Testing Requirements
+
+When adding new functionality:
+
+1. **Write tests FIRST** (TDD approach)
+2. Tests should **fail initially** (RED phase)
+3. Implement **minimal code** to pass (GREEN phase)
+4. Refactor while keeping tests green
+
+Test file structure:
+```php
+class MyFeatureTest extends TestCase {
+    private $subject;
+    
+    public function setUp(): void {
+        parent::setUp();
+        $this->subject = new MyFeature();
+    }
+    
+    public function testFeatureBehavesAsExpected(): void {
+        // Arrange
+        $input = 'test';
+        
+        // Act
+        $result = $this->subject->process($input);
+        
+        // Assert
+        $this->assertEquals('expected', $result);
+    }
+}
+```
+
+### 4. Placeholder System
+
+When working with command placeholders:
+
+#### Format
+Both formats are valid:
+- `$placeholder`
+- `${{ placeholder }}`
+
+#### Secrets
+- Always use `${{ secrets.secret_name }}` or `$secrets.secret_name`
+- Never log secrets in plain text
+- Mask with `***` in all output
+
+#### Hydration Points
+Placeholders MUST be hydrated in these locations:
+1. `CustomCommands::get()` - for custom_commands from config.json
+2. `Runner::getPreFetchCommands()` - for pre_fetch_commands from .git-auto-deploy.yml
+3. `Runner::getPostFetchCommands()` - for post_fetch_commands from .git-auto-deploy.yml
+
+#### Key Rule
+`CustomCommands::hydratePlaceHolders()` MUST be **public** because it's called by `Runner`.
+
+### 5. Security Requirements
+
+#### Shell Commands
+- Always escape with `escapeshellcmd()`
+- Use whitelisted strings for safe patterns
+- Never trust user input directly
+
+```php
+// CORRECT
+$command = 'cd ' . escapeshellarg($userInput);
+
+// WRONG
+$command = 'cd ' . $userInput;
+```
+
+#### Secrets
+- Store in `config.json` under `secrets` key
+- Never commit real secrets
+- Use placeholder values in examples
+
+### 6. Error Handling
+
+#### Use Custom Exceptions
+```php
+// CORRECT
+throw new BadRequestException($view, $this->logger);
+
+// WRONG
+throw new Exception('Bad request');
+```
+
+#### Log Errors Appropriately
+```php
+// CORRECT
+$this->logger->error('Failed to process', [
+    'repo' => $repo,
+    'error' => $e->getMessage(),
+]);
+
+// WRONG
+echo 'Error: ' . $e->getMessage();
+```
+
+### 7. Documentation
+
+When adding new features:
+- Update `README.md` if it affects public API
+- Add inline comments for complex logic
+- Document configuration parameters
+- Provide usage examples
+
+### 8. Commit Message Format
+
+```
+type(scope): brief description
+
+Optional longer description.
+
+- Detail 1
+- Detail 2
+```
+
+Types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `style`, `perf`
+
+### 9. File Organization
+
+New files should go in appropriate directories:
+- `src/` - Application code
+- `src/cli/` - CLI-specific code  
+- `src/exceptions/` - Custom exceptions
+- `src/views/` - View/response classes
+- `test/` - Test files
+
+### 10. Dependencies
+
+When adding dependencies:
+- Add to `composer.json`
+- Update `composer.lock`
+- Document why it's needed
+- Consider alternatives
+
+## Common Pitfalls to Avoid
+
+### ❌ DON'T:
+1. Add trailing whitespace
+2. Put spaces/tabs on blank lines
+3. Use old array syntax `array()`
+4. Open braces on new line
+5. Skip tests when adding features
+6. Log secrets in plain text
+7. Execute user input directly
+8. Forget to hydrate placeholders in pre/post fetch commands
+9. Make `hydratePlaceHolders()` private
+10. Hard-code configuration values
+
+### ✅ DO:
+1. Run linter before committing
+2. Write tests first (TDD)
+3. Use type hints everywhere
+4. Inject dependencies
+5. Handle errors gracefully
+6. Log important operations
+7. Mask secrets in output
+8. Follow PSR-12 standard
+9. Keep methods focused
+10. Document complex logic
+
+## Pre-Commit Checklist
+
+Use this checklist before every commit:
+
+```bash
+# 1. Run linter
+./linter/lint.sh --dry-run
+
+# 2. Run tests
+composer run-script test
+
+# 3. Check git status
+git status
+
+# 4. Review changes
+git diff
+
+# 5. Ensure no debug code
+grep -r "var_dump\|print_r\|dd(" src/
+
+# 6. Stage files
+git add <files>
+
+# 7. Commit with proper message
+git commit -m "type(scope): description"
+```
+
+## IDE Configuration Hints
+
+For optimal development experience:
+
+### VS Code / Cursor Settings
+```json
+{
+    "files.trimTrailingWhitespace": true,
+    "files.insertFinalNewline": true,
+    "files.trimFinalNewlines": true,
+    "editor.formatOnSave": false,
+    "php.suggest.basic": true,
+    "php.validate.enable": true
+}
+```
+
+### EditorConfig
+This project should have an `.editorconfig`:
+```ini
+[*.php]
+indent_style = space
+indent_size = 4
+end_of_line = lf
+charset = utf-8
+trim_trailing_whitespace = true
+insert_final_newline = true
+```
+
+## When in Doubt
+
+1. Check `linter/php_cs_custom_rules.php` for style rules
+2. Look at existing code for patterns
+3. Run linter to verify compliance
+4. Ask questions rather than guessing
+5. Follow the principle of least surprise
+
+## Remember
+
+> Clean code is not written by following a set of rules. You don't become a software craftsman by learning a list of what to do and what not to do. Professionalism and craftsmanship come from values that drive disciplines.
+> 
+> — Robert C. Martin
+
+But in this project, you DO need to follow the linter rules! 😊
+

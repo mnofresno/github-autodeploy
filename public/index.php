@@ -8,7 +8,12 @@ Autoloader::load();
 
 $container = (new ContainerProvider())->provide();
 
-if ($_SERVER['REQUEST_URI'] === '/self-update') {
+// Parse the URI to get just the path (without query string)
+$requestPath = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+// Remove trailing slash for consistent comparison (except for root)
+$requestPath = $requestPath !== '/' ? rtrim($requestPath, '/') : $requestPath;
+
+if ($requestPath === '/self-update') {
     $output = runSelfUpdate();
     echo nl2br(htmlspecialchars($output, ENT_QUOTES, 'UTF-8'));
 } else {

@@ -1,0 +1,254 @@
+---
+description: Coding standards and style rules for the Git Auto Deployment Tool project
+globs: ["**/*.php", "**/*.yml", "**/*.yaml", "**/*.json"]
+---
+
+# Git Auto Deployment Tool - Coding Standards
+
+## PHP Code Style
+
+This project uses **PHP CS Fixer** with custom rules. All code MUST pass the linter before being committed.
+
+### Running the Linter
+
+```bash
+# Check for issues (dry-run)
+./linter/lint.sh --dry-run
+
+# Fix issues automatically
+./linter/lint.sh
+```
+
+### Key Style Rules
+
+#### 1. Array Syntax
+- ✅ Use short array syntax: `[]`
+- ❌ Don't use: `array()`
+
+```php
+// Good
+$items = ['foo', 'bar'];
+
+// Bad
+$items = array('foo', 'bar');
+```
+
+#### 2. Braces Position
+- Opening braces on the **same line** as the declaration
+- Applies to: classes, functions, control structures
+
+```php
+// Good
+class MyClass {
+    public function myMethod(): void {
+        if ($condition) {
+            // code
+        }
+    }
+}
+
+// Bad
+class MyClass
+{
+    public function myMethod(): void
+    {
+        if ($condition)
+        {
+            // code
+        }
+    }
+}
+```
+
+#### 3. Whitespace Rules
+- **NO trailing whitespace** at end of lines
+- **NO whitespace in blank lines** - blank lines must be completely empty
+- Single blank line at end of file
+- Whitespace after commas in arrays
+- Space before and after operators (except `=` and `=>` for alignment)
+
+```php
+// Good
+$arr = ['a', 'b', 'c'];
+$result = $a + $b;
+
+// Empty line below (no spaces)
+
+$another = 'value';
+
+// Bad
+$arr = ['a','b','c'];  
+$result = $a+$b;
+    
+$another = 'value';  // trailing spaces
+```
+
+#### 4. Imports
+- Remove unused imports
+- No leading slash in imports
+- Sort imports alphabetically
+
+```php
+// Good
+use Mariano\GitAutoDeploy\ConfigReader;
+use Mariano\GitAutoDeploy\Request;
+use Monolog\Logger;
+
+// Bad
+use \Mariano\GitAutoDeploy\ConfigReader;
+use Mariano\GitAutoDeploy\UnusedClass;
+```
+
+#### 5. Function and Method Declarations
+- Type hints for parameters and return types when possible
+- No space after function name
+- Space before colon in return types
+
+```php
+// Good
+public function getData(string $key): array {
+    return [];
+}
+
+// Bad
+public function getData ($key) {
+    return [];
+}
+```
+
+#### 6. Class Structure
+- One blank line between methods
+- Properties before methods
+- Public methods before private methods
+
+```php
+class Example {
+    private $property;
+
+    public function publicMethod(): void {
+        // code
+    }
+
+    private function privateMethod(): void {
+        // code
+    }
+}
+```
+
+## PSR-12 Compliance
+
+This project follows PSR-12 coding standard with custom modifications listed above.
+
+## Testing Standards
+
+### Test Files
+- All test files must be in the `test/` directory
+- Test class names must end with `Test`
+- Use PHPUnit framework
+- Test methods must start with `test`
+
+### Test Structure
+```php
+class MyFeatureTest extends TestCase {
+    private $subject;
+    private $mockDependency;
+
+    public function setUp(): void {
+        parent::setUp();
+        $this->mockDependency = $this->createMock(Dependency::class);
+        $this->subject = new MyFeature($this->mockDependency);
+    }
+
+    public function testFeatureBehavesCorrectly(): void {
+        // Arrange
+        $this->mockDependency->expects($this->once())
+            ->method('doSomething')
+            ->willReturn('result');
+
+        // Act
+        $result = $this->subject->execute();
+
+        // Assert
+        $this->assertEquals('expected', $result);
+    }
+}
+```
+
+## Git Commit Messages
+
+### Format
+```
+type(scope): brief description
+
+Longer description if needed.
+
+- Bullet points for details
+- Multiple points if necessary
+```
+
+### Types
+- `feat`: New feature
+- `fix`: Bug fix
+- `refactor`: Code refactoring
+- `test`: Adding or updating tests
+- `docs`: Documentation changes
+- `chore`: Maintenance tasks
+- `style`: Code style changes (formatting, etc.)
+- `perf`: Performance improvements
+
+### Examples
+```
+feat(runner): add placeholder hydration for pre/post fetch commands
+
+fix(security): prevent injection in custom commands
+
+test(runner): add coverage for secret placeholders in deploy commands
+
+chore: update GitHub Actions to v4
+```
+
+## File Organization
+
+### Directory Structure
+```
+/
+├── src/              # Source code
+│   ├── cli/          # CLI-specific classes
+│   ├── exceptions/   # Custom exceptions
+│   └── views/        # View classes
+├── test/             # Test files
+├── public/           # Public web root
+├── linter/           # Linting configuration
+└── .cursor/          # Cursor AI rules
+    └── rules/        # This file
+```
+
+## Security Practices
+
+1. **Always escape shell commands** - Use `escapeshellcmd()` carefully
+2. **Validate all inputs** - Check repo names, keys, etc.
+3. **Use whitelisting** - For IPs, allowed strings, etc.
+4. **Never expose secrets** - Mask in logs and output
+5. **Parameterize dangerous operations** - SQL, shell commands
+
+## Best Practices
+
+1. **Type Hints**: Always use type hints for better IDE support and type safety
+2. **Dependency Injection**: Inject dependencies via constructor
+3. **Single Responsibility**: Each class should have one clear purpose
+4. **Immutability**: Prefer readonly properties when possible
+5. **Error Handling**: Use custom exceptions, not generic ones
+6. **Logging**: Log important operations and errors
+7. **Testing**: Write tests BEFORE implementing features (TDD)
+
+## Pre-commit Checklist
+
+Before committing code:
+- [ ] Run `./linter/lint.sh` and ensure no errors
+- [ ] Run `composer run-script test` and ensure all tests pass
+- [ ] Update tests if adding new functionality
+- [ ] Update documentation if changing public APIs
+- [ ] Follow commit message format
+- [ ] No debug code or commented-out code
+- [ ] No trailing whitespace or whitespace in blank lines
+

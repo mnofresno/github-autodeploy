@@ -38,7 +38,7 @@ class CustomCommands {
             : null;
     }
 
-    private function hydratePlaceHolders(string $command): string {
+    public function hydratePlaceHolders(string $command): string {
         $this->logger->debug("Original command: $command");
 
         $pattern = '/\$\{\{\s*(?P<placeholder>[^\}]+)\s*\}\}|\$(?P<subkey>[a-zA-Z0-9_.]+)/';

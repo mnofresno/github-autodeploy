@@ -17,12 +17,16 @@ install_repository() {
   TEMP_ZIP=$(mktemp)
   curl -sSL "$REPO_URL" -o "$TEMP_ZIP"
   unzip -q "$TEMP_ZIP" -d "$INSTALL_DIR"
-  echo "Changing ownership of all files in $INSTALL_DIR to www-data:www-data..."
-  chown -R www-data:www-data "$INSTALL_DIR"
   mv "$INSTALL_DIR/github-autodeploy-master/"* "$INSTALL_DIR/"
   rm -rf "$INSTALL_DIR/github-autodeploy-master"
   rm -f "$TEMP_ZIP"
   ln -sf "$INSTALL_DIR" "$WEBROOT"
+  echo "Setting executable permissions on scripts..."
+  chmod +x "$INSTALL_DIR/install.sh"
+  chmod +x "$INSTALL_DIR/bin/trigger_for_repo"
+  chmod +x "$INSTALL_DIR/linter/lint.sh"
+  echo "Changing ownership of all files in $INSTALL_DIR to www-data:www-data..."
+  chown -R www-data:www-data "$INSTALL_DIR"
 
   if [ ! -f "$INSTALL_DIR/config.json" ] && [ -f "$INSTALL_DIR/config.example.json" ]; then
     echo "Copying config.example.json to config.json..."
@@ -56,11 +60,17 @@ self_update() {
   rsync -av --progress --delete $EXCLUDE_FILES "$TEMP_DIR/github-autodeploy-master/" "$INSTALL_DIR/"
   echo "Changing ownership of all files in $INSTALL_DIR to www-data:www-data..."
   chown -R www-data:www-data "$INSTALL_DIR"
+  echo "Setting executable permissions on scripts..."
+  chmod +x "$INSTALL_DIR/install.sh"
+  chmod +x "$INSTALL_DIR/bin/trigger_for_repo"
+  chmod +x "$INSTALL_DIR/linter/lint.sh"
   echo "Cleaning up temporary files..."
   rm -rf "$TEMP_DIR" "$TEMP_ZIP" "$TEMP_GITIGNORE"
   echo "Running composer install..."
   if [ -f "$INSTALL_DIR/composer.json" ]; then
-    composer install -d "$INSTALL_DIR"
+    # Install without dev dependencies and ignore platform requirements for optional extensions
+    composer install -d "$INSTALL_DIR" --no-dev --ignore-platform-req=ext-dom 2>&1 || \
+    composer install -d "$INSTALL_DIR" --ignore-platform-req=ext-dom
   else
     echo "composer.json not found. Skipping composer install."
   fi
@@ -254,7 +264,8 @@ if [ -f "$INSTALL_DIR/composer.json" ]; then
   sudo chown -R www-data:www-data "$INSTALL_DIR"
   sudo find "$INSTALL_DIR" -type d -exec chmod 755 {} \;
   sudo find "$INSTALL_DIR" -type f -exec chmod 644 {} \;
-  if ! sudo -u www-data composer install -d "$INSTALL_DIR"; then
+  # Install without dev dependencies and ignore platform requirements for optional extensions
+  if ! sudo -u www-data composer install -d "$INSTALL_DIR" --no-dev --ignore-platform-req=ext-dom; then
     echo "Error installing Composer dependencies. Triggering rollback..."
     rollback "$DOMAIN"
     exit 1

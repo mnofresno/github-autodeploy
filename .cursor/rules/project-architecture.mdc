@@ -1,0 +1,306 @@
+---
+description: Architecture documentation and component overview for the Git Auto Deployment Tool
+globs: ["src/**/*.php", "test/**/*.php"]
+---
+
+# Git Auto Deployment Tool - Project Architecture
+
+## Overview
+
+This is a webhook-based auto-deployment system that receives GitHub/GitLab webhooks and executes deployment commands on the server.
+
+## Core Components
+
+### 1. Entry Point (`public/index.php`)
+- Single entry point for all HTTP requests
+- Sets up dependency injection container
+- Delegates to `Hamster` class
+
+### 2. Request Handler (`src/Hamster.php`)
+- Main application controller
+- Routes requests appropriately
+- Handles errors and responses
+
+### 3. Runner (`src/Runner.php`)
+- Core deployment logic
+- Executes pre-fetch, fetch, and post-fetch commands
+- Manages repository operations
+- Key methods:
+  - `run()`: Main execution method
+  - `getPreFetchCommands()`: Commands before git fetch
+  - `getFetchCommands()`: Git fetch commands
+  - `getPostFetchCommands()`: Commands after git fetch
+
+### 4. Custom Commands (`src/CustomCommands.php`)
+- Manages custom deployment commands
+- Handles placeholder replacement
+- Key placeholders:
+  - `$repo`: Repository name
+  - `$key`: SSH key name
+  - `$ReposBasePath`: Base path for repositories
+  - `$SSHKeysPath`: Path to SSH keys
+  - `${{ secrets.secret_name }}`: Secret values from config
+
+**IMPORTANT**: The `hydratePlaceHolders()` method MUST be public as it's called by `Runner` for pre/post fetch commands.
+
+### 5. Configuration (`src/ConfigReader.php`)
+- Reads `config.json` file
+- Provides configuration parameters
+- Configuration keys:
+  - `IPsAllowList`: Allowed IP addresses
+  - `SSHKeysPath`: Path to SSH keys
+  - `ReposBasePath`: Base path for repositories
+  - `secrets`: Secret values (masked in logs)
+  - `custom_commands`: Custom commands per repo
+
+### 6. Deploy Config Reader (`src/DeployConfigReader.php`)
+- Reads per-repository `.git-auto-deploy.yml` files
+- Supports JSON, YAML, and YML formats
+- Returns pre-fetch, fetch, and post-fetch commands
+
+### 7. Executer (`src/Executer.php`)
+- Executes shell commands safely
+- Uses `escapeshellcmd()` with whitelisted strings
+- Returns command results with exit codes
+
+### 8. Security (`src/Security.php` and `src/cli/CliSecurity.php`)
+- IP allowlist validation
+- GitHub IP ranges checking
+- CLI security bypass for manual triggers
+
+## Configuration Files
+
+### 1. Global Config (`config.json`)
+Example:
+```json
+{
+    "debug_level": "WARNING",
+    "IPsAllowList": ["127.0.0.1"],
+    "SSHKeysPath": "/home/user/.ssh",
+    "ReposBasePath": "/var/www",
+    "custom_commands": {
+        "my-repo": [
+            "cd $ReposBasePath/$repo",
+            "git pull"
+        ],
+        "_default_": [
+            "echo $PWD",
+            "whoami"
+        ]
+    },
+    "secrets": {
+        "github_ghcr_token": "ghp_xxxxx",
+        "github_ghcr_username": "user@example.com"
+    }
+}
+```
+
+### 2. Per-Repository Config (`.git-auto-deploy.yml`)
+Example:
+```yaml
+---
+pre_fetch_commands:
+    - echo ${{ secrets.github_ghcr_token }} | docker login ghcr.io -u ${{ secrets.github_ghcr_username }} --password-stdin
+    - ./pre-deploy.sh
+post_fetch_commands:
+    - composer install
+    - ./restart-services.sh
+    - echo "Deployed $repo successfully"
+```
+
+## Command Execution Flow
+
+```
+HTTP Request
+    ↓
+Hamster (routing)
+    ↓
+Security Check (IP allowlist)
+    ↓
+Runner.run()
+    ↓
+├─→ Pre-Fetch Commands (from .git-auto-deploy.yml)
+│   └─→ Placeholders hydrated by CustomCommands
+├─→ Fetch Commands (built-in git fetch)
+└─→ Post-Fetch Commands (from .git-auto-deploy.yml)
+    └─→ Placeholders hydrated by CustomCommands
+```
+
+## Placeholder System
+
+### When Placeholders Are Replaced
+
+1. **Custom Commands** (from `config.json`): 
+   - Replaced by `CustomCommands::get()`
+   
+2. **Pre-Fetch Commands** (from `.git-auto-deploy.yml`):
+   - Replaced by `Runner::getPreFetchCommands()` → `CustomCommands::hydratePlaceHolders()`
+   
+3. **Post-Fetch Commands** (from `.git-auto-deploy.yml`):
+   - Replaced by `Runner::getPostFetchCommands()` → `CustomCommands::hydratePlaceHolders()`
+
+### Available Placeholders
+
+| Placeholder | Source | Example |
+|-------------|--------|---------|
+| `$repo` | Query parameter | `my-repository` |
+| `$key` | Query parameter | `id_rsa_deploy` |
+| `$ReposBasePath` | Config | `/var/www` |
+| `$SSHKeysPath` | Config | `/home/user/.ssh` |
+| `${{ secrets.name }}` | Config secrets | `ghp_token123` |
+| `$secrets.name` | Config secrets | `ghp_token123` |
+
+### Placeholder Format Rules
+
+Both formats are supported:
+- `$placeholder` - Simple format
+- `${{ placeholder }}` - GitHub Actions style
+
+For secrets, both work:
+- `$secrets.github_token`
+- `${{ secrets.github_token }}`
+
+**Note**: Secrets are masked as `***` in logs for security.
+
+## Testing Strategy
+
+### Test-Driven Development (TDD)
+1. Write failing test first (RED)
+2. Implement minimal code to pass (GREEN)
+3. Refactor while keeping tests green (REFACTOR)
+
+### Test Coverage Areas
+- `CustomCommandsTest.php`: Placeholder replacement, command generation
+- `RunnerTest.php`: Main deployment flow, pre/post fetch commands
+- `ExecuterTest.php`: Command execution, escaping
+- `SecurityTest.php`: IP validation, allowlists
+- `DeployConfigReaderTest.php`: Config file parsing
+
+### Mock Objects
+Use PHPUnit mocks for:
+- External dependencies (ConfigReader, Logger, etc.)
+- File system operations
+- Network calls
+- Shell command execution
+
+## Error Handling
+
+### Exception Hierarchy
+```
+BaseException (base class)
+├─→ BadRequestException (400 errors)
+├─→ ForbiddenException (403 errors)
+└─→ InvalidDeployFileException (deployment config errors)
+```
+
+### Error Views
+- Each exception type has a corresponding view
+- Views render HTML error pages
+- HTTP status codes match exception types
+
+## Logging
+
+### Log Levels
+- `DEBUG`: Detailed command execution, placeholder replacement
+- `INFO`: Normal operations, deployment start/finish
+- `WARNING`: Recoverable issues
+- `ERROR`: Errors that need attention
+
+### What to Log
+- ✅ Deployment start/finish
+- ✅ Command execution (with masked secrets)
+- ✅ Configuration loading
+- ✅ Security checks
+- ❌ Sensitive data (passwords, tokens)
+- ❌ Full stack traces in production
+
+## Dependency Injection
+
+### Container (`src/ContainerProvider.php`)
+- Uses PHP-DI container
+- Singleton instances for services
+- Easy testing with mocks
+
+### How to Add New Dependencies
+1. Define in `ContainerProvider`
+2. Inject via constructor
+3. Type hint the interface/class
+4. Mock in tests
+
+## CI/CD Pipeline
+
+### GitHub Actions Workflow
+- **build_and_run_tests**: Runs tests on every push
+- **lint-php-code**: Validates code style
+- **deploy**: Deploys to multiple instances (comma-separated URLs)
+
+### Multi-Instance Deployment
+Configure `AUTODEPLOY_URL` variable with comma-separated values:
+```
+AUTODEPLOY_URL=server1.com,server2.com,server3.com
+```
+
+The workflow will:
+1. Deploy to each instance sequentially
+2. Show HTTP status for each
+3. Display response preview
+4. Provide summary of all deployments
+5. Fail if any deployment fails
+
+## Security Considerations
+
+### Shell Command Safety
+1. All commands pass through `escapeshellcmd()`
+2. Whitelisted strings are preserved (like `$(git symbolic-ref --short HEAD)`)
+3. User input is never directly executed
+
+### IP Allowlisting
+- Static IPs in config
+- Dynamic GitHub IP ranges from API
+- Both IPv4 and IPv6 supported
+
+### Secret Management
+- Secrets stored in `config.json`
+- Never logged in plain text
+- Replaced with `***` in output
+- Only used in actual command execution
+
+## Common Patterns
+
+### Adding a New Config Parameter
+1. Add constant in `ConfigReader.php`
+2. Document in README.md
+3. Add to `config.example.json`
+4. Add tests in `CustomCommandsTest.php`
+
+### Adding a New Placeholder
+1. Add to `CustomCommands::CURRENT_PLACEHOLDERS`
+2. Implement callback method
+3. Add tests
+4. Document in README.md
+
+### Adding a New Command Hook
+1. Add method in `DeployConfigReader` config object
+2. Update `Runner` to call new commands
+3. Ensure placeholders are hydrated
+4. Add tests in `RunnerTest.php`
+5. Document in README.md
+
+## Performance Considerations
+
+- Commands execute sequentially (not parallel)
+- Each deployment is independent
+- Background execution supported with `run_in_background` parameter
+- Git operations can be slow - consider shallow clones for large repos
+
+## Future Enhancements
+
+Potential improvements:
+- Parallel command execution
+- Deployment rollback support
+- Deployment history tracking
+- Web UI for deployment status
+- Webhook signature verification
+- Rate limiting
+- Deployment queuing
+

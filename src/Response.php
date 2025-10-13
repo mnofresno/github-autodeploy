@@ -7,8 +7,10 @@ use Mariano\GitAutoDeploy\views\BaseView;
 class Response {
     public const STATUS_MAP = [
         200 => 'OK',
+        201 => 'Created',
         400 => 'Bad Request',
         403 => 'Forbidden',
+        500 => 'Internal Server Error',
     ];
 
     private $body = '';
@@ -37,11 +39,12 @@ class Response {
 
     public function send(string $contentType = 'text/html;charset=UTF-8'): void {
         header("Content-Type: {$contentType}");
+        $statusMessage = self::STATUS_MAP[$this->statusCode] ?? 'Unknown';
         header(
             sprintf(
                 "HTTP/1.1 %s %s",
                 $this->statusCode,
-                self::STATUS_MAP[$this->statusCode]
+                $statusMessage
             )
         );
         echo $this->body;

@@ -204,9 +204,84 @@ This project uses GitHub Actions for continuous integration and deployment:
 - **PHP Linting**:
   - Uses a custom linter script (`linter/lint.sh`) in dry-run mode to detect potential issues.
 
-- **Deployment**:
-  - Deploys to the server only if tests and linting pass successfully.
-  - Uses environment variables for deployment URL and key (`AUTODEPLOY_URL` and `KEY_FILE_FOR_DEPLOY`).
+- **Self-Update Deployment**:
+  - Automatically updates all instances when you push to the repository.
+  - Only if tests and linting pass successfully.
+  - Uses environment variables for deployment URLs (`AUTODEPLOY_URL`).
+  - **Supports multiple instances**: You can update multiple servers by separating URLs with commas.
+  - Shows a clear summary with status for each instance.
+
+### Multi-Instance Self-Update
+
+To update multiple instances simultaneously, set the `AUTODEPLOY_URL` variable in your GitHub repository settings with comma-separated values:
+
+```
+AUTODEPLOY_URL=github-autodeploy.fresno.ar,git-autodeploy.gastos.fresno.ar,git-autodeploy.localpass.cloud
+```
+
+The workflow will:
+1. Self-update each instance sequentially
+2. Show the HTTP status code for each self-update
+3. Display a preview of each response
+4. Provide a clear summary at the end showing which instances succeeded or failed
+5. Fail the workflow if any instance fails
+
+### Self-Update Mechanism
+
+When you push changes to the `github-autodeploy` repository, the workflow automatically performs a **self-update** on all configured instances:
+
+**How it works:**
+
+1. The workflow calls the `/self-update` endpoint on each instance configured in `AUTODEPLOY_URL`
+2. Each instance executes `install.sh --self-update` which:
+   - Downloads the latest version from GitHub
+   - Uses rsync to update files (preserving `config.json` and other ignored files)
+   - Runs `composer install` to update dependencies
+   - Maintains proper file ownership (www-data)
+
+**Note:** This project uses the self-update mechanism for its own deployments. For monitoring other repositories, you would configure them separately with git hooks or `.git-auto-deploy.yml` files
+
+**Example self-update output:**
+```
+🔄 Self-updating 3 instance(s)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+┌─────────────────────────────────────────────┐
+│ Instance 1/3: github-autodeploy.fresno.ar
+└─────────────────────────────────────────────┘
+✅ SUCCESS - Self-update completed (HTTP 200)
+
+╔═══════════════════════════════════════════════╗
+║           SELF-UPDATE SUMMARY                 ║
+╚═══════════════════════════════════════════════╝
+  ✅ github-autodeploy.fresno.ar - Self-updated (HTTP 200)
+  ✅ git-autodeploy.gastos.fresno.ar - Self-updated (HTTP 200)
+  ✅ git-autodeploy.localpass.cloud - Self-updated (HTTP 200)
+
+🎉 All instances self-updated successfully!
+```
+
+**Manual self-update:**
+
+You can also manually trigger a self-update on any server:
+
+```bash
+# SSH into the server
+ssh user@your-server.com
+
+# Run self-update as www-data
+sudo -u www-data /opt/git-autodeploy/install.sh --self-update
+
+# Or via curl to the endpoint
+curl https://git-autodeploy.your-domain.com/self-update
+```
+
+**What gets updated:**
+- ✅ All source code files (`src/`, `public/`, etc.)
+- ✅ Configuration files (`linter/`, `.github/`, etc.)
+- ✅ Composer dependencies
+- ❌ Your custom `config.json` (preserved)
+- ❌ Any files in `.gitignore` (preserved)
 
 ## Usage
 

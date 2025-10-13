@@ -147,16 +147,18 @@ class Runner {
 
     private function getPostFetchCommands(): array {
         $deployConfig = $this->deployConfigReader->fetchRepoConfig($this->request->getQueryParam(Request::REPO_QUERY_PARAM));
-        return $deployConfig
+        $commands = $deployConfig
             ? $deployConfig->postFetchCommands()
             : [];
+        return empty($commands) ? [] : array_map([$this->customCommands, 'hydratePlaceHolders'], $commands);
     }
 
     private function getPreFetchCommands(): array {
         $deployConfig = $this->deployConfigReader->fetchRepoConfig($this->request->getQueryParam(Request::REPO_QUERY_PARAM));
-        return $deployConfig
+        $commands = $deployConfig
             ? $deployConfig->preFetchCommands()
             : [];
+        return empty($commands) ? [] : array_map([$this->customCommands, 'hydratePlaceHolders'], $commands);
     }
 
     private function cloneRepoCommands(string $repoDirectory): array {

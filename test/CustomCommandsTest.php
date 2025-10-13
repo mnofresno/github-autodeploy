@@ -312,4 +312,28 @@ class CustomCommandsTest extends TestCase {
             'echo myusername',
         ], $customCommands);
     }
+
+    public function testHydratePlaceHoldersMethodIsPublicAndWorksCorrectly() {
+        $this->mockConfigReader->expects($this->atLeast(2))
+            ->method('get')
+            ->willReturnMap([
+                [ConfigReader::REPOS_BASE_PATH, '/var/www/test'],
+                [ConfigReader::SSH_KEYS_PATH, '/home/test/.ssh'],
+                [ConfigReader::SECRETS, [
+                    'token' => 'secret_value',
+                ]],
+            ]);
+        $this->mockRequest->expects($this->atLeast(1))
+            ->method('getQueryParam')
+            ->willReturnMap([
+                [Request::REPO_QUERY_PARAM, 'test-repo'],
+                [Request::KEY_QUERY_PARAM, 'test-key'],
+            ]);
+
+        $result = $this->subject->hydratePlaceHolders('echo ${{ secrets.token }} | login -u $repo -k $key');
+        $this->assertEquals('echo secret_value | login -u test-repo -k test-key', $result);
+
+        $result2 = $this->subject->hydratePlaceHolders('cd $ReposBasePath && ls $SSHKeysPath');
+        $this->assertEquals('cd /var/www/test && ls /home/test/.ssh', $result2);
+    }
 }

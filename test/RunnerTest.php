@@ -270,6 +270,248 @@ class RunnerTest extends TestCase {
         $this->subject->run(true);
     }
 
+    public function testPreFetchCommandsWithSecretsPlaceholdersAreReplaced(): void {
+        $this->mockConfigReader->expects($this->any())
+            ->method('get')
+            ->will($this->returnValueMap([
+                [ConfigReader::ENABLE_CLONE, true],
+                [ConfigReader::IPS_ALLOWLIST, ['127.0.0.1']],
+                [ConfigReader::REPOS_BASE_PATH, $this->mockRepoCreator::BASE_REPO_DIR],
+                [ConfigReader::SECRETS, [
+                    'github_ghcr_token' => 'my_secret_token_123',
+                    'github_ghcr_username' => 'test_user',
+                ]],
+            ]));
+        $this->mockRequest->expects($this->atLeast(1))
+            ->method('getHeaders')
+            ->will($this->returnValue([]));
+        $this->mockRequest->expects($this->atLeast(1))
+            ->method('getRemoteAddress')
+            ->will($this->returnValue('127.0.0.1'));
+        $this->mockRequest->expects($this->any())
+            ->method('getQueryParam')
+            ->will($this->returnValueMap([
+                [Request::REPO_QUERY_PARAM, $this->mockRepoCreator->testRepoName],
+                [Request::KEY_QUERY_PARAM, 'test-key-name'],
+            ]));
+
+        $deployMock = $this->createMock(DeployConfigReader::class);
+        $deployMock->expects($this->atLeast(2))
+            ->method('fetchRepoConfig')
+            ->willReturn(new class () {
+                public function customCommands(): array {
+                    return [];
+                }
+
+                public function postFetchCommands(): array {
+                    return [];
+                }
+
+                public function preFetchCommands(): array {
+                    return [
+                        'echo ${{ secrets.github_ghcr_token }} | docker login ghcr.io -u ${{ secrets.github_ghcr_username }} --password-stdin',
+                    ];
+                }
+            });
+
+        $customCommands = new CustomCommands(
+            $this->mockConfigReader,
+            $this->mockRequest,
+            $this->createMock(Logger::class),
+            $deployMock
+        );
+
+        $this->subject = new Runner(
+            $this->mockRequest,
+            $this->mockResponse,
+            $this->mockConfigReader,
+            $this->createMock(Logger::class),
+            $this->createMock(IPAllowListManager::class),
+            $customCommands,
+            $deployMock,
+            $this->executerMock = $this->createMock(Executer::class)
+        );
+
+        $this->executerMock
+            ->expects($this->exactly(5))
+            ->method('run')
+            ->withConsecutive(
+                ['echo my_secret_token_123 | docker login ghcr.io -u test_user --password-stdin'],
+                ['echo $PWD'],
+                ['whoami'],
+                [$this->stringContains('git fetch origin')],
+                [$this->stringContains('git reset --hard')]
+            );
+
+        $this->subject->run();
+    }
+
+    public function testPostFetchCommandsWithSecretsPlaceholdersAreReplaced(): void {
+        $this->mockConfigReader->expects($this->any())
+            ->method('get')
+            ->will($this->returnValueMap([
+                [ConfigReader::ENABLE_CLONE, true],
+                [ConfigReader::IPS_ALLOWLIST, ['127.0.0.1']],
+                [ConfigReader::REPOS_BASE_PATH, $this->mockRepoCreator::BASE_REPO_DIR],
+                [ConfigReader::SSH_KEYS_PATH, '/home/test/.ssh'],
+                [ConfigReader::SECRETS, [
+                    'api_key' => 'secret_api_key_xyz',
+                    'deploy_token' => 'deploy_token_abc',
+                ]],
+            ]));
+        $this->mockRequest->expects($this->atLeast(1))
+            ->method('getHeaders')
+            ->will($this->returnValue([]));
+        $this->mockRequest->expects($this->atLeast(1))
+            ->method('getRemoteAddress')
+            ->will($this->returnValue('127.0.0.1'));
+        $this->mockRequest->expects($this->any())
+            ->method('getQueryParam')
+            ->will($this->returnValueMap([
+                [Request::REPO_QUERY_PARAM, $this->mockRepoCreator->testRepoName],
+                [Request::KEY_QUERY_PARAM, 'test-key-name'],
+            ]));
+
+        $deployMock = $this->createMock(DeployConfigReader::class);
+        $deployMock->expects($this->atLeast(2))
+            ->method('fetchRepoConfig')
+            ->willReturn(new class () {
+                public function customCommands(): array {
+                    return [];
+                }
+
+                public function postFetchCommands(): array {
+                    return [
+                        'curl -H "Authorization: Bearer ${{ secrets.api_key }}" https://example.com/deploy',
+                        'echo $secrets.deploy_token',
+                    ];
+                }
+
+                public function preFetchCommands(): array {
+                    return [];
+                }
+            });
+
+        $customCommands = new CustomCommands(
+            $this->mockConfigReader,
+            $this->mockRequest,
+            $this->createMock(Logger::class),
+            $deployMock
+        );
+
+        $this->subject = new Runner(
+            $this->mockRequest,
+            $this->mockResponse,
+            $this->mockConfigReader,
+            $this->createMock(Logger::class),
+            $this->createMock(IPAllowListManager::class),
+            $customCommands,
+            $deployMock,
+            $this->executerMock = $this->createMock(Executer::class)
+        );
+
+        $this->executerMock
+            ->expects($this->exactly(6))
+            ->method('run')
+            ->withConsecutive(
+                ['echo $PWD'],
+                ['whoami'],
+                [$this->stringContains('git fetch origin')],
+                [$this->stringContains('git reset --hard')],
+                ['curl -H "Authorization: Bearer secret_api_key_xyz" https://example.com/deploy'],
+                ['echo deploy_token_abc']
+            );
+
+        $this->subject->run();
+    }
+
+    public function testPreAndPostFetchCommandsWithConfigPlaceholdersAreReplaced(): void {
+        $this->mockConfigReader->expects($this->any())
+            ->method('get')
+            ->will($this->returnValueMap([
+                [ConfigReader::ENABLE_CLONE, true],
+                [ConfigReader::IPS_ALLOWLIST, ['127.0.0.1']],
+                [ConfigReader::REPOS_BASE_PATH, $this->mockRepoCreator::BASE_REPO_DIR],
+                [ConfigReader::SSH_KEYS_PATH, '/home/test/.ssh'],
+            ]));
+        $this->mockRequest->expects($this->atLeast(1))
+            ->method('getHeaders')
+            ->will($this->returnValue([]));
+        $this->mockRequest->expects($this->atLeast(1))
+            ->method('getRemoteAddress')
+            ->will($this->returnValue('127.0.0.1'));
+        $this->mockRequest->expects($this->any())
+            ->method('getQueryParam')
+            ->will($this->returnValueMap([
+                [Request::REPO_QUERY_PARAM, $this->mockRepoCreator->testRepoName],
+                [Request::KEY_QUERY_PARAM, 'my-key'],
+            ]));
+        $this->mockResponse->method('getRunId')->willReturn('test_run_id');
+        $this->mockResponse->expects($this->once())
+            ->method('setStatusCode')
+            ->with($this->equalTo(200));
+
+        $deployMock = $this->createMock(DeployConfigReader::class);
+        $deployMock->expects($this->atLeast(2))
+            ->method('fetchRepoConfig')
+            ->willReturn(new class () {
+                public function customCommands(): array {
+                    return [];
+                }
+
+                public function postFetchCommands(): array {
+                    return [
+                        'echo "Base path: $ReposBasePath"',
+                    ];
+                }
+
+                public function preFetchCommands(): array {
+                    return [
+                        'echo "SSH keys: $SSHKeysPath"',
+                        'echo "Repo: $repo"',
+                    ];
+                }
+            });
+
+        $ipAllowListMock = $this->createMock(IPAllowListManager::class);
+        $ipAllowListMock->expects($this->any())
+            ->method('getAllowedIpsOrRanges')
+            ->willReturn([]);
+
+        $customCommands = new CustomCommands(
+            $this->mockConfigReader,
+            $this->mockRequest,
+            $this->createMock(Logger::class),
+            $deployMock
+        );
+
+        $this->subject = new Runner(
+            $this->mockRequest,
+            $this->mockResponse,
+            $this->mockConfigReader,
+            $this->createMock(Logger::class),
+            $ipAllowListMock,
+            $customCommands,
+            $deployMock,
+            $this->executerMock = $this->createMock(Executer::class)
+        );
+
+        $this->executerMock
+            ->expects($this->exactly(7))
+            ->method('run')
+            ->withConsecutive(
+                ['echo "SSH keys: /home/test/.ssh"'],
+                ['echo "Repo: ' . $this->mockRepoCreator->testRepoName . '"'],
+                ['echo $PWD'],
+                ['whoami'],
+                [$this->stringContains('git fetch origin')],
+                [$this->stringContains('git reset --hard')],
+                ['echo "Base path: ' . $this->mockRepoCreator::BASE_REPO_DIR . '"']
+            );
+
+        $this->subject->run();
+    }
+
     private function setupForPrePostAndCustomCommandsTests(): InvocationMocker {
         return $this->setupForRepoName($this->mockRepoCreator->testRepoName, 1, []);
     }
