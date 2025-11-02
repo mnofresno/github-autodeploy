@@ -25,7 +25,65 @@ class RunSearcher {
                 $foundRows [] = $parsedRow;
             }
         }
+
+        // Enriquecer con información de deployment status si está disponible
+        $deploymentStatus = DeploymentStatus::load($runId);
+        if ($deploymentStatus && $deploymentStatus->exists()) {
+            $status = $deploymentStatus->get();
+            $foundRows[] = [
+                'type' => 'deployment_status',
+                'date' => $status['started_at'] ?? null,
+                'logLevel' => $this->mapStatusToLogLevel($status['status'] ?? ''),
+                'message' => $this->formatStatusMessage($status),
+                'deployment_status' => $status,
+            ];
+        }
+
         return $foundRows;
+    }
+
+    private function mapStatusToLogLevel(string $status): string {
+        switch ($status) {
+            case DeploymentStatus::STATUS_SUCCESS:
+                return 'INFO';
+            case DeploymentStatus::STATUS_FAILED:
+                return 'ERROR';
+            case DeploymentStatus::STATUS_RUNNING:
+                return 'INFO';
+            default:
+                return 'INFO';
+        }
+    }
+
+    private function formatStatusMessage(array $status): string {
+        $statusText = $status['status'] ?? 'UNKNOWN';
+        $phase = $status['current_phase'] ?? null;
+        $failedStep = $status['failed_step'] ?? null;
+
+        if ($statusText === DeploymentStatus::STATUS_FAILED && $failedStep) {
+            return sprintf(
+                "Deployment FAILED in phase '%s', step %d: %s (exit code: %d)",
+                $failedStep['phase'] ?? 'unknown',
+                $failedStep['step_id'] ?? -1,
+                $failedStep['command'] ?? 'unknown',
+                $failedStep['exit_code'] ?? -1
+            );
+        }
+
+        if ($statusText === DeploymentStatus::STATUS_RUNNING) {
+            $currentStep = $status['current_step'] ?? null;
+            if ($phase && $currentStep !== null) {
+                return sprintf("Deployment RUNNING in phase '%s', step %d", $phase, $currentStep);
+            }
+            return sprintf("Deployment RUNNING in phase '%s'", $phase ?? 'unknown');
+        }
+
+        if ($statusText === DeploymentStatus::STATUS_SUCCESS) {
+            $stepsCount = count($status['steps'] ?? []);
+            return sprintf("Deployment SUCCESS - Completed %d steps", $stepsCount);
+        }
+
+        return sprintf("Deployment status: %s", $statusText);
     }
 
     private function parse(string $logRow): array {

@@ -17,6 +17,7 @@ class ConfigReader {
     public const REPO_KEY_TEMPLATE_PLACEHOLDER = '{$repo_key}';
     public const WHITELISTED_STRINGS_KEY = 'whitelisted_command_strings';
     public const ENABLE_CLONE = 'enable_clone';
+    public const COMMAND_TIMEOUT = 'command_timeout';
 
     private $config;
 

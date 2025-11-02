@@ -8,7 +8,9 @@ use Mariano\GitAutoDeploy\views\Header;
 use Mariano\GitAutoDeploy\views\errors\MissingRepoOrKey;
 use Mariano\GitAutoDeploy\exceptions\BadRequestException;
 use Mariano\GitAutoDeploy\exceptions\BaseException;
+use Mariano\GitAutoDeploy\exceptions\DeploymentFailedException;
 use Mariano\GitAutoDeploy\views\Command;
+use Mariano\GitAutoDeploy\views\errors\DeploymentFailed;
 use Mariano\GitAutoDeploy\views\errors\RepoNotExists;
 use Mariano\GitAutoDeploy\views\errors\UnknownError;
 use Monolog\Logger;
@@ -27,6 +29,7 @@ class Runner {
     private $createdNewRepo = false;
 
     private $runningLog = [];
+    private $deploymentStatus;
 
     public function __construct(
         Request $request,
@@ -55,6 +58,7 @@ class Runner {
     public function run(bool $createRepoIfNotExists = false): void {
         $this->runningLog = [];
         $this->createRepoIfNotExists = $createRepoIfNotExists;
+        $this->deploymentStatus = new DeploymentStatus($this->response->getRunId());
         $this->doRun(new Security($this->logger, $this->ipAllowListManager));
     }
 
@@ -64,9 +68,32 @@ class Runner {
             $this->doRunWithSecurity($security);
             $this->response->setStatusCode($this->createdNewRepo ? 201 : 200);
         } catch (BaseException $e) {
+            if ($e instanceof DeploymentFailedException && $this->deploymentStatus) {
+                // El estado ya fue marcado como fallido en runCollectionOfCommands
+            } elseif ($this->deploymentStatus) {
+                // Marcar como fallido para otros tipos de errores
+                $this->deploymentStatus->markFailed(
+                    'unknown',
+                    -1,
+                    'unknown',
+                    [],
+                    -1,
+                    $e->getMessage()
+                );
+            }
             $this->response->addToBody($e->render());
             $this->response->setStatusCode($e->getStatusCode());
         } catch (Throwable $e) {
+            if ($this->deploymentStatus) {
+                $this->deploymentStatus->markFailed(
+                    'unknown',
+                    -1,
+                    'unknown',
+                    [],
+                    -1,
+                    $e->getMessage()
+                );
+            }
             $view = new UnknownError($e->getMessage());
             $this->response->addViewToBody($view);
             $this->response->setStatusCode(500);
@@ -88,10 +115,13 @@ class Runner {
     }
 
     private function doRunAfterSecurity(): void {
-        $this->assertRepoAndKey(
-            $this->request->getQueryParam(Request::REPO_QUERY_PARAM),
-            $this->request->getQueryParam(Request::KEY_QUERY_PARAM)
-        );
+        $repo = $this->request->getQueryParam(Request::REPO_QUERY_PARAM);
+        $key = $this->request->getQueryParam(Request::KEY_QUERY_PARAM);
+        $this->assertRepoAndKey($repo, $key);
+
+        $commit = $this->request->getBody()['commit'] ?? [];
+        $this->deploymentStatus->initialize($repo, $key, $commit);
+
         $commandView = new Command();
         $this->changeDirToRepoPath($commandView);
         $this->updateRepository($commandView);
@@ -99,19 +129,81 @@ class Runner {
 
     private function updateRepository(Command $commandView): void {
         flush();
-        $this->runCollectionOfCommands($preFetchCommands = $this->getPreFetchCommands(), $commandView);
-        $this->runCollectionOfCommands($fetchCommands = $this->getFetchCommands(), $commandView);
-        $this->runCollectionOfCommands($postFetchCommands = $this->getPostFetchCommands(), $commandView);
+        $preFetchCommands = $this->getPreFetchCommands();
+        $fetchCommands = $this->getFetchCommands();
+        $postFetchCommands = $this->getPostFetchCommands();
+
+        $this->runCollectionOfCommands($preFetchCommands, $commandView, DeploymentStatus::PHASE_PRE_FETCH);
+        $this->runCollectionOfCommands($fetchCommands, $commandView, DeploymentStatus::PHASE_FETCH);
+        $this->runCollectionOfCommands($postFetchCommands, $commandView, DeploymentStatus::PHASE_POST_FETCH);
+
         $commandsCount = count($preFetchCommands) + count($fetchCommands) + count($postFetchCommands);
         $this->logger->info("Ran {$commandsCount} commands", ['updating_commands' => $this->runningLog]);
+        $this->deploymentStatus->markSuccess();
         $this->response->addViewToBody($commandView);
     }
 
-    private function runCollectionOfCommands(array $commands, Command $view) {
-        foreach ($commands as $command) {
-            $view->add($afterRan = $this->executer->run($command));
-            $this->runningLog [] = $afterRan->jsonSerialize();
+    private function runCollectionOfCommands(array $commands, Command $view, string $phase) {
+        if (empty($commands)) {
+            return;
         }
+
+        $this->deploymentStatus->startPhase($phase);
+        $this->logger->info("Starting phase: {$phase}", ['phase' => $phase, 'commands_count' => count($commands)]);
+
+        $stepId = count($this->runningLog);
+        foreach ($commands as $command) {
+            $this->deploymentStatus->startStep($command, $phase);
+            $this->logger->debug("Running command: {$command}", ['phase' => $phase, 'step_id' => $stepId]);
+
+            $afterRan = $this->executer->run($command);
+            $this->deploymentStatus->completeStep($stepId, $afterRan->getCommandOutput(), $afterRan->exitCode());
+
+            $view->add($afterRan);
+            $this->runningLog [] = $afterRan->jsonSerialize();
+
+            if ($afterRan->exitCode() !== 0) {
+                $isTimeout = $afterRan->exitCode() === Executer::EXIT_CODE_TIMEOUT;
+                $errorType = $isTimeout ? 'Command timed out' : 'Command failed';
+                $errorMessage = sprintf(
+                    "%s in phase '%s' with exit code %d: %s",
+                    $errorType,
+                    $phase,
+                    $afterRan->exitCode(),
+                    $command
+                );
+                $this->logger->error($errorMessage, [
+                    'phase' => $phase,
+                    'step_id' => $stepId,
+                    'command' => $command,
+                    'exit_code' => $afterRan->exitCode(),
+                    'output' => $afterRan->getCommandOutput(),
+                ]);
+
+                $this->deploymentStatus->markFailed(
+                    $phase,
+                    $stepId,
+                    $command,
+                    $afterRan->getCommandOutput(),
+                    $afterRan->exitCode(),
+                    $errorMessage
+                );
+
+                throw new DeploymentFailedException(
+                    $phase,
+                    $stepId,
+                    $command,
+                    $afterRan->exitCode(),
+                    $afterRan->getCommandOutput(),
+                    new DeploymentFailed($phase, $stepId, $command, $afterRan->exitCode(), $afterRan->getCommandOutput()),
+                    $this->logger
+                );
+            }
+
+            $stepId++;
+        }
+
+        $this->logger->info("Completed phase: {$phase}", ['phase' => $phase, 'commands_count' => count($commands)]);
     }
 
     private function whoami(): string {
@@ -128,7 +220,8 @@ class Runner {
                 chdir($parentDirectory);
                 $this->runCollectionOfCommands(
                     $this->cloneRepoCommands($repoDirectory),
-                    $commandView
+                    $commandView,
+                    DeploymentStatus::PHASE_PRE_FETCH
                 );
                 $this->createdNewRepo = true;
             } else {

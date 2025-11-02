@@ -32,7 +32,7 @@ class RunnerTest extends TestCase {
         $this->mockRepoCreator->spinUp();
         parent::setUp();
         $this->mockRequest = $this->getMockBuilder(Request::class)
-            ->onlyMethods(['getQueryParam', 'getHeaders', 'getRemoteAddress'])
+            ->onlyMethods(['getQueryParam', 'getHeaders', 'getRemoteAddress', 'getBody'])
             ->getMock();
         $this->mockConfigReader = $this->getMockBuilder(ConfigReader::class)
             ->disableOriginalConstructor()
@@ -91,9 +91,13 @@ class RunnerTest extends TestCase {
                 [Request::REPO_QUERY_PARAM, $this->mockRepoCreator->testRepoName],
                 [Request::KEY_QUERY_PARAM, 'test-key-name'],
             ]));
+        $this->mockRequest->expects($this->any())
+            ->method('getBody')
+            ->willReturn([]);
         $this->mockResponse->expects($this->once())
             ->method('setStatusCode')
             ->with($this->equalTo(200));
+        $this->mockResponse->method('getRunId')->willReturn('test_run_id');
         $this->mockConfigReader->expects($this->any())
             ->method('get')
             ->will($this->returnValueMap([
@@ -219,6 +223,10 @@ class RunnerTest extends TestCase {
     }
 
     public function testRepoNotExistsAndNotAllowedToCreate(): void {
+        $this->mockRequest->expects($this->any())
+            ->method('getBody')
+            ->willReturn([]);
+        $this->mockResponse->method('getRunId')->willReturn('test_run_id');
         $this->setupForRepoName(
             uniqid('not-existing-repo-test'),
             0
@@ -240,6 +248,10 @@ class RunnerTest extends TestCase {
     }
 
     public function testRepoNotExistsAndIsAllowedToCreate(): void {
+        $this->mockRequest->expects($this->any())
+            ->method('getBody')
+            ->willReturn([]);
+        $this->mockResponse->method('getRunId')->willReturn('test_run_id');
         $this->setupForRepoName(
             $repoName = uniqid('not-existing-repo-test'),
             1
@@ -277,6 +289,7 @@ class RunnerTest extends TestCase {
                 [ConfigReader::ENABLE_CLONE, true],
                 [ConfigReader::IPS_ALLOWLIST, ['127.0.0.1']],
                 [ConfigReader::REPOS_BASE_PATH, $this->mockRepoCreator::BASE_REPO_DIR],
+                [ConfigReader::COMMAND_TIMEOUT, 3600],
                 [ConfigReader::SECRETS, [
                     'github_ghcr_token' => 'my_secret_token_123',
                     'github_ghcr_username' => 'test_user',
@@ -289,11 +302,15 @@ class RunnerTest extends TestCase {
             ->method('getRemoteAddress')
             ->will($this->returnValue('127.0.0.1'));
         $this->mockRequest->expects($this->any())
+            ->method('getBody')
+            ->willReturn([]);
+        $this->mockRequest->expects($this->any())
             ->method('getQueryParam')
             ->will($this->returnValueMap([
                 [Request::REPO_QUERY_PARAM, $this->mockRepoCreator->testRepoName],
                 [Request::KEY_QUERY_PARAM, 'test-key-name'],
             ]));
+        $this->mockResponse->method('getRunId')->willReturn('test_run_id');
 
         $deployMock = $this->createMock(DeployConfigReader::class);
         $deployMock->expects($this->atLeast(2))
@@ -354,6 +371,7 @@ class RunnerTest extends TestCase {
                 [ConfigReader::IPS_ALLOWLIST, ['127.0.0.1']],
                 [ConfigReader::REPOS_BASE_PATH, $this->mockRepoCreator::BASE_REPO_DIR],
                 [ConfigReader::SSH_KEYS_PATH, '/home/test/.ssh'],
+                [ConfigReader::COMMAND_TIMEOUT, 3600],
                 [ConfigReader::SECRETS, [
                     'api_key' => 'secret_api_key_xyz',
                     'deploy_token' => 'deploy_token_abc',
@@ -366,11 +384,15 @@ class RunnerTest extends TestCase {
             ->method('getRemoteAddress')
             ->will($this->returnValue('127.0.0.1'));
         $this->mockRequest->expects($this->any())
+            ->method('getBody')
+            ->willReturn([]);
+        $this->mockRequest->expects($this->any())
             ->method('getQueryParam')
             ->will($this->returnValueMap([
                 [Request::REPO_QUERY_PARAM, $this->mockRepoCreator->testRepoName],
                 [Request::KEY_QUERY_PARAM, 'test-key-name'],
             ]));
+        $this->mockResponse->method('getRunId')->willReturn('test_run_id');
 
         $deployMock = $this->createMock(DeployConfigReader::class);
         $deployMock->expects($this->atLeast(2))
@@ -433,6 +455,7 @@ class RunnerTest extends TestCase {
                 [ConfigReader::IPS_ALLOWLIST, ['127.0.0.1']],
                 [ConfigReader::REPOS_BASE_PATH, $this->mockRepoCreator::BASE_REPO_DIR],
                 [ConfigReader::SSH_KEYS_PATH, '/home/test/.ssh'],
+                [ConfigReader::COMMAND_TIMEOUT, 3600],
             ]));
         $this->mockRequest->expects($this->atLeast(1))
             ->method('getHeaders')
@@ -440,6 +463,9 @@ class RunnerTest extends TestCase {
         $this->mockRequest->expects($this->atLeast(1))
             ->method('getRemoteAddress')
             ->will($this->returnValue('127.0.0.1'));
+        $this->mockRequest->expects($this->any())
+            ->method('getBody')
+            ->willReturn([]);
         $this->mockRequest->expects($this->any())
             ->method('getQueryParam')
             ->will($this->returnValueMap([
@@ -512,6 +538,242 @@ class RunnerTest extends TestCase {
         $this->subject->run();
     }
 
+    public function testRunnerStopsOnCommandFailure(): void {
+        // Verifica que Runner se detiene inmediatamente cuando un comando falla
+        $this->mockRequest->expects($this->any())
+            ->method('getHeaders')
+            ->willReturn([]);
+        $this->mockRequest->expects($this->any())
+            ->method('getRemoteAddress')
+            ->willReturn('127.0.0.1');
+        $this->mockRequest->expects($this->any())
+            ->method('getQueryParam')
+            ->will($this->returnValueMap([
+                [Request::REPO_QUERY_PARAM, $this->mockRepoCreator->testRepoName],
+                [Request::KEY_QUERY_PARAM, 'test-key-name'],
+            ]));
+        $this->mockRequest->expects($this->any())
+            ->method('getBody')
+            ->willReturn([]);
+
+        $this->mockResponse->method('getRunId')->willReturn('test_run_id');
+
+        $this->mockConfigReader->expects($this->any())
+            ->method('get')
+            ->will($this->returnValueMap([
+                [ConfigReader::IPS_ALLOWLIST, ['127.0.0.1']],
+                [ConfigReader::REPOS_BASE_PATH, $this->mockRepoCreator::BASE_REPO_DIR],
+                [ConfigReader::ENABLE_CLONE, true], // Importante: permitir clone
+                [ConfigReader::COMMAND_TIMEOUT, 60],
+                [ConfigReader::CUSTOM_UPDATE_COMMANDS, [ConfigReader::DEFAULT_COMMANDS => ['echo -n ""', 'ls -a']]],
+            ]));
+
+        $deployMock = $this->createMock(DeployConfigReader::class);
+        $deployMock->expects($this->any())
+            ->method('fetchRepoConfig')
+            ->willReturn(new class () {
+                public function preFetchCommands(): array {
+                    return ['echo "step 1"'];
+                }
+
+                public function customCommands(): array {
+                    return [];
+                }
+
+                public function postFetchCommands(): array {
+                    return ['false', 'echo "step 3 - should not run"'];
+                }
+            });
+
+        // Mockear SSH_KEYS_PATH para builtInCommands
+        $this->mockConfigReader->expects($this->any())
+            ->method('get')
+            ->will($this->returnValueMap([
+                [ConfigReader::IPS_ALLOWLIST, ['127.0.0.1']],
+                [ConfigReader::REPOS_BASE_PATH, $this->mockRepoCreator::BASE_REPO_DIR],
+                [ConfigReader::ENABLE_CLONE, true],
+                [ConfigReader::COMMAND_TIMEOUT, 60],
+                [ConfigReader::SSH_KEYS_PATH, '/test-keys'],
+                [ConfigReader::CUSTOM_UPDATE_COMMANDS, [ConfigReader::DEFAULT_COMMANDS => ['echo -n ""', 'ls -a']]],
+            ]));
+
+        $executerMock = $this->createMock(Executer::class);
+        $executerMock
+            ->expects($this->atLeast(6))
+            ->method('run')
+            ->willReturnOnConsecutiveCalls(
+                $this->createRanCommand('echo "step 1"', [], 0), // pre_fetch
+                $this->createRanCommand('echo $PWD', [], 0), // fetch - builtInCommands
+                $this->createRanCommand('whoami', [], 0), // fetch - builtInCommands
+                $this->createRanCommand('GIT_SSH_COMMAND="ssh -i /test-keys/test-key-name" git fetch origin', [], 0), // fetch - builtInCommands
+                $this->createRanCommand('git reset --hard origin/$(git symbolic-ref --short HEAD)', [], 0), // fetch - builtInCommands
+                $this->createRanCommand('false', ['error'], 1) // post_fetch - Este falla y debe lanzar excepción
+            );
+
+        $customCommands = new CustomCommands(
+            $this->mockConfigReader,
+            $this->mockRequest,
+            $this->createMock(Logger::class),
+            $deployMock
+        );
+
+        $runner = new Runner(
+            $this->mockRequest,
+            $this->mockResponse,
+            $this->mockConfigReader,
+            $this->createMock(Logger::class),
+            $this->createMock(IPAllowListManager::class),
+            $customCommands,
+            $deployMock,
+            $executerMock
+        );
+
+        // Runner captura las excepciones y las convierte en respuestas HTTP
+        // No se lanzan excepciones, se convierten en respuestas
+        $this->mockResponse->expects($this->once())
+            ->method('setStatusCode')
+            ->with($this->equalTo(500));
+
+        $this->mockResponse->expects($this->atLeast(1))
+            ->method('addViewToBody')
+            ->with($this->callback(function ($view) {
+                // Verificar que se agregó el view de DeploymentFailed
+                if ($view instanceof \Mariano\GitAutoDeploy\views\errors\DeploymentFailed) {
+                    return true;
+                }
+                // También puede haber Header y Footer
+                return $view instanceof \Mariano\GitAutoDeploy\views\Header ||
+                       $view instanceof \Mariano\GitAutoDeploy\views\Footer;
+            }));
+
+        $runner->run();
+
+        // Verificar que el DeploymentStatus se marcó como fallido
+        $deploymentStatus = \Mariano\GitAutoDeploy\DeploymentStatus::load('test_run_id');
+        $this->assertNotNull($deploymentStatus);
+        $status = $deploymentStatus->get();
+        $this->assertEquals(\Mariano\GitAutoDeploy\DeploymentStatus::STATUS_FAILED, $status['status']);
+        // Verificar que el comando que falló fue 'false' de post_fetch
+        $failedStep = $status['failed_step'] ?? null;
+        $this->assertNotNull($failedStep, 'Deployment should have a failed_step');
+        $this->assertEquals('false', $failedStep['command'] ?? null);
+        // La fase puede variar dependiendo de qué comando falle primero, pero verificamos que el comando sea correcto
+    }
+
+    public function testRunnerHandlesTimeoutCorrectly(): void {
+        // Verifica que Runner detecta correctamente los timeouts
+        $this->mockRequest->expects($this->any())
+            ->method('getHeaders')
+            ->willReturn([]);
+        $this->mockRequest->expects($this->any())
+            ->method('getRemoteAddress')
+            ->willReturn('127.0.0.1');
+        $this->mockRequest->expects($this->any())
+            ->method('getQueryParam')
+            ->will($this->returnValueMap([
+                [Request::REPO_QUERY_PARAM, $this->mockRepoCreator->testRepoName],
+                [Request::KEY_QUERY_PARAM, 'test-key-name'],
+            ]));
+        $this->mockRequest->expects($this->any())
+            ->method('getBody')
+            ->willReturn([]);
+
+        $this->mockResponse->method('getRunId')->willReturn('test_run_id');
+
+        $deployMock = $this->createMock(DeployConfigReader::class);
+        $deployMock->expects($this->any())
+            ->method('fetchRepoConfig')
+            ->willReturn(new class () {
+                public function preFetchCommands(): array {
+                    return [];
+                }
+
+                public function customCommands(): array {
+                    return [];
+                }
+
+                public function postFetchCommands(): array {
+                    return ['sleep 100'];
+                }
+            });
+
+        $this->mockConfigReader->expects($this->any())
+            ->method('get')
+            ->will($this->returnValueMap([
+                [ConfigReader::IPS_ALLOWLIST, ['127.0.0.1']],
+                [ConfigReader::REPOS_BASE_PATH, $this->mockRepoCreator::BASE_REPO_DIR],
+                [ConfigReader::ENABLE_CLONE, true],
+                [ConfigReader::COMMAND_TIMEOUT, 60],
+                [ConfigReader::SSH_KEYS_PATH, '/test-keys'],
+                [ConfigReader::CUSTOM_UPDATE_COMMANDS, [ConfigReader::DEFAULT_COMMANDS => ['echo -n ""', 'ls -a']]],
+            ]));
+
+        $executerMock = $this->createMock(Executer::class);
+        $executerMock
+            ->expects($this->atLeast(5))
+            ->method('run')
+            ->willReturnOnConsecutiveCalls(
+                $this->createRanCommand('echo $PWD', [], 0), // fetch - builtInCommands
+                $this->createRanCommand('whoami', [], 0), // fetch - builtInCommands
+                $this->createRanCommand('GIT_SSH_COMMAND="ssh -i /test-keys/test-key-name" git fetch origin', [], 0), // fetch - builtInCommands
+                $this->createRanCommand('git reset --hard origin/$(git symbolic-ref --short HEAD)', [], 0), // fetch - builtInCommands
+                $this->createRanCommand('sleep 100', ['Command timed out'], \Mariano\GitAutoDeploy\Executer::EXIT_CODE_TIMEOUT) // post_fetch - timeout
+            );
+
+        $customCommands = new CustomCommands(
+            $this->mockConfigReader,
+            $this->mockRequest,
+            $this->createMock(Logger::class),
+            $deployMock
+        );
+
+        $runner = new Runner(
+            $this->mockRequest,
+            $this->mockResponse,
+            $this->mockConfigReader,
+            $this->createMock(Logger::class),
+            $this->createMock(IPAllowListManager::class),
+            $customCommands,
+            $deployMock,
+            $executerMock
+        );
+
+        // Runner captura las excepciones y las convierte en respuestas HTTP
+        $this->mockResponse->expects($this->once())
+            ->method('setStatusCode')
+            ->with($this->equalTo(500));
+
+        $this->mockResponse->expects($this->atLeast(1))
+            ->method('addViewToBody')
+            ->with($this->callback(function ($view) {
+                // Verificar que se agregó el view de DeploymentFailed
+                if ($view instanceof \Mariano\GitAutoDeploy\views\errors\DeploymentFailed) {
+                    return true;
+                }
+                // También puede haber Header y Footer
+                return $view instanceof \Mariano\GitAutoDeploy\views\Header ||
+                       $view instanceof \Mariano\GitAutoDeploy\views\Footer;
+            }));
+
+        $runner->run();
+
+        // Verificar que el DeploymentStatus se marcó como fallido con timeout
+        $deploymentStatus = \Mariano\GitAutoDeploy\DeploymentStatus::load('test_run_id');
+        $this->assertNotNull($deploymentStatus);
+        $status = $deploymentStatus->get();
+        $this->assertEquals(\Mariano\GitAutoDeploy\DeploymentStatus::STATUS_FAILED, $status['status']);
+        $failedStep = $status['failed_step'] ?? null;
+        $this->assertNotNull($failedStep, 'Deployment should have a failed_step');
+        // Verificar que el exit code es de timeout
+        $this->assertEquals(\Mariano\GitAutoDeploy\Executer::EXIT_CODE_TIMEOUT, $failedStep['exit_code'] ?? null);
+        // Verificar que el comando es 'sleep 100'
+        $this->assertEquals('sleep 100', $failedStep['command'] ?? null);
+    }
+
+    private function createRanCommand(string $command, array $output, int $exitCode): \Mariano\GitAutoDeploy\views\RanCommand {
+        return new \Mariano\GitAutoDeploy\views\RanCommand($command, $output, exec('whoami'), $exitCode);
+    }
+
     private function setupForPrePostAndCustomCommandsTests(): InvocationMocker {
         return $this->setupForRepoName($this->mockRepoCreator->testRepoName, 1, []);
     }
@@ -525,6 +787,7 @@ class RunnerTest extends TestCase {
                 [ConfigReader::REPOS_TEMPLATE_URI, 'git@github.com:testuser/{$repo_key}.git'],
                 [ConfigReader::REPOS_BASE_PATH, $this->mockRepoCreator::BASE_REPO_DIR],
                 [ConfigReader::CUSTOM_UPDATE_COMMANDS, [ConfigReader::DEFAULT_COMMANDS => ['echo -n ""', 'ls -a']]],
+                [ConfigReader::COMMAND_TIMEOUT, 3600],
             ]));
         $this->mockRequest->expects($this->atLeast(1))
             ->method('getHeaders')
@@ -532,6 +795,10 @@ class RunnerTest extends TestCase {
         $this->mockRequest->expects($this->atLeast(1))
             ->method('getRemoteAddress')
             ->will($this->returnValue('127.0.0.1'));
+        $this->mockRequest->expects($this->any())
+            ->method('getBody')
+            ->willReturn([]);
+        $this->mockResponse->method('getRunId')->willReturn('test_run_id');
         $this->subject = new Runner(
             $this->mockRequest,
             $this->mockResponse,

@@ -49,4 +49,8 @@ class RanCommand extends BaseView implements JsonSerializable {
     public function exitCode(): int {
         return $this->exitCode;
     }
+
+    public function getCommandOutput(): array {
+        return $this->commandOutput;
+    }
 }

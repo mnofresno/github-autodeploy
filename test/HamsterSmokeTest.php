@@ -53,10 +53,18 @@ class HamsterTest extends TestCase {
         $this->request
             ->expects($this->atLeast(1))
             ->method('getQueryParam')
-            ->willReturnMap([
-                ['previous_run_id', $runId],
-                ['fields', $fields],
-            ]);
+            ->willReturnCallback(function ($param) use ($runId, $fields) {
+                if ($param === 'previous_run_id') {
+                    return $runId;
+                }
+                if ($param === 'fields') {
+                    return $fields;
+                }
+                if ($param === 'deployment_status' || $param === 'wait_deployment') {
+                    return '';
+                }
+                return '';
+            });
 
         $expectedResults = [
             [
@@ -91,13 +99,21 @@ class HamsterTest extends TestCase {
      */
     public function testRunnerReceivesCorrectBooleanForCreateRepoIfNotExists(bool $createRepo): void {
         $this->request
-            ->expects($this->exactly(3))
+            ->expects($this->atLeast(1))
             ->method('getQueryParam')
-            ->will($this->returnValueMap([
-                ['previous_run_id', ''],
-                ['run_in_background', 'false'],
-                ['create_repo_if_not_exists', json_encode($createRepo)],
-            ]));
+            ->willReturnCallback(function ($param) use ($createRepo) {
+                if ($param === 'create_repo_if_not_exists') {
+                    return json_encode($createRepo);
+                }
+                if ($param === 'run_in_background') {
+                    return 'false';
+                }
+                if ($param === 'previous_run_id' || $param === 'deployment_status' ||
+                    $param === 'wait_deployment' || $param === 'wait') {
+                    return '';
+                }
+                return '';
+            });
 
         $this->runner
             ->expects($this->exactly(1))

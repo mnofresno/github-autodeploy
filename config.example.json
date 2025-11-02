@@ -18,6 +18,7 @@
     "expose_raw_log": false,
     "github_meta_api_url": "https://api.github.com/meta",
     "github_ranges_lists": ["actions", "hooks"],
+    "command_timeout": 3600,
     "secrets": {
         "github_ghcr_token":"my secret token",
         "github_ghcr_username":"myusername"
