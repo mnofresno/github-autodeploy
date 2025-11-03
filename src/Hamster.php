@@ -60,10 +60,13 @@ class Hamster {
             // Leer run_in_background del body JSON (envío del workflow) o query params (backward compatibility)
             $runInBackground = false;
             $bodyData = $this->request->getBody();
+            $this->logger->debug('Checking for run_in_background', ['body_data' => $bodyData]);
             if (isset($bodyData['run_in_background'])) {
                 $runInBackground = $bodyData['run_in_background'] === true || $bodyData['run_in_background'] === 'true';
+                $this->logger->debug('Found run_in_background in JSON body', ['value' => $bodyData['run_in_background'], 'parsed' => $runInBackground]);
             } else {
                 $runInBackground = $this->request->getQueryParam('run_in_background') === 'true';
+                $this->logger->debug('Checking query params for run_in_background', ['found' => $runInBackground]);
             }
             $waitForCompletion = $this->request->getQueryParam('wait') === 'true';
 
@@ -116,7 +119,9 @@ class Hamster {
                         json_encode($responseData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)
                     );
                     $this->response->send('application/json; charset=utf-8');
+                    $this->logger->info('Response sent, finishing request and starting background execution');
                     $this->finishRequest();
+                    $this->logger->info('Request finished, executing trigger in background');
                     $this->executeTrigger();
                 }
             } else {
@@ -258,11 +263,12 @@ class Hamster {
 
     private function finishRequest(): void {
         if (function_exists('fastcgi_finish_request')) {
-            $this->logger->debug('Finishing request...');
+            $this->logger->debug('Finishing request using fastcgi_finish_request...');
             fastcgi_finish_request();
-            $this->logger->debug('Request finished OK');
+            $this->logger->info('Request finished OK using fastcgi_finish_request');
         } else {
-            $this->logger->error('fatcgi_finish_request function not found');
+            $this->logger->warning('fastcgi_finish_request function not found, relying on ignore_user_abort');
+            flush();
         }
     }
 }

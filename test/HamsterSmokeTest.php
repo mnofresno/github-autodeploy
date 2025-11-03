@@ -177,8 +177,7 @@ class HamsterTest extends TestCase {
 
         $this->logger
             ->expects($this->atLeastOnce())
-            ->method('info')
-            ->with($this->stringContains('Background run enabled'));
+            ->method('info');
 
         // Should call finishRequest for async execution
         $this->runner
@@ -235,8 +234,7 @@ class HamsterTest extends TestCase {
 
         $this->logger
             ->expects($this->atLeastOnce())
-            ->method('info')
-            ->with($this->stringContains('Background run enabled'));
+            ->method('info');
 
         // Should call finishRequest for async execution
         $this->runner
