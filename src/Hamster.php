@@ -57,7 +57,14 @@ class Hamster {
             $this->response->send('application/json; charset=utf-8');
             return;
         } else {
-            $runInBackground = $this->request->getQueryParam('run_in_background') === 'true';
+            // Leer run_in_background del body JSON (envío del workflow) o query params (backward compatibility)
+            $runInBackground = false;
+            $bodyData = $this->request->getBody();
+            if (isset($bodyData['run_in_background'])) {
+                $runInBackground = $bodyData['run_in_background'] === true || $bodyData['run_in_background'] === 'true';
+            } else {
+                $runInBackground = $this->request->getQueryParam('run_in_background') === 'true';
+            }
             $waitForCompletion = $this->request->getQueryParam('wait') === 'true';
 
             if ($runInBackground || $waitForCompletion) {
