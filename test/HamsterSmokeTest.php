@@ -147,8 +147,8 @@ class HamsterTest extends TestCase {
                 'key' => 'test-key',
                 'commit' => [
                     'sha' => 'abc123',
-                    'author' => 'test-user'
-                ]
+                    'author' => 'test-user',
+                ],
             ]);
 
         $this->configReader
@@ -264,8 +264,8 @@ class HamsterTest extends TestCase {
                 'key' => 'test-key',
                 'commit' => [
                     'sha' => 'abc123',
-                    'author' => 'test-user'
-                ]
+                    'author' => 'test-user',
+                ],
             ]);
 
         // Should execute synchronously (no background)
