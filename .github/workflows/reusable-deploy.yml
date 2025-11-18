@@ -361,45 +361,74 @@ jobs:
               echo ""
               
               failed_step=$(echo "$status_response" | jq -r '.failed_step // {}')
+              error_message=$(echo "$status_response" | jq -r '.error_message // ""')
               
+              # Check if failed_step exists and has valid values (not "unknown")
               if [ "$failed_step" != "{}" ] && [ "$failed_step" != "null" ]; then
                 step_id=$(echo "$status_response" | jq -r '.failed_step.step_id // "-1"')
                 phase=$(echo "$status_response" | jq -r '.failed_step.phase // "unknown"')
                 command=$(echo "$status_response" | jq -r '.failed_step.command // "unknown"')
                 exit_code=$(echo "$status_response" | jq -r '.failed_step.exit_code // "unknown"')
                 
-                # Check if it's a timeout (exit code 124)
-                is_timeout=false
-                if [ "$exit_code" = "124" ]; then
-                  is_timeout=true
+                # If phase is "unknown" or command is "unknown" or step_id is -1, 
+                # this is likely an error before command execution (e.g., security, validation)
+                # Show error_message instead if available
+                if [ "$phase" = "unknown" ] && [ "$command" = "unknown" ] && [ "$step_id" = "-1" ] && [ -n "$error_message" ]; then
+                  echo "🔴 Error (before command execution):"
+                  echo "   $error_message"
+                  echo ""
+                  echo "💡 This error occurred before any deployment commands were executed."
+                  echo "   Possible causes:"
+                  echo "   - Security/authentication failure"
+                  echo "   - Repository or key validation error"
+                  echo "   - Configuration error"
+                  echo "   - Server-side error"
+                else
+                  # Normal command execution failure
+                  # Check if it's a timeout (exit code 124)
+                  is_timeout=false
+                  if [ "$exit_code" = "124" ]; then
+                    is_timeout=true
+                  fi
+                  
+                  phase_display=$(echo "$phase" | sed 's/_/ /g' | awk '{for(i=1;i<=NF;i++)sub(/./,toupper(substr($i,1,1)),$i)}1')
+                  
+                  # Show all steps up to the one that failed (for context)
+                  echo "📋 Steps executed (before failure):"
+                  all_steps=$(echo "$status_response" | jq -r '.steps // []')
+                  if [ "$all_steps" != "[]" ] && [ "$all_steps" != "null" ]; then
+                    echo "$status_response" | jq -r '.steps[] | "   Step \(.id + 1): \(.command) [\(.phase)] (exit: \(.exit_code // "N/A"))"' || true
+                  fi
+                  
+                  echo ""
+                  echo "🔴 Failed step:"
+                  step_number=$(($step_id + 1))
+                  echo "   Step ${step_number}: $command"
+                  echo "   Phase: $phase_display"
+                  echo "   Exit code: $exit_code"
+                  
+                  if [ "$is_timeout" = "true" ]; then
+                    echo "   ⏱️  TIMEOUT detected (command exceeded time limit)"
+                  fi
+                  
+                  # Show error_message if available
+                  if [ -n "$error_message" ]; then
+                    echo ""
+                    echo "📋 Error details:"
+                    echo "   $error_message"
+                  fi
+                  
+                  echo ""
+                  echo "📋 Command output (last 30 lines):"
+                  echo "$status_response" | jq -r '.failed_step.output[]?' | tail -30 | sed 's/^/     /'
                 fi
-                
-                phase_display=$(echo "$phase" | sed 's/_/ /g' | awk '{for(i=1;i<=NF;i++)sub(/./,toupper(substr($i,1,1)),$i)}1')
-                
-                # Show all steps up to the one that failed (for context)
-                echo "📋 Steps executed (before failure):"
-                all_steps=$(echo "$status_response" | jq -r '.steps // []')
-                if [ "$all_steps" != "[]" ] && [ "$all_steps" != "null" ]; then
-                  echo "$status_response" | jq -r '.steps[] | "   Step \(.id + 1): \(.command) [\(.phase)] (exit: \(.exit_code // "N/A"))"' || true
-                fi
-                
-                echo ""
-                echo "🔴 Failed step:"
-                step_number=$(($step_id + 1))
-                echo "   Step ${step_number}: $command"
-                echo "   Phase: $phase_display"
-                echo "   Exit code: $exit_code"
-                
-                if [ "$is_timeout" = "true" ]; then
-                  echo "   ⏱️  TIMEOUT detected (command exceeded time limit)"
-                fi
-                
-                echo ""
-                echo "📋 Command output (last 30 lines):"
-                echo "$status_response" | jq -r '.failed_step.output[]?' | tail -30 | sed 's/^/     /'
               else
-                error_message=$(echo "$status_response" | jq -r '.error_message // "Unknown error"')
-                echo "🔴 Error: $error_message"
+                # No failed_step, show error_message
+                if [ -n "$error_message" ]; then
+                  echo "🔴 Error: $error_message"
+                else
+                  echo "🔴 Error: Unknown error (no details available)"
+                fi
               fi
               
               echo ""
