@@ -116,4 +116,53 @@ class ExecuterTest extends TestCase {
         $this->assertEquals(0, $result->exitCode());
         $this->assertContains('test output', $result->getCommandOutput());
     }
+
+    public function testRunExecutesMultilineCommand(): void {
+        $this->configMock->method('get')
+            ->willReturnMap([
+                [ConfigReader::WHITELISTED_STRINGS_KEY, []],
+                [ConfigReader::COMMAND_TIMEOUT, 10],
+            ]);
+
+        $subject = new Executer($this->configMock);
+
+        // Comando multilínea simple
+        $multilineCommand = "if [ 1 -eq 1 ]; then\n  echo 'test multiline'\nfi";
+        $result = $subject->run($multilineCommand);
+
+        $this->assertInstanceOf(RanCommand::class, $result);
+        $this->assertEquals(0, $result->exitCode());
+
+        // Verificar que el comando ejecutado contiene bash -c
+        $executedCommand = $result->jsonSerialize()['command'];
+        $this->assertStringStartsWith('bash -c ', $executedCommand);
+
+        // Verificar que el output contiene el resultado esperado
+        $output = $result->getCommandOutput();
+        $this->assertContains('test multiline', $output);
+    }
+
+    public function testRunExecutesMultilineCommandWithComplexLogic(): void {
+        $this->configMock->method('get')
+            ->willReturnMap([
+                [ConfigReader::WHITELISTED_STRINGS_KEY, []],
+                [ConfigReader::COMMAND_TIMEOUT, 10],
+            ]);
+
+        $subject = new Executer($this->configMock);
+
+        // Comando multilínea más complejo similar al ejemplo del usuario
+        $multilineCommand = "if [ ! -d '/tmp/test-dir' ]; then\n  mkdir -p /tmp/test-dir\n  echo 'Directory created'\nfi";
+        $result = $subject->run($multilineCommand);
+
+        $this->assertInstanceOf(RanCommand::class, $result);
+        $this->assertEquals(0, $result->exitCode());
+
+        // Verificar que el comando ejecutado contiene bash -c
+        $executedCommand = $result->jsonSerialize()['command'];
+        $this->assertStringStartsWith('bash -c ', $executedCommand);
+
+        // Limpiar
+        @rmdir('/tmp/test-dir');
+    }
 }

@@ -153,4 +153,44 @@ class DeployConfigReaderTest extends TestCase {
 
         $this->deployConfigReader->fetchRepoConfig($this->mockRepoCreator->testRepoName);
     }
+
+    public function testFetchRepoConfigYamlWithMultilineCommands() {
+        $this->configReaderMock->method('get')
+            ->with(ConfigReader::REPOS_BASE_PATH)
+            ->willReturn(MockRepoCreator::BASE_REPO_DIR);
+
+        // Crear un archivo YAML con comandos multilínea usando el operador |
+        $yamlContent = <<<'YAML'
+---
+post_fetch_commands:
+    - docker compose pull
+    - |
+      if [ ! -d "assets/exercises/free-exercise-db" ]; then
+        mkdir -p assets/exercises
+        git clone https://github.com/yuhonas/free-exercise-db.git assets/exercises/free-exercise-db
+        rm -rf assets/exercises/free-exercise-db/.git
+      fi
+    - docker compose exec php composer install
+YAML;
+
+        $configPath = $this->mockRepoCreator->getTestRepoPath() . DIRECTORY_SEPARATOR . DeployConfigReader::CUSTOM_CONFIG_FILE_NAME . '.yml';
+        file_put_contents($configPath, $yamlContent);
+
+        $config = $this->deployConfigReader->fetchRepoConfig($this->mockRepoCreator->testRepoName);
+
+        $this->assertNotNull($config);
+        $postFetchCommands = $config->postFetchCommands();
+
+        $this->assertCount(3, $postFetchCommands);
+        $this->assertEquals('docker compose pull', $postFetchCommands[0]);
+        $this->assertEquals('docker compose exec php composer install', $postFetchCommands[2]);
+
+        // Verificar que el comando multilínea contiene saltos de línea
+        $multilineCommand = $postFetchCommands[1];
+        $this->assertIsString($multilineCommand);
+        $this->assertStringContainsString("\n", $multilineCommand);
+        $this->assertStringContainsString('if [ ! -d "assets/exercises/free-exercise-db" ]; then', $multilineCommand);
+        $this->assertStringContainsString('mkdir -p assets/exercises', $multilineCommand);
+        $this->assertStringContainsString('git clone', $multilineCommand);
+    }
 }

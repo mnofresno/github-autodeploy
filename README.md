@@ -155,6 +155,35 @@ post_fetch_commands:
     - echo $secrets.github_ghcr_username
 ```
 
+### Multiline Commands
+
+You can use multiline commands in `.git-auto-deploy.yml` by using YAML's block scalar syntax with the `|` operator. Multiline commands are automatically executed within a bash shell.
+
+**Example with multiline commands:**
+
+```yaml
+---
+post_fetch_commands:
+    - docker compose pull
+    - docker compose up -d
+    - docker compose exec php composer install --ignore-platform-req=ext-mongodb
+    # Clonar dataset de ejercicios si no existe
+    - |
+      if [ ! -d "assets/exercises/free-exercise-db" ]; then
+        mkdir -p assets/exercises
+        git clone https://github.com/yuhonas/free-exercise-db.git assets/exercises/free-exercise-db
+        rm -rf assets/exercises/free-exercise-db/.git
+      fi
+    # Regenerar índice de ejercicios
+    - docker compose exec php php bin/generate-exercise-index.php
+```
+
+**Important notes:**
+- Use the `|` operator to create multiline block scalars in YAML
+- The indentation after `|` is preserved in the command
+- Multiline commands are automatically executed within `bash -c`
+- You can mix single-line and multiline commands in the same list
+
 ### Explanation
 
 1. **`pre_fetch_commands`**:

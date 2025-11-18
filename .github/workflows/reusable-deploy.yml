@@ -232,12 +232,13 @@ jobs:
             
             # Query deployment status
             status_url="https://${AUTODEPLOY_URL}?deployment_status=true&previous_run_id=${run_id}"
+            
+            # Capture response, separating stdout from stderr
             status_response=$(curl -s -S \
               --show-error \
               --connect-timeout 10 \
               --max-time 30 \
-              "${status_url}" \
-              2>&1)
+              "${status_url}" 2>/dev/null)
             
             curl_status_exit=$?
             
@@ -266,14 +267,53 @@ jobs:
               continue
             fi
             
+            # Validate that response is valid JSON before parsing
+            if ! echo "$status_response" | jq empty 2>/dev/null; then
+              # Not valid JSON - might be HTML error page or other response
+              if [ $((elapsed - last_progress_time)) -ge $progress_interval ]; then
+                echo "⚠️  Invalid JSON response from server (${elapsed}s)"
+                echo "   Response preview: $(echo "$status_response" | head -c 200)"
+                echo "   Retrying..."
+                last_progress_time=$elapsed
+              fi
+              sleep $poll_interval
+              continue
+            fi
+            
+            # Check if response is an array (which shouldn't happen for deployment status)
+            # If it's an array, convert it to an object or handle it gracefully
+            response_type=$(echo "$status_response" | jq -r 'type' 2>/dev/null)
+            if [ "$response_type" = "array" ]; then
+              # If it's an empty array, treat as "not ready yet" and continue
+              array_length=$(echo "$status_response" | jq -r 'length' 2>/dev/null || echo "0")
+              if [ "$array_length" = "0" ]; then
+                # Empty array - deployment may not have started yet
+                sleep $poll_interval
+                continue
+              fi
+              # Non-empty array - convert to object for processing
+              # This handles edge case where PHP might send array instead of object
+              status_response=$(echo "$status_response" | jq 'if type == "array" then .[0] // {} else . end' 2>/dev/null || echo "{}")
+              # Re-validate after conversion
+              if ! echo "$status_response" | jq empty 2>/dev/null; then
+                if [ $((elapsed - last_progress_time)) -ge $progress_interval ]; then
+                  echo "⚠️  Could not convert array response (${elapsed}s)"
+                  echo "   Retrying..."
+                  last_progress_time=$elapsed
+                fi
+                sleep $poll_interval
+                continue
+              fi
+            fi
+            
             # Parse status from JSON
-            status=$(echo "$status_response" | jq -r '.status // "UNKNOWN"')
+            status=$(echo "$status_response" | jq -r '.status // "UNKNOWN"' 2>/dev/null || echo "UNKNOWN")
             
             # If still running
             if [ "$status" = "RUNNING" ]; then
-              current_phase=$(echo "$status_response" | jq -r '.current_phase // "unknown"')
-              current_step=$(echo "$status_response" | jq -r '.current_step // "unknown"')
-              total_steps=$(echo "$status_response" | jq -r '.steps | length // 0')
+              current_phase=$(echo "$status_response" | jq -r '.current_phase // "unknown"' 2>/dev/null || echo "unknown")
+              current_step=$(echo "$status_response" | jq -r '.current_step // "unknown"' 2>/dev/null || echo "unknown")
+              total_steps=$(echo "$status_response" | jq -r '.steps | length // 0' 2>/dev/null || echo "0")
               
               # Show progress immediately when step or phase changes
               step_changed=false
@@ -308,7 +348,7 @@ jobs:
                 # Show the actual command being executed when step changes
                 if [ "$step_changed" = "true" ] && [ -n "$current_step_num" ] && [ "$total_steps" -gt 0 ]; then
                   # Get the command from the currently executing step
-                  current_command=$(echo "$status_response" | jq -r ".steps[$current_step_num].command // empty")
+                  current_command=$(echo "$status_response" | jq -r ".steps[$current_step_num].command // empty" 2>/dev/null || echo "")
                   if [ -n "$current_command" ]; then
                     echo "   → $current_command"
                   fi

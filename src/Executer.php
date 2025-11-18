@@ -19,7 +19,18 @@ class Executer {
 
     public function run(string $command): RanCommand {
         [$replacedWhitelisted, $restoreWhiteListedStrings] = $this->removeWhiteListedStrings($command);
-        $commandAfterEscaping = escapeshellcmd($replacedWhitelisted);
+
+        // Si el comando contiene saltos de línea, ejecutarlo dentro de bash -c
+        $isMultiline = strpos($replacedWhitelisted, "\n") !== false;
+
+        if ($isMultiline) {
+            // Para comandos multilínea, usar bash -c con escapeshellarg
+            $commandAfterEscaping = 'bash -c ' . escapeshellarg($replacedWhitelisted);
+        } else {
+            // Para comandos de una sola línea, usar escapeshellcmd como antes
+            $commandAfterEscaping = escapeshellcmd($replacedWhitelisted);
+        }
+
         $command = $restoreWhiteListedStrings($commandAfterEscaping);
 
         $timeout = $this->configReader->get(ConfigReader::COMMAND_TIMEOUT) ?? 3600; // Default: 1 hora

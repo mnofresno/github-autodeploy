@@ -126,7 +126,17 @@ class DeploymentStatus {
             return [];
         }
         $content = file_get_contents($this->statusFile);
-        return json_decode($content, true) ?? [];
+        $decoded = json_decode($content, true);
+        // Si json_decode falla o devuelve null, o si devolvió un array vacío,
+        // retornamos array vacío (que luego se serializará como objeto cuando tenga datos)
+        if ($decoded === null || (is_array($decoded) && empty($decoded))) {
+            return [];
+        }
+        // Asegurar que siempre es un array asociativo (objeto cuando se serializa)
+        if (!is_array($decoded)) {
+            return [];
+        }
+        return $decoded;
     }
 
     private function write(array $data): void {

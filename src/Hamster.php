@@ -251,7 +251,10 @@ class Hamster {
 
         $status = $deploymentStatus->get();
         $this->response->setStatusCode(200);
-        $this->response->addToBody(json_encode($status, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+        // Asegurar que siempre se serializa como objeto JSON, incluso si está vacío
+        // Si el array está vacío, convertirlo a objeto para que json_encode devuelva {} en lugar de []
+        $jsonData = empty($status) ? new \stdClass() : $status;
+        $this->response->addToBody(json_encode($jsonData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
         $this->response->send('application/json; charset=utf-8');
     }
 
