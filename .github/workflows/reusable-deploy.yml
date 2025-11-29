@@ -476,12 +476,45 @@ jobs:
               exit 1
             fi
             
-            # Unknown status
+            # Unknown status - check if deployment hasn't started yet
+            error_message=$(echo "$status_response" | jq -r '.error // .message // ""' 2>/dev/null || echo "")
+            
+            # Check if the error message indicates the deployment hasn't started yet
+            if echo "$error_message" | grep -qi "no.*encontr.*estado\|deployment.*not.*found\|no.*ha.*comenzado\|not.*started"; then
+              # Deployment may not have started yet - continue polling
+              # Only show progress message periodically to avoid spam
+              if [ $((elapsed - last_progress_time)) -ge $progress_interval ]; then
+                echo "⏳ Waiting for deployment to start... (${elapsed}s)"
+                echo "   Status not available yet, continuing to poll..."
+                last_progress_time=$elapsed
+              fi
+              sleep $poll_interval
+              continue
+            fi
+            
+            # If we've waited more than 30 seconds and still get UNKNOWN, it might be a real error
+            # But if it's less than 30 seconds, continue polling (deployment might be initializing)
+            if [ $elapsed -lt 30 ]; then
+              # Still early - deployment might be initializing, continue polling
+              if [ $((elapsed - last_progress_time)) -ge $progress_interval ]; then
+                echo "⏳ Deployment initializing... (${elapsed}s)"
+                last_progress_time=$elapsed
+              fi
+              sleep $poll_interval
+              continue
+            fi
+            
+            # After 30 seconds, if status is still UNKNOWN, it's likely a real error
             echo ""
-            echo "⚠️  Unknown status: $status"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "⚠️  Unknown status: $status (after ${elapsed}s)"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             echo ""
             echo "📋 Full response:"
             echo "$status_response" | jq '.' || echo "$status_response"
+            echo ""
+            echo "💡 The deployment may still be running. Check status manually:"
+            echo "   curl 'https://${AUTODEPLOY_URL}?deployment_status=true&previous_run_id=${run_id}'"
             exit 1
           done
 
