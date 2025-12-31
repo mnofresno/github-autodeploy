@@ -1,6 +1,7 @@
 # Reusable Workflow: Async Deployment with Polling
 # This workflow can be called from other repositories
 # Usage: In the repository that wants to use this workflow, call this reusable workflow
+# Supports multiple instances: Separate URLs with commas in autodeploy_url (e.g., "url1,url2,url3")
 
 name: Reusable Async Deployment
 
@@ -8,7 +9,7 @@ on:
   workflow_call:
     inputs:
       autodeploy_url:
-        description: 'Autodeploy server URL'
+        description: 'Autodeploy server URL(s). For multiple instances, separate with commas (e.g., "url1,url2,url3")'
         required: true
         type: string
       deploy_key:
@@ -36,7 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - name: Deploy to Server (Async + Polling)
+      - name: Deploy to Server(s) (Async + Polling)
         env:
           AUTODEPLOY_URL: ${{ inputs.autodeploy_url }}
           KEY_FILE_FOR_DEPLOY: ${{ secrets.KEY_FILE_FOR_DEPLOY }}
@@ -46,475 +47,532 @@ jobs:
         run: |
           set -e  # Exit if any command fails
           
-          echo "🚀 Starting deployment to production (async mode)..."
+          # Convert comma-separated URLs into array
+          IFS=',' read -ra URLS <<< "$AUTODEPLOY_URL"
+          
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🚀 Starting deployment to ${#URLS[@]} instance(s)"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "📋 Commit: ${COMMIT_SHA}"
           echo "👤 Author: ${COMMIT_AUTHOR}"
+          echo "📦 Repository: ${REPOSITORY}"
           echo ""
           
-          # ============================================
-          # STEP 1: Start deployment in background
-          # ============================================
+          # Array to track results
+          declare -a RESULTS
+          declare -a FAILED_INSTANCES
+          ALL_SUCCESS=true
           
-          echo "📤 Starting deployment in background..."
-          deployment_url="https://${AUTODEPLOY_URL}?repo=${REPOSITORY}&key=${KEY_FILE_FOR_DEPLOY}"
-          echo "   URL: ${deployment_url}"
-          echo ""
-          
-          init_response=$(curl -X POST \
-            -H "Content-Type: application/json" \
-            -d '{
-              "key": "'"${KEY_FILE_FOR_DEPLOY}"'",
-              "run_in_background": true,
-              "commit": {
-                "sha": "'"${COMMIT_SHA}"'",
-                "author": "'"${COMMIT_AUTHOR}"'"
-              }
-            }' \
-            -w "\nHTTP_CODE:%{http_code}\nCURL_EXIT:%{exitcode}" \
-            -s -S \
-            --show-error \
-            --connect-timeout 30 \
-            --max-time 60 \
-            "${deployment_url}" 2>&1)
-          
-          curl_exit_code=$?
-          
-          # Extract HTTP code and curl exit code from response
-          http_code=$(echo "$init_response" | grep "HTTP_CODE:" | cut -d: -f2 || echo "")
-          curl_exit_from_response=$(echo "$init_response" | grep "CURL_EXIT:" | cut -d: -f2 || echo "")
-          body=$(echo "$init_response" | sed '/HTTP_CODE:/d' | sed '/CURL_EXIT:/d')
-          
-          # Handle curl errors with detailed diagnostics
-          if [ $curl_exit_code -ne 0 ]; then
-            echo ""
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            echo "❌ Error starting deployment"
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            echo ""
-            echo "🔍 Diagnostic Information:"
-            echo "   - curl exit code: $curl_exit_code"
-            echo "   - URL attempted: ${deployment_url}"
-            echo "   - Repository: ${REPOSITORY}"
-            echo ""
+          # Function to deploy to a single instance
+          deploy_to_instance() {
+            local INSTANCE_URL="$1"
+            local INSTANCE_NUM="$2"
+            local TOTAL_INSTANCES="$3"
             
-            # Provide specific error messages based on curl exit code
-            case $curl_exit_code in
-              6)
-                echo "🔴 Error: Could not resolve host '${AUTODEPLOY_URL}'"
-                echo "   This usually means DNS resolution failed."
-                echo "   Check that AUTODEPLOY_URL is correct: ${AUTODEPLOY_URL}"
-                ;;
-              7)
-                echo "🔴 Error: Failed to connect to '${AUTODEPLOY_URL}'"
-                echo "   This usually means the server is down or unreachable."
-                echo "   Check if the autodeploy server is running."
-                ;;
-              28)
-                echo "🔴 Error: Operation timed out after 60 seconds"
-                echo "   The server took too long to respond."
-                echo ""
-                echo "   Possible causes:"
-                echo "   - Server is overloaded or slow"
-                echo "   - Network connectivity issues"
-                echo "   - Server may be processing the request but taking too long"
-                echo ""
-                echo "   💡 Try checking the server status manually or increase --max-time"
-                ;;
-              52)
-                echo "🔴 Error: Empty reply from server"
-                echo "   The server closed the connection without sending a response."
-                ;;
-              56)
-                echo "🔴 Error: Failure receiving network data"
-                echo "   Network connection was interrupted."
-                ;;
-              *)
-                echo "🔴 Error: curl failed with exit code $curl_exit_code"
-                echo "   See curl documentation for error code meaning."
-                ;;
-            esac
+            # Remove whitespace
+            INSTANCE_URL=$(echo "$INSTANCE_URL" | xargs)
             
             echo ""
-            echo "📋 Raw response:"
-            echo "$body" | head -50
+            echo "┌─────────────────────────────────────────────┐"
+            echo "│ Instance $INSTANCE_NUM/$TOTAL_INSTANCES: $INSTANCE_URL"
+            echo "└─────────────────────────────────────────────┘"
+            echo ""
             
-            exit 1
-          fi
-          
-          # Verify the response is valid (http_code already extracted above)
-          if [ -z "$http_code" ] || [ "$http_code" = "" ]; then
-            echo ""
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            echo "❌ Error: Could not extract HTTP code from response"
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            echo ""
-            echo "📋 Raw response:"
-            echo "$init_response"
-            exit 1
-          fi
-          
-          if [ "$http_code" != "201" ]; then
-            echo ""
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            echo "❌ Error starting deployment (HTTP $http_code)"
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            echo ""
-            echo "📋 Server response:"
-            echo "$body" | jq '.' 2>/dev/null || echo "$body"
-            echo ""
-            echo "💡 HTTP Status Codes:"
-            echo "   201 = Created (expected)"
-            echo "   400 = Bad Request (check request parameters)"
-            echo "   401 = Unauthorized (check deploy key)"
-            echo "   500 = Internal Server Error (server issue)"
-            exit 1
-          fi
-          
-          # Extract run_id
-          run_id=$(echo "$body" | jq -r '.run_id // empty')
-          if [ -z "$run_id" ] || [ "$run_id" = "null" ]; then
-            echo "❌ Could not get run_id from response"
-            echo "Response:"
-            echo "$body" | jq '.' || echo "$body"
-            exit 1
-          fi
-          
-          echo "✅ Deployment started"
-          echo "   Run ID: $run_id"
-          echo ""
-          
-          # Show monitoring URLs if available
-          status_url=$(echo "$body" | jq -r '.monitoring.status_url // empty')
-          logs_url=$(echo "$body" | jq -r '.monitoring.logs_url // empty')
-          if [ -n "$status_url" ]; then
-            echo "📊 Monitoring URLs:"
-            echo "   Status: $status_url"
-            [ -n "$logs_url" ] && echo "   Logs: $logs_url"
-            echo ""
-          fi
-          
-          # ============================================
-          # STEP 2: Polling loop to check status
-          # ============================================
-          
-          max_wait=2700  # 45 minutes (must match job timeout-minutes)
-          poll_interval=5  # Check every 5 seconds
-          progress_interval=30  # Show progress every 30 seconds
-          start_time=$(date +%s)
-          
-          echo "⏳ Waiting for deployment to complete..."
-          echo "   - Polling every ${poll_interval}s"
-          echo "   - Max timeout: ${max_wait}s ($(($max_wait / 60)) minutes)"
-          echo "   - Run ID: $run_id"
-          echo ""
-          
-          last_progress_time=0
-          last_step_seen=-1
-          last_phase_seen=""
-          
-          while true; do
-            elapsed=$(($(date +%s) - start_time))
+            # ============================================
+            # STEP 1: Start deployment in background
+            # ============================================
             
-            # Check timeout
-            if [ $elapsed -ge $max_wait ]; then
-              echo ""
-              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-              echo "⏱️  Timeout waiting for deployment (${max_wait}s)"
-              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-              echo ""
-              echo "The deployment may still be running on the server."
-              echo "Run ID: $run_id"
-              echo ""
-              echo "💡 To check status manually:"
-              echo "   curl 'https://${AUTODEPLOY_URL}?deployment_status=true&previous_run_id=${run_id}'"
-              exit 1
-            fi
+            echo "📤 Starting deployment in background..."
+            deployment_url="https://${INSTANCE_URL}?repo=${REPOSITORY}&key=${KEY_FILE_FOR_DEPLOY}"
+            echo "   URL: ${deployment_url}"
+            echo ""
             
-            # Query deployment status
-            status_url="https://${AUTODEPLOY_URL}?deployment_status=true&previous_run_id=${run_id}"
-            
-            # Capture response, separating stdout from stderr
-            status_response=$(curl -s -S \
+            init_response=$(curl -X POST \
+              -H "Content-Type: application/json" \
+              -d '{
+                "key": "'"${KEY_FILE_FOR_DEPLOY}"'",
+                "run_in_background": true,
+                "commit": {
+                  "sha": "'"${COMMIT_SHA}"'",
+                  "author": "'"${COMMIT_AUTHOR}"'"
+                }
+              }' \
+              -w "\nHTTP_CODE:%{http_code}\nCURL_EXIT:%{exitcode}" \
+              -s -S \
               --show-error \
-              --connect-timeout 10 \
-              --max-time 30 \
-              "${status_url}" 2>/dev/null)
+              --connect-timeout 30 \
+              --max-time 60 \
+              "${deployment_url}" 2>&1)
             
-            curl_status_exit=$?
+            curl_exit_code=$?
             
-            # If there's an error querying, continue (may be temporary)
-            if [ $curl_status_exit -ne 0 ]; then
-              if [ $((elapsed - last_progress_time)) -ge $progress_interval ]; then
-                echo "⚠️  Error checking status (${elapsed}s)"
-                case $curl_status_exit in
-                  28)
-                    echo "   Reason: Request timeout"
-                    ;;
-                  7)
-                    echo "   Reason: Could not connect to server"
-                    ;;
-                  6)
-                    echo "   Reason: DNS resolution failed"
-                    ;;
-                  *)
-                    echo "   Reason: curl exit code $curl_status_exit"
-                    ;;
-                esac
-                echo "   Retrying..."
-                last_progress_time=$elapsed
-              fi
-              sleep $poll_interval
-              continue
+            # Extract HTTP code and curl exit code from response
+            http_code=$(echo "$init_response" | grep "HTTP_CODE:" | cut -d: -f2 || echo "")
+            curl_exit_from_response=$(echo "$init_response" | grep "CURL_EXIT:" | cut -d: -f2 || echo "")
+            body=$(echo "$init_response" | sed '/HTTP_CODE:/d' | sed '/CURL_EXIT:/d')
+            
+            # Handle curl errors with detailed diagnostics
+            if [ $curl_exit_code -ne 0 ]; then
+              echo ""
+              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+              echo "❌ Error starting deployment"
+              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+              echo ""
+              echo "🔍 Diagnostic Information:"
+              echo "   - curl exit code: $curl_exit_code"
+              echo "   - URL attempted: ${deployment_url}"
+              echo "   - Repository: ${REPOSITORY}"
+              echo ""
+              
+              # Provide specific error messages based on curl exit code
+              case $curl_exit_code in
+                6)
+                  echo "🔴 Error: Could not resolve host '${INSTANCE_URL}'"
+                  echo "   This usually means DNS resolution failed."
+                  echo "   Check that AUTODEPLOY_URL is correct: ${INSTANCE_URL}"
+                  ;;
+                7)
+                  echo "🔴 Error: Failed to connect to '${INSTANCE_URL}'"
+                  echo "   This usually means the server is down or unreachable."
+                  echo "   Check if the autodeploy server is running."
+                  ;;
+                28)
+                  echo "🔴 Error: Operation timed out after 60 seconds"
+                  echo "   The server took too long to respond."
+                  ;;
+                52)
+                  echo "🔴 Error: Empty reply from server"
+                  ;;
+                56)
+                  echo "🔴 Error: Failure receiving network data"
+                  ;;
+                *)
+                  echo "🔴 Error: curl failed with exit code $curl_exit_code"
+                  ;;
+              esac
+              
+              echo ""
+              echo "📋 Raw response:"
+              echo "$body" | head -50
+              
+              return 1
             fi
             
-            # Validate that response is valid JSON before parsing
-            if ! echo "$status_response" | jq empty 2>/dev/null; then
-              # Not valid JSON - might be HTML error page or other response
-              if [ $((elapsed - last_progress_time)) -ge $progress_interval ]; then
-                echo "⚠️  Invalid JSON response from server (${elapsed}s)"
-                echo "   Response preview: $(echo "$status_response" | head -c 200)"
-                echo "   Retrying..."
-                last_progress_time=$elapsed
-              fi
-              sleep $poll_interval
-              continue
+            # Verify the response is valid
+            if [ -z "$http_code" ] || [ "$http_code" = "" ]; then
+              echo ""
+              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+              echo "❌ Error: Could not extract HTTP code from response"
+              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+              echo ""
+              echo "📋 Raw response:"
+              echo "$init_response"
+              return 1
             fi
             
-            # Check if response is an array (which shouldn't happen for deployment status)
-            # If it's an array, convert it to an object or handle it gracefully
-            response_type=$(echo "$status_response" | jq -r 'type' 2>/dev/null)
-            if [ "$response_type" = "array" ]; then
-              # If it's an empty array, treat as "not ready yet" and continue
-              array_length=$(echo "$status_response" | jq -r 'length' 2>/dev/null || echo "0")
-              if [ "$array_length" = "0" ]; then
-                # Empty array - deployment may not have started yet
-                sleep $poll_interval
-                continue
+            if [ "$http_code" != "201" ]; then
+              echo ""
+              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+              echo "❌ Error starting deployment (HTTP $http_code)"
+              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+              echo ""
+              echo "📋 Server response:"
+              echo "$body" | jq '.' 2>/dev/null || echo "$body"
+              echo ""
+              echo "💡 HTTP Status Codes:"
+              echo "   201 = Created (expected)"
+              echo "   400 = Bad Request (check request parameters)"
+              echo "   401 = Unauthorized (check deploy key)"
+              echo "   500 = Internal Server Error (server issue)"
+              return 1
+            fi
+            
+            # Extract run_id
+            run_id=$(echo "$body" | jq -r '.run_id // empty')
+            if [ -z "$run_id" ] || [ "$run_id" = "null" ]; then
+              echo "❌ Could not get run_id from response"
+              echo "Response:"
+              echo "$body" | jq '.' || echo "$body"
+              return 1
+            fi
+            
+            echo "✅ Deployment started"
+            echo "   Run ID: $run_id"
+            echo ""
+            
+            # Show monitoring URLs if available
+            status_url=$(echo "$body" | jq -r '.monitoring.status_url // empty')
+            logs_url=$(echo "$body" | jq -r '.monitoring.logs_url // empty')
+            if [ -n "$status_url" ]; then
+              echo "📊 Monitoring URLs:"
+              echo "   Status: $status_url"
+              [ -n "$logs_url" ] && echo "   Logs: $logs_url"
+              echo ""
+            fi
+            
+            # ============================================
+            # STEP 2: Polling loop to check status
+            # ============================================
+            
+            max_wait=2700  # 45 minutes (must match job timeout-minutes)
+            poll_interval=5  # Check every 5 seconds
+            progress_interval=30  # Show progress every 30 seconds
+            start_time=$(date +%s)
+            
+            echo "⏳ Waiting for deployment to complete..."
+            echo "   - Polling every ${poll_interval}s"
+            echo "   - Max timeout: ${max_wait}s ($(($max_wait / 60)) minutes)"
+            echo "   - Run ID: $run_id"
+            echo ""
+            
+            last_progress_time=0
+            last_step_seen=-1
+            last_phase_seen=""
+            
+            while true; do
+              elapsed=$(($(date +%s) - start_time))
+              
+              # Check timeout
+              if [ $elapsed -ge $max_wait ]; then
+                echo ""
+                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                echo "⏱️  Timeout waiting for deployment (${max_wait}s)"
+                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                echo ""
+                echo "The deployment may still be running on the server."
+                echo "Run ID: $run_id"
+                echo ""
+                echo "💡 To check status manually:"
+                echo "   curl 'https://${INSTANCE_URL}?deployment_status=true&previous_run_id=${run_id}'"
+                return 1
               fi
-              # Non-empty array - convert to object for processing
-              # This handles edge case where PHP might send array instead of object
-              status_response=$(echo "$status_response" | jq 'if type == "array" then .[0] // {} else . end' 2>/dev/null || echo "{}")
-              # Re-validate after conversion
-              if ! echo "$status_response" | jq empty 2>/dev/null; then
+              
+              # Query deployment status
+              status_url="https://${INSTANCE_URL}?deployment_status=true&previous_run_id=${run_id}"
+              
+              # Capture response, separating stdout from stderr
+              status_response=$(curl -s -S \
+                --show-error \
+                --connect-timeout 10 \
+                --max-time 30 \
+                "${status_url}" 2>/dev/null)
+              
+              curl_status_exit=$?
+              
+              # If there's an error querying, continue (may be temporary)
+              if [ $curl_status_exit -ne 0 ]; then
                 if [ $((elapsed - last_progress_time)) -ge $progress_interval ]; then
-                  echo "⚠️  Could not convert array response (${elapsed}s)"
+                  echo "⚠️  Error checking status (${elapsed}s)"
+                  case $curl_status_exit in
+                    28)
+                      echo "   Reason: Request timeout"
+                      ;;
+                    7)
+                      echo "   Reason: Could not connect to server"
+                      ;;
+                    6)
+                      echo "   Reason: DNS resolution failed"
+                      ;;
+                    *)
+                      echo "   Reason: curl exit code $curl_status_exit"
+                      ;;
+                  esac
                   echo "   Retrying..."
                   last_progress_time=$elapsed
                 fi
                 sleep $poll_interval
                 continue
               fi
-            fi
-            
-            # Parse status from JSON
-            status=$(echo "$status_response" | jq -r '.status // "UNKNOWN"' 2>/dev/null || echo "UNKNOWN")
-            
-            # If still running
-            if [ "$status" = "RUNNING" ]; then
-              current_phase=$(echo "$status_response" | jq -r '.current_phase // "unknown"' 2>/dev/null || echo "unknown")
-              current_step=$(echo "$status_response" | jq -r '.current_step // "unknown"' 2>/dev/null || echo "unknown")
-              total_steps=$(echo "$status_response" | jq -r '.steps | length // 0' 2>/dev/null || echo "0")
               
-              # Show progress immediately when step or phase changes
-              step_changed=false
-              phase_changed=false
-              current_step_num=""
+              # Validate that response is valid JSON before parsing
+              if ! echo "$status_response" | jq empty 2>/dev/null; then
+                # Not valid JSON - might be HTML error page or other response
+                if [ $((elapsed - last_progress_time)) -ge $progress_interval ]; then
+                  echo "⚠️  Invalid JSON response from server (${elapsed}s)"
+                  echo "   Response preview: $(echo "$status_response" | head -c 200)"
+                  echo "   Retrying..."
+                  last_progress_time=$elapsed
+                fi
+                sleep $poll_interval
+                continue
+              fi
               
-              if [ "$current_step" != "unknown" ] && [ "$current_step" != "null" ]; then
-                # Ensure we're comparing numbers
-                current_step_num=$current_step
-                if [ "$current_step_num" -ne "$last_step_seen" ]; then
-                  step_changed=true
+              # Check if response is an array (which shouldn't happen for deployment status)
+              # If it's an array, convert it to an object or handle it gracefully
+              response_type=$(echo "$status_response" | jq -r 'type' 2>/dev/null)
+              if [ "$response_type" = "array" ]; then
+                # If it's an empty array, treat as "not ready yet" and continue
+                array_length=$(echo "$status_response" | jq -r 'length' 2>/dev/null || echo "0")
+                if [ "$array_length" = "0" ]; then
+                  # Empty array - deployment may not have started yet
+                  sleep $poll_interval
+                  continue
+                fi
+                # Non-empty array - convert to object for processing
+                # This handles edge case where PHP might send array instead of object
+                status_response=$(echo "$status_response" | jq 'if type == "array" then .[0] // {} else . end' 2>/dev/null || echo "{}")
+                # Re-validate after conversion
+                if ! echo "$status_response" | jq empty 2>/dev/null; then
+                  if [ $((elapsed - last_progress_time)) -ge $progress_interval ]; then
+                    echo "⚠️  Could not convert array response (${elapsed}s)"
+                    echo "   Retrying..."
+                    last_progress_time=$elapsed
+                  fi
+                  sleep $poll_interval
+                  continue
                 fi
               fi
               
-              if [ "$current_phase" != "unknown" ] && [ "$current_phase" != "null" ] && [ "$current_phase" != "$last_phase_seen" ]; then
-                phase_changed=true
-              fi
+              # Parse status from JSON
+              status=$(echo "$status_response" | jq -r '.status // "UNKNOWN"' 2>/dev/null || echo "UNKNOWN")
               
-              # Show progress immediately on change OR periodically
-              if [ "$step_changed" = "true" ] || [ "$phase_changed" = "true" ] || [ $((elapsed - last_progress_time)) -ge $progress_interval ]; then
-                phase_display=$(echo "$current_phase" | sed 's/_/ /g' | awk '{for(i=1;i<=NF;i++)sub(/./,toupper(substr($i,1,1)),$i)}1')
+              # If still running
+              if [ "$status" = "RUNNING" ]; then
+                current_phase=$(echo "$status_response" | jq -r '.current_phase // "unknown"' 2>/dev/null || echo "unknown")
+                current_step=$(echo "$status_response" | jq -r '.current_step // "unknown"' 2>/dev/null || echo "unknown")
+                total_steps=$(echo "$status_response" | jq -r '.steps | length // 0' 2>/dev/null || echo "0")
                 
-                # Show step number (1-indexed) instead of step ID (0-indexed)
-                if [ "$current_step" != "unknown" ] && [ "$current_step" != "null" ] && [ -n "$current_step_num" ]; then
-                  step_number=$(($current_step_num + 1))
-                  echo "⏳ Running... (${elapsed}s) | Phase: $phase_display | Step ${step_number}/${total_steps}"
-                  last_step_seen=$current_step_num
-                else
-                  echo "⏳ Running... (${elapsed}s) | Phase: $phase_display | Completed: ${total_steps}"
-                fi
+                # Show progress immediately when step or phase changes
+                step_changed=false
+                phase_changed=false
+                current_step_num=""
                 
-                # Show the actual command being executed when step changes
-                if [ "$step_changed" = "true" ] && [ -n "$current_step_num" ] && [ "$total_steps" -gt 0 ]; then
-                  # Get the command from the currently executing step
-                  current_command=$(echo "$status_response" | jq -r ".steps[$current_step_num].command // empty" 2>/dev/null || echo "")
-                  if [ -n "$current_command" ]; then
-                    echo "   → $current_command"
+                if [ "$current_step" != "unknown" ] && [ "$current_step" != "null" ]; then
+                  # Ensure we're comparing numbers
+                  current_step_num=$current_step
+                  if [ "$current_step_num" -ne "$last_step_seen" ]; then
+                    step_changed=true
                   fi
                 fi
                 
-                last_progress_time=$elapsed
-                last_phase_seen=$current_phase
+                if [ "$current_phase" != "unknown" ] && [ "$current_phase" != "null" ] && [ "$current_phase" != "$last_phase_seen" ]; then
+                  phase_changed=true
+                fi
+                
+                # Show progress immediately on change OR periodically
+                if [ "$step_changed" = "true" ] || [ "$phase_changed" = "true" ] || [ $((elapsed - last_progress_time)) -ge $progress_interval ]; then
+                  phase_display=$(echo "$current_phase" | sed 's/_/ /g' | awk '{for(i=1;i<=NF;i++)sub(/./,toupper(substr($i,1,1)),$i)}1')
+                  
+                  # Show step number (1-indexed) instead of step ID (0-indexed)
+                  if [ "$current_step" != "unknown" ] && [ "$current_step" != "null" ] && [ -n "$current_step_num" ]; then
+                    step_number=$(($current_step_num + 1))
+                    echo "⏳ Running... (${elapsed}s) | Phase: $phase_display | Step ${step_number}/${total_steps}"
+                    last_step_seen=$current_step_num
+                  else
+                    echo "⏳ Running... (${elapsed}s) | Phase: $phase_display | Completed: ${total_steps}"
+                  fi
+                  
+                  # Show the actual command being executed when step changes
+                  if [ "$step_changed" = "true" ] && [ -n "$current_step_num" ] && [ "$total_steps" -gt 0 ]; then
+                    # Get the command from the currently executing step
+                    current_command=$(echo "$status_response" | jq -r ".steps[$current_step_num].command // empty" 2>/dev/null || echo "")
+                    if [ -n "$current_command" ]; then
+                      echo "   → $current_command"
+                    fi
+                  fi
+                  
+                  last_progress_time=$elapsed
+                  last_phase_seen=$current_phase
+                fi
+                
+                sleep $poll_interval
+                continue
               fi
               
-              sleep $poll_interval
-              continue
-            fi
-            
-            # ============================================
-            # STEP 3: Process final result
-            # ============================================
-            
-            # If completed successfully
-            if [ "$status" = "SUCCESS" ]; then
-              echo ""
-              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-              echo "✅ Deployment completed successfully!"
-              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-              echo ""
+              # ============================================
+              # STEP 3: Process final result
+              # ============================================
               
-              total_steps=$(echo "$status_response" | jq -r '.steps | length // 0')
-              started_at=$(echo "$status_response" | jq -r '.started_at // "unknown"')
-              completed_at=$(echo "$status_response" | jq -r '.completed_at // "unknown"')
-              
-              echo "📈 Summary:"
-              echo "   - Total steps: ${total_steps}"
-              echo "   - Started: ${started_at}"
-              echo "   - Completed: ${completed_at}"
-              echo "   - Total time: ${elapsed}s"
-              echo ""
-              
-              # Show all completed steps with clear numbering
-              echo "📋 Completed steps:"
-              echo "$status_response" | jq -r '.steps[] | "   ✓ Step \(.id + 1): \(.command) [\(.phase)] (exit: \(.exit_code))"' || true
-              
-              exit 0
-            fi
-            
-            # If failed
-            if [ "$status" = "FAILED" ]; then
-              echo ""
-              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-              echo "❌ Deployment failed!"
-              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-              echo ""
-              
-              failed_step=$(echo "$status_response" | jq -r '.failed_step // {}')
-              error_message=$(echo "$status_response" | jq -r '.error_message // ""')
-              
-              # Check if failed_step exists and has valid values (not "unknown")
-              if [ "$failed_step" != "{}" ] && [ "$failed_step" != "null" ]; then
-                step_id=$(echo "$status_response" | jq -r '.failed_step.step_id // "-1"')
-                phase=$(echo "$status_response" | jq -r '.failed_step.phase // "unknown"')
-                command=$(echo "$status_response" | jq -r '.failed_step.command // "unknown"')
-                exit_code=$(echo "$status_response" | jq -r '.failed_step.exit_code // "unknown"')
+              # If completed successfully
+              if [ "$status" = "SUCCESS" ]; then
+                echo ""
+                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                echo "✅ Deployment completed successfully!"
+                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                echo ""
                 
-                # If phase is "unknown" or command is "unknown" or step_id is -1, 
-                # this is likely an error before command execution (e.g., security, validation)
-                # Show error_message instead if available
-                if [ "$phase" = "unknown" ] && [ "$command" = "unknown" ] && [ "$step_id" = "-1" ] && [ -n "$error_message" ]; then
-                  echo "🔴 Error (before command execution):"
-                  echo "   $error_message"
-                  echo ""
-                  echo "💡 This error occurred before any deployment commands were executed."
-                  echo "   Possible causes:"
-                  echo "   - Security/authentication failure"
-                  echo "   - Repository or key validation error"
-                  echo "   - Configuration error"
-                  echo "   - Server-side error"
-                else
-                  # Normal command execution failure
-                  # Check if it's a timeout (exit code 124)
-                  is_timeout=false
-                  if [ "$exit_code" = "124" ]; then
-                    is_timeout=true
-                  fi
+                total_steps=$(echo "$status_response" | jq -r '.steps | length // 0')
+                started_at=$(echo "$status_response" | jq -r '.started_at // "unknown"')
+                completed_at=$(echo "$status_response" | jq -r '.completed_at // "unknown"')
+                
+                echo "📈 Summary:"
+                echo "   - Total steps: ${total_steps}"
+                echo "   - Started: ${started_at}"
+                echo "   - Completed: ${completed_at}"
+                echo "   - Total time: ${elapsed}s"
+                echo ""
+                
+                # Show all completed steps with clear numbering
+                echo "📋 Completed steps:"
+                echo "$status_response" | jq -r '.steps[] | "   ✓ Step \(.id + 1): \(.command) [\(.phase)] (exit: \(.exit_code))"' || true
+                
+                return 0
+              fi
+              
+              # If failed
+              if [ "$status" = "FAILED" ]; then
+                echo ""
+                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                echo "❌ Deployment failed!"
+                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                echo ""
+                
+                failed_step=$(echo "$status_response" | jq -r '.failed_step // {}')
+                error_message=$(echo "$status_response" | jq -r '.error_message // ""')
+                
+                # Check if failed_step exists and has valid values (not "unknown")
+                if [ "$failed_step" != "{}" ] && [ "$failed_step" != "null" ]; then
+                  step_id=$(echo "$status_response" | jq -r '.failed_step.step_id // "-1"')
+                  phase=$(echo "$status_response" | jq -r '.failed_step.phase // "unknown"')
+                  command=$(echo "$status_response" | jq -r '.failed_step.command // "unknown"')
+                  exit_code=$(echo "$status_response" | jq -r '.failed_step.exit_code // "unknown"')
                   
-                  phase_display=$(echo "$phase" | sed 's/_/ /g' | awk '{for(i=1;i<=NF;i++)sub(/./,toupper(substr($i,1,1)),$i)}1')
-                  
-                  # Show all steps up to the one that failed (for context)
-                  echo "📋 Steps executed (before failure):"
-                  all_steps=$(echo "$status_response" | jq -r '.steps // []')
-                  if [ "$all_steps" != "[]" ] && [ "$all_steps" != "null" ]; then
-                    echo "$status_response" | jq -r '.steps[] | "   Step \(.id + 1): \(.command) [\(.phase)] (exit: \(.exit_code // "N/A"))"' || true
-                  fi
-                  
-                  echo ""
-                  echo "🔴 Failed step:"
-                  step_number=$(($step_id + 1))
-                  echo "   Step ${step_number}: $command"
-                  echo "   Phase: $phase_display"
-                  echo "   Exit code: $exit_code"
-                  
-                  if [ "$is_timeout" = "true" ]; then
-                    echo "   ⏱️  TIMEOUT detected (command exceeded time limit)"
-                  fi
-                  
-                  # Show error_message if available
-                  if [ -n "$error_message" ]; then
-                    echo ""
-                    echo "📋 Error details:"
+                  # If phase is "unknown" or command is "unknown" or step_id is -1, 
+                  # this is likely an error before command execution (e.g., security, validation)
+                  # Show error_message instead if available
+                  if [ "$phase" = "unknown" ] && [ "$command" = "unknown" ] && [ "$step_id" = "-1" ] && [ -n "$error_message" ]; then
+                    echo "🔴 Error (before command execution):"
                     echo "   $error_message"
+                    echo ""
+                    echo "💡 This error occurred before any deployment commands were executed."
+                    echo "   Possible causes:"
+                    echo "   - Security/authentication failure"
+                    echo "   - Repository or key validation error"
+                    echo "   - Configuration error"
+                    echo "   - Server-side error"
+                  else
+                    # Normal command execution failure
+                    # Check if it's a timeout (exit code 124)
+                    is_timeout=false
+                    if [ "$exit_code" = "124" ]; then
+                      is_timeout=true
+                    fi
+                    
+                    phase_display=$(echo "$phase" | sed 's/_/ /g' | awk '{for(i=1;i<=NF;i++)sub(/./,toupper(substr($i,1,1)),$i)}1')
+                    
+                    # Show all steps up to the one that failed (for context)
+                    echo "📋 Steps executed (before failure):"
+                    all_steps=$(echo "$status_response" | jq -r '.steps // []')
+                    if [ "$all_steps" != "[]" ] && [ "$all_steps" != "null" ]; then
+                      echo "$status_response" | jq -r '.steps[] | "   Step \(.id + 1): \(.command) [\(.phase)] (exit: \(.exit_code // "N/A"))"' || true
+                    fi
+                    
+                    echo ""
+                    echo "🔴 Failed step:"
+                    step_number=$(($step_id + 1))
+                    echo "   Step ${step_number}: $command"
+                    echo "   Phase: $phase_display"
+                    echo "   Exit code: $exit_code"
+                    
+                    if [ "$is_timeout" = "true" ]; then
+                      echo "   ⏱️  TIMEOUT detected (command exceeded time limit)"
+                    fi
+                    
+                    # Show error_message if available
+                    if [ -n "$error_message" ]; then
+                      echo ""
+                      echo "📋 Error details:"
+                      echo "   $error_message"
+                    fi
+                    
+                    echo ""
+                    echo "📋 Command output (last 30 lines):"
+                    echo "$status_response" | jq -r '.failed_step.output[]?' | tail -30 | sed 's/^/     /'
                   fi
-                  
-                  echo ""
-                  echo "📋 Command output (last 30 lines):"
-                  echo "$status_response" | jq -r '.failed_step.output[]?' | tail -30 | sed 's/^/     /'
-                fi
-              else
-                # No failed_step, show error_message
-                if [ -n "$error_message" ]; then
-                  echo "🔴 Error: $error_message"
                 else
-                  echo "🔴 Error: Unknown error (no details available)"
+                  # No failed_step, show error_message
+                  if [ -n "$error_message" ]; then
+                    echo "🔴 Error: $error_message"
+                  else
+                    echo "🔴 Error: Unknown error (no details available)"
+                  fi
                 fi
+                
+                echo ""
+                echo "💡 For more details, check server logs."
+                return 1
               fi
               
+              # Unknown status - check if deployment hasn't started yet
+              error_message=$(echo "$status_response" | jq -r '.error // .message // ""' 2>/dev/null || echo "")
+              
+              # Check if the error message indicates the deployment hasn't started yet
+              if echo "$error_message" | grep -qi "no.*encontr.*estado\|deployment.*not.*found\|no.*ha.*comenzado\|not.*started"; then
+                # Deployment may not have started yet - continue polling
+                # Only show progress message periodically to avoid spam
+                if [ $((elapsed - last_progress_time)) -ge $progress_interval ]; then
+                  echo "⏳ Waiting for deployment to start... (${elapsed}s)"
+                  echo "   Status not available yet, continuing to poll..."
+                  last_progress_time=$elapsed
+                fi
+                sleep $poll_interval
+                continue
+              fi
+              
+              # If we've waited more than 30 seconds and still get UNKNOWN, it might be a real error
+              # But if it's less than 30 seconds, continue polling (deployment might be initializing)
+              if [ $elapsed -lt 30 ]; then
+                # Still early - deployment might be initializing, continue polling
+                if [ $((elapsed - last_progress_time)) -ge $progress_interval ]; then
+                  echo "⏳ Deployment initializing... (${elapsed}s)"
+                  last_progress_time=$elapsed
+                fi
+                sleep $poll_interval
+                continue
+              fi
+              
+              # After 30 seconds, if status is still UNKNOWN, it's likely a real error
               echo ""
-              echo "💡 For more details, check server logs."
-              exit 1
+              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+              echo "⚠️  Unknown status: $status (after ${elapsed}s)"
+              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+              echo ""
+              echo "📋 Full response:"
+              echo "$status_response" | jq '.' || echo "$status_response"
+              echo ""
+              echo "💡 The deployment may still be running. Check status manually:"
+              echo "   curl 'https://${INSTANCE_URL}?deployment_status=true&previous_run_id=${run_id}'"
+              return 1
+            done
+          }
+          
+          # Iterate over each URL and deploy
+          for i in "${!URLS[@]}"; do
+            URL="${URLS[$i]}"
+            INSTANCE_NUM=$((i + 1))
+            TOTAL_INSTANCES=${#URLS[@]}
+            
+            if ! deploy_to_instance "$URL" "$INSTANCE_NUM" "$TOTAL_INSTANCES"; then
+              RESULTS[$i]="❌ $URL - Deployment failed"
+              FAILED_INSTANCES+=("$URL")
+              ALL_SUCCESS=false
+            else
+              RESULTS[$i]="✅ $URL - Deployment successful"
             fi
             
-            # Unknown status - check if deployment hasn't started yet
-            error_message=$(echo "$status_response" | jq -r '.error // .message // ""' 2>/dev/null || echo "")
-            
-            # Check if the error message indicates the deployment hasn't started yet
-            if echo "$error_message" | grep -qi "no.*encontr.*estado\|deployment.*not.*found\|no.*ha.*comenzado\|not.*started"; then
-              # Deployment may not have started yet - continue polling
-              # Only show progress message periodically to avoid spam
-              if [ $((elapsed - last_progress_time)) -ge $progress_interval ]; then
-                echo "⏳ Waiting for deployment to start... (${elapsed}s)"
-                echo "   Status not available yet, continuing to poll..."
-                last_progress_time=$elapsed
-              fi
-              sleep $poll_interval
-              continue
-            fi
-            
-            # If we've waited more than 30 seconds and still get UNKNOWN, it might be a real error
-            # But if it's less than 30 seconds, continue polling (deployment might be initializing)
-            if [ $elapsed -lt 30 ]; then
-              # Still early - deployment might be initializing, continue polling
-              if [ $((elapsed - last_progress_time)) -ge $progress_interval ]; then
-                echo "⏳ Deployment initializing... (${elapsed}s)"
-                last_progress_time=$elapsed
-              fi
-              sleep $poll_interval
-              continue
-            fi
-            
-            # After 30 seconds, if status is still UNKNOWN, it's likely a real error
             echo ""
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            echo "⚠️  Unknown status: $status (after ${elapsed}s)"
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             echo ""
-            echo "📋 Full response:"
-            echo "$status_response" | jq '.' || echo "$status_response"
-            echo ""
-            echo "💡 The deployment may still be running. Check status manually:"
-            echo "   curl 'https://${AUTODEPLOY_URL}?deployment_status=true&previous_run_id=${run_id}'"
-            exit 1
           done
-
+          
+          # Final summary
+          echo ""
+          echo "╔═══════════════════════════════════════════════╗"
+          echo "║           DEPLOYMENT SUMMARY                   ║"
+          echo "╚═══════════════════════════════════════════════╝"
+          echo ""
+          for result in "${RESULTS[@]}"; do
+            echo "  $result"
+          done
+          echo ""
+          
+          if [ "$ALL_SUCCESS" = true ]; then
+            echo "🎉 All deployments completed successfully!"
+            exit 0
+          else
+            echo "⚠️  Some deployments failed:"
+            for failed in "${FAILED_INSTANCES[@]}"; do
+              echo "   - $failed"
+            done
+            exit 1
+          fi
