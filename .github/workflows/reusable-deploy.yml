@@ -92,7 +92,12 @@ jobs:
             echo "   URL: ${deployment_url}"
             echo ""
             
-            init_response=$(curl -X POST \
+            response_file=$(mktemp)
+            metadata_file=$(mktemp)
+            error_file=$(mktemp)
+            trap 'rm -f "$response_file" "$metadata_file" "$error_file"' RETURN
+
+            curl -X POST \
               -H "Content-Type: application/json" \
               -d '{
                 "key": "'"${KEY_FILE_FOR_DEPLOY}"'",
@@ -102,19 +107,21 @@ jobs:
                   "author": "'"${COMMIT_AUTHOR}"'"
                 }
               }' \
-              -w "\nHTTP_CODE:%{http_code}\nCURL_EXIT:%{exitcode}" \
+              -o "$response_file" \
+              -w "HTTP_CODE:%{http_code}\nCURL_EXIT:%{exitcode}\n" \
               -s -S \
               --show-error \
               --connect-timeout 30 \
               --max-time 60 \
-              "${deployment_url}" 2>&1)
+              "${deployment_url}" > "$metadata_file" 2> "$error_file"
             
             curl_exit_code=$?
             
-            # Extract HTTP code and curl exit code from response
-            http_code=$(echo "$init_response" | grep "HTTP_CODE:" | cut -d: -f2 || echo "")
-            curl_exit_from_response=$(echo "$init_response" | grep "CURL_EXIT:" | cut -d: -f2 || echo "")
-            body=$(echo "$init_response" | sed '/HTTP_CODE:/d' | sed '/CURL_EXIT:/d')
+            # Extract HTTP code and curl exit code from response metadata
+            http_code=$(grep "HTTP_CODE:" "$metadata_file" | cut -d: -f2 || echo "")
+            curl_exit_from_response=$(grep "CURL_EXIT:" "$metadata_file" | cut -d: -f2 || echo "")
+            body=$(cat "$response_file")
+            curl_stderr=$(cat "$error_file")
             
             # Handle curl errors with detailed diagnostics
             if [ $curl_exit_code -ne 0 ]; then
@@ -159,6 +166,11 @@ jobs:
               echo ""
               echo "📋 Raw response:"
               echo "$body" | head -50
+              if [ -n "$curl_stderr" ]; then
+                echo ""
+                echo "📋 curl stderr:"
+                echo "$curl_stderr" | head -50
+              fi
               
               return 1
             fi
@@ -171,7 +183,28 @@ jobs:
               echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
               echo ""
               echo "📋 Raw response:"
-              echo "$init_response"
+              echo "$body"
+              if [ -n "$curl_stderr" ]; then
+                echo ""
+                echo "📋 curl stderr:"
+                echo "$curl_stderr"
+              fi
+              return 1
+            fi
+            
+            if ! echo "$body" | jq empty 2>/dev/null; then
+              echo ""
+              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+              echo "❌ Error: Server did not return valid JSON"
+              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+              echo ""
+              echo "📋 Raw response:"
+              echo "$body"
+              if [ -n "$curl_stderr" ]; then
+                echo ""
+                echo "📋 curl stderr:"
+                echo "$curl_stderr"
+              fi
               return 1
             fi
             
@@ -193,11 +226,11 @@ jobs:
             fi
             
             # Extract run_id
-            run_id=$(echo "$body" | jq -r '.run_id // empty')
+            run_id=$(echo "$body" | jq -r '.run_id // empty' 2>/dev/null || echo "")
             if [ -z "$run_id" ] || [ "$run_id" = "null" ]; then
               echo "❌ Could not get run_id from response"
               echo "Response:"
-              echo "$body" | jq '.' || echo "$body"
+              echo "$body" | jq '.' 2>/dev/null || echo "$body"
               return 1
             fi
             
@@ -206,8 +239,8 @@ jobs:
             echo ""
             
             # Show monitoring URLs if available
-            status_url=$(echo "$body" | jq -r '.monitoring.status_url // empty')
-            logs_url=$(echo "$body" | jq -r '.monitoring.logs_url // empty')
+            status_url=$(echo "$body" | jq -r '.monitoring.status_url // empty' 2>/dev/null || echo "")
+            logs_url=$(echo "$body" | jq -r '.monitoring.logs_url // empty' 2>/dev/null || echo "")
             if [ -n "$status_url" ]; then
               echo "📊 Monitoring URLs:"
               echo "   Status: $status_url"
@@ -491,7 +524,7 @@ jobs:
                   else
                     echo "🔴 Error: Unknown error (no details available)"
                   fi
-                fi
+                }
                 
                 echo ""
                 echo "💡 For more details, check server logs."
