@@ -524,7 +524,7 @@ jobs:
                   else
                     echo "🔴 Error: Unknown error (no details available)"
                   fi
-                }
+                fi
                 
                 echo ""
                 echo "💡 For more details, check server logs."
