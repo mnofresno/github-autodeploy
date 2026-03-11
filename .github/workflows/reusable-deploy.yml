@@ -28,13 +28,18 @@ on:
         description: 'Commit author'
         required: true
         type: string
+      runs_on:
+        description: 'Runner label to use for this deployment (optional)' 
+        required: false
+        type: string
+        default: 'ubuntu-latest'
     secrets:
       KEY_FILE_FOR_DEPLOY:
         required: true
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runs_on }}
     timeout-minutes: 45
     steps:
       - name: Deploy to Server(s) (Async + Polling)
