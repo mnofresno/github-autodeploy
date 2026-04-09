@@ -828,7 +828,12 @@ class RunnerTest extends TestCase {
             $deployMock
         );
 
-        $executer = new class () extends Executer {
+        $executer = new class ($this->mockConfigReader) extends Executer {
+            public function __construct(ConfigReader $configReader)
+            {
+                parent::__construct($configReader);
+            }
+
             public function run(string $command, ?callable $outputCallback = null): \Mariano\GitAutoDeploy\views\RanCommand {
                 $output = [];
                 if (str_contains($command, 'report-docker-image-shas.sh') && $outputCallback) {
