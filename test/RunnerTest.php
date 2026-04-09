@@ -829,8 +829,7 @@ class RunnerTest extends TestCase {
         );
 
         $executer = new class ($this->mockConfigReader) extends Executer {
-            public function __construct(ConfigReader $configReader)
-            {
+            public function __construct(ConfigReader $configReader) {
                 parent::__construct($configReader);
             }
 
