@@ -283,6 +283,21 @@ jobs:
 
               PRINT_VERBOSE_TOTAL_COUNT="$total_count"
             }
+
+            print_verbose_step_full_output() {
+              local response_json="$1"
+              local step_index="$2"
+              local command
+              local total_count
+
+              command=$(echo "$response_json" | jq -r ".steps[$step_index].command // empty" 2>/dev/null || echo "")
+              total_count=$(echo "$response_json" | jq -r ".steps[$step_index].output // [] | length" 2>/dev/null || echo "0")
+
+              if [ "$total_count" -gt 0 ]; then
+                echo "   📋 Verbose output for step $((step_index + 1)): $command"
+                echo "$response_json" | jq -r ".steps[$step_index].output[]?" 2>/dev/null | sed 's/^/     /'
+              fi
+            }
             
             while true; do
               elapsed=$(($(date +%s) - start_time))
@@ -428,9 +443,19 @@ jobs:
 
                   if [ -n "$current_step_num" ]; then
                     current_step_verbose=$(echo "$status_response" | jq -r ".steps[$current_step_num].verbose // false" 2>/dev/null || echo "false")
-                    if [ "$step_changed" = "true" ] && [ "$last_verbose_step_seen" -ge 0 ] && [ "$last_verbose_step_seen" -ne "$current_step_num" ]; then
-                      print_verbose_output "$status_response" "$last_verbose_step_seen" "$last_verbose_output_count"
-                      last_verbose_output_count=$PRINT_VERBOSE_TOTAL_COUNT
+                    if [ "$step_changed" = "true" ] && [ "$current_step_num" -gt 0 ]; then
+                      previous_step_num=$(($current_step_num - 1))
+                      previous_step_verbose=$(echo "$status_response" | jq -r ".steps[$previous_step_num].verbose // false" 2>/dev/null || echo "false")
+                      if [ "$previous_step_verbose" = "true" ]; then
+                        if [ "$last_verbose_step_seen" -eq "$previous_step_num" ]; then
+                          previous_step_count="$last_verbose_output_count"
+                        else
+                          previous_step_count=0
+                        fi
+                        print_verbose_output "$status_response" "$previous_step_num" "$previous_step_count"
+                        last_verbose_step_seen=$previous_step_num
+                        last_verbose_output_count=$PRINT_VERBOSE_TOTAL_COUNT
+                      fi
                     fi
 
                     if [ "$current_step_verbose" = "true" ]; then
@@ -475,12 +500,16 @@ jobs:
                 echo "   - Total time: ${elapsed}s"
                 echo ""
 
-                if [ "$last_verbose_step_seen" -ge 0 ]; then
-                  step_verbose=$(echo "$status_response" | jq -r ".steps[$last_verbose_step_seen].verbose // false" 2>/dev/null || echo "false")
-                  if [ "$step_verbose" = "true" ]; then
-                    print_verbose_output "$status_response" "$last_verbose_step_seen" "$last_verbose_output_count"
-                    last_verbose_output_count=$PRINT_VERBOSE_TOTAL_COUNT
-                  fi
+                verbose_step_ids=$(echo "$status_response" | jq -r '.steps[] | select(.verbose == true) | .id' 2>/dev/null || echo "")
+                if [ -n "$verbose_step_ids" ]; then
+                  echo "📋 Verbose step output:"
+                  printf '%s\n' "$verbose_step_ids" | while IFS= read -r verbose_step_id; do
+                    if [ -z "$verbose_step_id" ]; then
+                      continue
+                    fi
+                    print_verbose_step_full_output "$status_response" "$verbose_step_id"
+                  done
+                  echo ""
                 fi
                 
                 # Show all completed steps with clear numbering
