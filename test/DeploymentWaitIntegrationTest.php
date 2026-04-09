@@ -233,6 +233,25 @@ class DeploymentWaitIntegrationTest extends TestCase {
             $this->assertArrayHasKey('command', $step);
             $this->assertArrayHasKey('status', $step);
             $this->assertArrayHasKey('exit_code', $step);
+            $this->assertArrayHasKey('verbose', $step);
         }
+    }
+
+    public function testVerboseStepOutputIsPersistedWhileRunning(): void {
+        $runId = 'test-run-verbose-' . uniqid();
+        $deploymentStatus = new DeploymentStatus($runId, $this->deploymentStatusDir);
+
+        $deploymentStatus->initialize('repo1', 'key1', []);
+        $deploymentStatus->startPhase(DeploymentStatus::PHASE_POST_FETCH);
+        $deploymentStatus->startStep('sh ./scripts/report-docker-image-shas.sh frontend backend', DeploymentStatus::PHASE_POST_FETCH, true);
+        $deploymentStatus->appendStepOutput(0, 'frontend=sha-123');
+        $deploymentStatus->appendStepOutput(0, 'backend=sha-456');
+
+        $status = $deploymentStatus->get();
+        $this->assertTrue($status['steps'][0]['verbose']);
+        $this->assertEquals([
+            'frontend=sha-123',
+            'backend=sha-456',
+        ], $status['steps'][0]['output']);
     }
 }

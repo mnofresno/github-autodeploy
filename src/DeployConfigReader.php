@@ -71,6 +71,10 @@ class DeployConfigReader {
             public function preFetchCommands(): array {
                 return $this->configData[ConfigReader::PRE_FETCH_COMMANDS] ?? [];
             }
+
+            public function verboseMatchers(): array {
+                return $this->configData[ConfigReader::VERBOSE_MATCHER] ?? [];
+            }
         };
     }
 
@@ -79,7 +83,32 @@ class DeployConfigReader {
     }
 
     private function assertCommands(array $commandsData): void {
-        foreach ($commandsData as $commandsList) {
+        foreach ($commandsData as $key => $commandsList) {
+            if ($key === ConfigReader::VERBOSE_MATCHER) {
+                if (!is_array($commandsList)) {
+                    throw InvalidDeployFileException::build($commandsList, $this->logger);
+                }
+
+                foreach ($commandsList as $matcher) {
+                    if (!is_string($matcher)) {
+                        throw InvalidDeployFileException::build($matcher, $this->logger);
+                    }
+                }
+                continue;
+            }
+
+            if (
+                $key !== ConfigReader::CUSTOM_UPDATE_COMMANDS &&
+                $key !== ConfigReader::POST_FETCH_COMMANDS &&
+                $key !== ConfigReader::PRE_FETCH_COMMANDS
+            ) {
+                continue;
+            }
+
+            if (!is_array($commandsList)) {
+                throw InvalidDeployFileException::build($commandsList, $this->logger);
+            }
+
             foreach ($commandsList as $command) {
                 if (!is_string($command)) {
                     throw InvalidDeployFileException::build($command, $this->logger);

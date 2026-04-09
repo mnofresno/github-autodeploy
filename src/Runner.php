@@ -132,10 +132,11 @@ class Runner {
         $preFetchCommands = $this->getPreFetchCommands();
         $fetchCommands = $this->getFetchCommands();
         $postFetchCommands = $this->getPostFetchCommands();
+        $verboseMatchers = $this->getVerboseMatchers();
 
-        $this->runCollectionOfCommands($preFetchCommands, $commandView, DeploymentStatus::PHASE_PRE_FETCH);
-        $this->runCollectionOfCommands($fetchCommands, $commandView, DeploymentStatus::PHASE_FETCH);
-        $this->runCollectionOfCommands($postFetchCommands, $commandView, DeploymentStatus::PHASE_POST_FETCH);
+        $this->runCollectionOfCommands($preFetchCommands, $commandView, DeploymentStatus::PHASE_PRE_FETCH, $verboseMatchers);
+        $this->runCollectionOfCommands($fetchCommands, $commandView, DeploymentStatus::PHASE_FETCH, $verboseMatchers);
+        $this->runCollectionOfCommands($postFetchCommands, $commandView, DeploymentStatus::PHASE_POST_FETCH, $verboseMatchers);
 
         $commandsCount = count($preFetchCommands) + count($fetchCommands) + count($postFetchCommands);
         $this->logger->info("Ran {$commandsCount} commands", ['updating_commands' => $this->runningLog]);
@@ -143,7 +144,7 @@ class Runner {
         $this->response->addViewToBody($commandView);
     }
 
-    private function runCollectionOfCommands(array $commands, Command $view, string $phase) {
+    private function runCollectionOfCommands(array $commands, Command $view, string $phase, array $verboseMatchers = []): void {
         if (empty($commands)) {
             return;
         }
@@ -153,10 +154,17 @@ class Runner {
 
         $stepId = count($this->runningLog);
         foreach ($commands as $command) {
-            $this->deploymentStatus->startStep($command, $phase);
+            $verbose = $this->isVerboseCommand($command, $verboseMatchers);
+            $this->deploymentStatus->startStep($command, $phase, $verbose);
             $this->logger->debug("Running command: {$command}", ['phase' => $phase, 'step_id' => $stepId]);
 
-            $afterRan = $this->executer->run($command);
+            $outputCallback = $verbose
+                ? function (string $line) use ($stepId): void {
+                    $this->deploymentStatus->appendStepOutput($stepId, $line);
+                }
+                : null;
+
+            $afterRan = $this->executer->run($command, $outputCallback);
             $this->deploymentStatus->completeStep($stepId, $afterRan->getCommandOutput(), $afterRan->exitCode());
 
             $view->add($afterRan);
@@ -204,6 +212,37 @@ class Runner {
         }
 
         $this->logger->info("Completed phase: {$phase}", ['phase' => $phase, 'commands_count' => count($commands)]);
+    }
+
+    private function getVerboseMatchers(): array {
+        $repoConfig = $this->deployConfigReader->fetchRepoConfig($this->request->getQueryParam(Request::REPO_QUERY_PARAM));
+        if (!$repoConfig || !method_exists($repoConfig, 'verboseMatchers')) {
+            return [];
+        }
+
+        return $repoConfig->verboseMatchers();
+    }
+
+    private function isVerboseCommand(string $command, array $verboseMatchers): bool {
+        foreach ($verboseMatchers as $matcher) {
+            $pattern = $this->normalizeVerboseMatcher($matcher);
+            if (@preg_match($pattern, $command) === 1) {
+                return true;
+            }
+
+            if (@preg_last_error() !== PREG_NO_ERROR) {
+                $this->logger->warning('Invalid verbose matcher ignored', [
+                    'matcher' => $matcher,
+                    'pattern' => $pattern,
+                ]);
+            }
+        }
+
+        return false;
+    }
+
+    private function normalizeVerboseMatcher(string $matcher): string {
+        return '~' . str_replace('~', '\~', $matcher) . '~';
     }
 
     private function whoami(): string {

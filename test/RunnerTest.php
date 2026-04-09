@@ -770,6 +770,121 @@ class RunnerTest extends TestCase {
         $this->assertEquals('sleep 100', $failedStep['command'] ?? null);
     }
 
+    public function testVerboseMatcherStreamsStepOutputIntoDeploymentStatus(): void {
+        $runId = 'test-run-verbose-' . uniqid();
+
+        $this->mockRequest->expects($this->any())
+            ->method('getHeaders')
+            ->willReturn([]);
+        $this->mockRequest->expects($this->any())
+            ->method('getRemoteAddress')
+            ->willReturn('127.0.0.1');
+        $this->mockRequest->expects($this->any())
+            ->method('getBody')
+            ->willReturn([]);
+        $this->mockRequest->expects($this->any())
+            ->method('getQueryParam')
+            ->willReturnMap([
+                [Request::REPO_QUERY_PARAM, $this->mockRepoCreator->testRepoName],
+                [Request::KEY_QUERY_PARAM, 'test-key-name'],
+            ]);
+        $this->mockResponse->method('getRunId')->willReturn($runId);
+        $this->mockConfigReader->expects($this->any())
+            ->method('get')
+            ->willReturnMap([
+                [ConfigReader::IPS_ALLOWLIST, ['127.0.0.1']],
+                [ConfigReader::REPOS_BASE_PATH, $this->mockRepoCreator::BASE_REPO_DIR],
+                [ConfigReader::COMMAND_TIMEOUT, 3600],
+                [ConfigReader::CUSTOM_UPDATE_COMMANDS, [ConfigReader::DEFAULT_COMMANDS => ['echo -n ""']]],
+            ]);
+
+        $deployMock = $this->createMock(DeployConfigReader::class);
+        $deployMock->expects($this->any())
+            ->method('fetchRepoConfig')
+            ->willReturn(new class () {
+                public function customCommands(): array {
+                    return [];
+                }
+
+                public function postFetchCommands(): array {
+                    return [
+                        'sh ./scripts/report-docker-image-shas.sh frontend backend notifications',
+                    ];
+                }
+
+                public function preFetchCommands(): array {
+                    return [];
+                }
+
+                public function verboseMatchers(): array {
+                    return ['report-docker-image-shas\\.sh'];
+                }
+            });
+
+        $customCommands = new CustomCommands(
+            $this->mockConfigReader,
+            $this->mockRequest,
+            $this->createMock(Logger::class),
+            $deployMock
+        );
+
+        $executer = new class () extends Executer {
+            public function run(string $command, ?callable $outputCallback = null): \Mariano\GitAutoDeploy\views\RanCommand {
+                $output = [];
+                if (str_contains($command, 'report-docker-image-shas.sh') && $outputCallback) {
+                    $outputCallback('frontend=sha-frontend');
+                    $outputCallback('backend=sha-backend');
+                    $outputCallback('notifications=sha-notifications');
+                    $output[] = 'frontend=sha-frontend';
+                    $output[] = 'backend=sha-backend';
+                    $output[] = 'notifications=sha-notifications';
+                }
+
+                return new \Mariano\GitAutoDeploy\views\RanCommand(
+                    $command,
+                    $output,
+                    exec('whoami'),
+                    0
+                );
+            }
+        };
+
+        $runner = new Runner(
+            $this->mockRequest,
+            $this->mockResponse,
+            $this->mockConfigReader,
+            $this->createMock(Logger::class),
+            $this->createMock(IPAllowListManager::class),
+            $customCommands,
+            $deployMock,
+            $executer
+        );
+
+        $runner->run();
+
+        $deploymentStatus = \Mariano\GitAutoDeploy\DeploymentStatus::load($runId);
+        $this->assertNotNull($deploymentStatus);
+        $status = $deploymentStatus->get();
+
+        $matchedStep = null;
+        foreach ($status['steps'] as $step) {
+            if (($step['command'] ?? '') === 'sh ./scripts/report-docker-image-shas.sh frontend backend notifications') {
+                $matchedStep = $step;
+                break;
+            }
+        }
+
+        $this->assertNotNull($matchedStep);
+        $this->assertTrue($matchedStep['verbose'] ?? false);
+        $this->assertEquals([
+            'frontend=sha-frontend',
+            'backend=sha-backend',
+            'notifications=sha-notifications',
+        ], $matchedStep['output'] ?? []);
+
+        $deploymentStatus->delete();
+    }
+
     private function createRanCommand(string $command, array $output, int $exitCode): \Mariano\GitAutoDeploy\views\RanCommand {
         return new \Mariano\GitAutoDeploy\views\RanCommand($command, $output, exec('whoami'), $exitCode);
     }

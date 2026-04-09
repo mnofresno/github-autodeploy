@@ -44,7 +44,7 @@ class DeploymentStatus {
         $this->write($status);
     }
 
-    public function startStep(string $command, string $phase): void {
+    public function startStep(string $command, string $phase, bool $verbose = false): void {
         $status = $this->read();
         $status['current_phase'] = $phase;
         $status['current_step'] = count($status['steps']);
@@ -54,10 +54,25 @@ class DeploymentStatus {
             'phase' => $phase,
             'command' => $command,
             'status' => self::STATUS_RUNNING,
+            'verbose' => $verbose,
             'started_at' => date('c'),
             'exit_code' => null,
-            'output' => null,
+            'output' => [],
         ];
+        $this->write($status);
+    }
+
+    public function appendStepOutput(int $stepId, string $line): void {
+        $status = $this->read();
+        if (!isset($status['steps'][$stepId])) {
+            return;
+        }
+
+        if (!isset($status['steps'][$stepId]['output']) || !is_array($status['steps'][$stepId]['output'])) {
+            $status['steps'][$stepId]['output'] = [];
+        }
+
+        $status['steps'][$stepId]['output'][] = $line;
         $this->write($status);
     }
 
@@ -77,13 +92,13 @@ class DeploymentStatus {
         $status = $this->read();
         $status['status'] = self::STATUS_FAILED;
         $status['failed_at'] = date('c');
-        $status['failed_step'] = [
-            'phase' => $phase,
-            'step_id' => $stepId,
-            'command' => $command,
-            'exit_code' => $exitCode,
-            'output' => $output,
-        ];
+        $failedStep = $status['steps'][$stepId] ?? [];
+        $failedStep['phase'] = $phase;
+        $failedStep['step_id'] = $stepId;
+        $failedStep['command'] = $command;
+        $failedStep['exit_code'] = $exitCode;
+        $failedStep['output'] = $output;
+        $status['failed_step'] = $failedStep;
         if ($errorMessage) {
             $status['error_message'] = $errorMessage;
         }

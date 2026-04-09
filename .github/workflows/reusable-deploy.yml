@@ -266,6 +266,23 @@ jobs:
             last_progress_time=0
             last_step_seen=-1
             last_phase_seen=""
+            last_verbose_step_seen=-1
+            last_verbose_output_count=0
+            PRINT_VERBOSE_TOTAL_COUNT=0
+
+            print_verbose_output() {
+              local response_json="$1"
+              local step_index="$2"
+              local from_count="$3"
+              local total_count
+
+              total_count=$(echo "$response_json" | jq -r ".steps[$step_index].output // [] | length" 2>/dev/null || echo "0")
+              if [ "$total_count" -gt "$from_count" ]; then
+                echo "$response_json" | jq -r ".steps[$step_index].output[$from_count:][]?" 2>/dev/null | sed 's/^/     /'
+              fi
+
+              PRINT_VERBOSE_TOTAL_COUNT="$total_count"
+            }
             
             while true; do
               elapsed=$(($(date +%s) - start_time))
@@ -408,6 +425,24 @@ jobs:
                       echo "   → $current_command"
                     fi
                   fi
+
+                  if [ -n "$current_step_num" ]; then
+                    current_step_verbose=$(echo "$status_response" | jq -r ".steps[$current_step_num].verbose // false" 2>/dev/null || echo "false")
+                    if [ "$step_changed" = "true" ] && [ "$last_verbose_step_seen" -ge 0 ] && [ "$last_verbose_step_seen" -ne "$current_step_num" ]; then
+                      print_verbose_output "$status_response" "$last_verbose_step_seen" "$last_verbose_output_count"
+                      last_verbose_output_count=$PRINT_VERBOSE_TOTAL_COUNT
+                    fi
+
+                    if [ "$current_step_verbose" = "true" ]; then
+                      if [ "$current_step_num" -ne "$last_verbose_step_seen" ]; then
+                        last_verbose_step_seen=$current_step_num
+                        last_verbose_output_count=0
+                      fi
+
+                      print_verbose_output "$status_response" "$current_step_num" "$last_verbose_output_count"
+                      last_verbose_output_count=$PRINT_VERBOSE_TOTAL_COUNT
+                    fi
+                  fi
                   
                   last_progress_time=$elapsed
                   last_phase_seen=$current_phase
@@ -439,6 +474,14 @@ jobs:
                 echo "   - Completed: ${completed_at}"
                 echo "   - Total time: ${elapsed}s"
                 echo ""
+
+                if [ "$last_verbose_step_seen" -ge 0 ]; then
+                  step_verbose=$(echo "$status_response" | jq -r ".steps[$last_verbose_step_seen].verbose // false" 2>/dev/null || echo "false")
+                  if [ "$step_verbose" = "true" ]; then
+                    print_verbose_output "$status_response" "$last_verbose_step_seen" "$last_verbose_output_count"
+                    last_verbose_output_count=$PRINT_VERBOSE_TOTAL_COUNT
+                  fi
+                fi
                 
                 # Show all completed steps with clear numbering
                 echo "📋 Completed steps:"

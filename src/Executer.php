@@ -17,7 +17,7 @@ class Executer {
         $this->configReader = $configReader;
     }
 
-    public function run(string $command): RanCommand {
+    public function run(string $command, ?callable $outputCallback = null): RanCommand {
         [$replacedWhitelisted, $restoreWhiteListedStrings] = $this->removeWhiteListedStrings($command);
 
         // Si el comando contiene saltos de línea, ejecutarlo dentro de bash -c
@@ -34,13 +34,13 @@ class Executer {
         $command = $restoreWhiteListedStrings($commandAfterEscaping);
 
         $timeout = $this->configReader->get(ConfigReader::COMMAND_TIMEOUT) ?? 3600; // Default: 1 hora
-        $result = $this->executeWithTimeout($command, $timeout);
+        $result = $this->executeWithTimeout($command, $timeout, $outputCallback);
 
         $whoami = $this->whoami();
         return new RanCommand($command, $result['output'], $whoami, $result['exit_code']);
     }
 
-    private function executeWithTimeout(string $command, int $timeoutSeconds): array {
+    private function executeWithTimeout(string $command, int $timeoutSeconds, ?callable $outputCallback = null): array {
         $descriptorspec = [
             0 => ['pipe', 'r'],
             1 => ['pipe', 'w'],
@@ -75,7 +75,11 @@ class Executer {
             if ($pipesStatus[1]) {
                 $line = fgets($pipes[1]);
                 if ($line !== false) {
-                    $output[] = rtrim($line, "\n\r");
+                    $line = rtrim($line, "\n\r");
+                    $output[] = $line;
+                    if ($outputCallback) {
+                        $outputCallback($line);
+                    }
                 } else {
                     if (feof($pipes[1])) {
                         $pipesStatus[1] = false;
@@ -88,7 +92,11 @@ class Executer {
             if ($pipesStatus[2]) {
                 $line = fgets($pipes[2]);
                 if ($line !== false) {
-                    $stderr[] = rtrim($line, "\n\r");
+                    $line = rtrim($line, "\n\r");
+                    $stderr[] = $line;
+                    if ($outputCallback) {
+                        $outputCallback($line);
+                    }
                 } else {
                     if (feof($pipes[2])) {
                         $pipesStatus[2] = false;
@@ -135,7 +143,8 @@ class Executer {
             while (!feof($pipes[1])) {
                 $line = fgets($pipes[1]);
                 if ($line !== false) {
-                    $output[] = rtrim($line, "\n\r");
+                    $line = rtrim($line, "\n\r");
+                    $output[] = $line;
                 }
             }
             fclose($pipes[1]);

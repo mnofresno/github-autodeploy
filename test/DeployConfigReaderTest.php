@@ -34,6 +34,7 @@ class DeployConfigReaderTest extends TestCase {
             ConfigReader::CUSTOM_UPDATE_COMMANDS => ['command1', 'command2'],
             ConfigReader::POST_FETCH_COMMANDS => ['command3', 'command4'],
             ConfigReader::PRE_FETCH_COMMANDS => ['command5', 'command6'],
+            ConfigReader::VERBOSE_MATCHER => ['report-docker-image-shas\\.sh'],
         ]);
 
         $config = $this->deployConfigReader->fetchRepoConfig($this->mockRepoCreator->testRepoName);
@@ -42,6 +43,7 @@ class DeployConfigReaderTest extends TestCase {
         $this->assertEquals(['command1', 'command2'], $config->customCommands());
         $this->assertEquals(['command3', 'command4'], $config->postFetchCommands());
         $this->assertEquals(['command5', 'command6'], $config->preFetchCommands());
+        $this->assertEquals(['report-docker-image-shas\\.sh'], $config->verboseMatchers());
     }
 
     public function testFetchRepoConfigYaml() {
@@ -53,6 +55,7 @@ class DeployConfigReaderTest extends TestCase {
             ConfigReader::CUSTOM_UPDATE_COMMANDS => ['command1', 'command2'],
             ConfigReader::POST_FETCH_COMMANDS => ['command3', 'command4'],
             ConfigReader::PRE_FETCH_COMMANDS => ['command5', 'command6'],
+            ConfigReader::VERBOSE_MATCHER => ['report-docker-image-shas\\.sh'],
         ]);
 
         $config = $this->deployConfigReader->fetchRepoConfig($this->mockRepoCreator->testRepoName);
@@ -61,6 +64,7 @@ class DeployConfigReaderTest extends TestCase {
         $this->assertEquals(['command1', 'command2'], $config->customCommands());
         $this->assertEquals(['command3', 'command4'], $config->postFetchCommands());
         $this->assertEquals(['command5', 'command6'], $config->preFetchCommands());
+        $this->assertEquals(['report-docker-image-shas\\.sh'], $config->verboseMatchers());
     }
 
     public function testFetchRepoConfigFileNotFound() {

@@ -136,6 +136,7 @@ The file is structured with two main sections:
 
 - **`pre_fetch_commands`**: Executed **before** fetching changes from the repository.
 - **`post_fetch_commands`**: Executed **after** fetching changes from the repository.
+- **`verbose_matcher`**: Optional list of regex fragments. When a command matches one of them, the deployment status endpoint exposes its live output while the step is still running.
 
 ### Example `.git-auto-deploy.yml`
 
@@ -153,6 +154,8 @@ post_fetch_commands:
     - 'echo "Successfully upgraded to the last version: $(cat auto-update/public/revision.js)"'
     - echo $SSHKeysPath
     - echo $secrets.github_ghcr_username
+verbose_matcher:
+    - report-docker-image-shas\\.sh
 ```
 
 ### Multiline Commands
