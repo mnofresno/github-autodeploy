@@ -527,18 +527,36 @@ jobs:
                 echo "   - Total time: ${elapsed}s"
                 echo ""
 
-                verbose_step_ids=$(echo "$status_response" | jq -r '.steps[] | select(.verbose == true or (.command | test("report-docker-image-shas\\\\.sh"))) | .id' 2>/dev/null || echo "")
-                if [ -n "$verbose_step_ids" ]; then
-                  echo "📋 Verbose step output:"
-                  printf '%s\n' "$verbose_step_ids" | while IFS= read -r verbose_step_id; do
-                    if [ -z "$verbose_step_id" ]; then
-                      continue
-                    fi
-                    print_verbose_step_full_output "$status_response" "$verbose_step_id"
-                  done
-                  echo ""
-                fi
-                
+                verbose_output_printed=false
+                verbose_attempt=0
+                while [ $verbose_attempt -lt 3 ] && [ "$verbose_output_printed" = false ]; do
+                  verbose_step_ids=$(echo "$status_response" | jq -r '.steps[] | select((.command // "") | contains("report-docker-image-shas.sh")) | .id' 2>/dev/null || echo "")
+                  if [ -n "$verbose_step_ids" ]; then
+                    for verbose_step_id in $verbose_step_ids; do
+                      verbose_step_output_count=$(echo "$status_response" | jq -r ".steps[$verbose_step_id].output // [] | length" 2>/dev/null || echo "0")
+                      if [ "$verbose_step_output_count" -gt 0 ]; then
+                        verbose_output_printed=true
+                        print_verbose_step_full_output "$status_response" "$verbose_step_id"
+                      fi
+                    done
+                  fi
+
+                  if [ "$verbose_output_printed" = true ]; then
+                    echo ""
+                    break
+                  fi
+
+                  verbose_attempt=$((verbose_attempt + 1))
+                  if [ $verbose_attempt -lt 3 ]; then
+                    sleep 2
+                    status_response=$(curl -s -S \
+                      --show-error \
+                      --connect-timeout 10 \
+                      --max-time 30 \
+                      "${status_url}" 2>/dev/null)
+                  fi
+                done
+
                 # Show all completed steps with clear numbering
                 echo "📋 Completed steps:"
                 echo "$status_response" | jq -r '.steps[] | "   ✓ Step \(.id + 1): \(.command) [\(.phase)] (exit: \(.exit_code))"' || true
