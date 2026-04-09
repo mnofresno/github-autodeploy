@@ -298,6 +298,15 @@ jobs:
                 echo "$response_json" | jq -r ".steps[$step_index].output[]?" 2>/dev/null | sed 's/^/     /'
               fi
             }
+
+            is_verbose_like_command() {
+              local command="$1"
+              if echo "$command" | grep -Eq 'report-docker-image-shas\\.sh'; then
+                return 0
+              fi
+
+              return 1
+            }
             
             while true; do
               elapsed=$(($(date +%s) - start_time))
@@ -443,10 +452,20 @@ jobs:
 
                   if [ -n "$current_step_num" ]; then
                     current_step_verbose=$(echo "$status_response" | jq -r ".steps[$current_step_num].verbose // false" 2>/dev/null || echo "false")
+                    current_step_command=$(echo "$status_response" | jq -r ".steps[$current_step_num].command // empty" 2>/dev/null || echo "")
+                    current_step_is_verbose_like=false
+                    if [ -n "$current_step_command" ] && is_verbose_like_command "$current_step_command"; then
+                      current_step_is_verbose_like=true
+                    fi
                     if [ "$step_changed" = "true" ] && [ "$current_step_num" -gt 0 ]; then
                       previous_step_num=$(($current_step_num - 1))
                       previous_step_verbose=$(echo "$status_response" | jq -r ".steps[$previous_step_num].verbose // false" 2>/dev/null || echo "false")
-                      if [ "$previous_step_verbose" = "true" ]; then
+                      previous_step_command=$(echo "$status_response" | jq -r ".steps[$previous_step_num].command // empty" 2>/dev/null || echo "")
+                      previous_step_is_verbose_like=false
+                      if [ -n "$previous_step_command" ] && is_verbose_like_command "$previous_step_command"; then
+                        previous_step_is_verbose_like=true
+                      fi
+                      if [ "$previous_step_verbose" = "true" ] || [ "$previous_step_is_verbose_like" = "true" ]; then
                         if [ "$last_verbose_step_seen" -eq "$previous_step_num" ]; then
                           previous_step_count="$last_verbose_output_count"
                         else
@@ -459,6 +478,14 @@ jobs:
                     fi
 
                     if [ "$current_step_verbose" = "true" ]; then
+                      if [ "$current_step_num" -ne "$last_verbose_step_seen" ]; then
+                        last_verbose_step_seen=$current_step_num
+                        last_verbose_output_count=0
+                      fi
+
+                      print_verbose_output "$status_response" "$current_step_num" "$last_verbose_output_count"
+                      last_verbose_output_count=$PRINT_VERBOSE_TOTAL_COUNT
+                    elif [ "$current_step_is_verbose_like" = "true" ]; then
                       if [ "$current_step_num" -ne "$last_verbose_step_seen" ]; then
                         last_verbose_step_seen=$current_step_num
                         last_verbose_output_count=0
@@ -500,7 +527,7 @@ jobs:
                 echo "   - Total time: ${elapsed}s"
                 echo ""
 
-                verbose_step_ids=$(echo "$status_response" | jq -r '.steps[] | select(.verbose == true) | .id' 2>/dev/null || echo "")
+                verbose_step_ids=$(echo "$status_response" | jq -r '.steps[] | select(.verbose == true or (.command | test("report-docker-image-shas\\\\.sh"))) | .id' 2>/dev/null || echo "")
                 if [ -n "$verbose_step_ids" ]; then
                   echo "📋 Verbose step output:"
                   printf '%s\n' "$verbose_step_ids" | while IFS= read -r verbose_step_id; do
