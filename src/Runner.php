@@ -162,7 +162,7 @@ class Runner {
                 ? function (string $line) use ($stepId): void {
                     $this->deploymentStatus->appendStepOutput($stepId, $line);
                 }
-                : null;
+            : null;
 
             $afterRan = $this->executer->run($command, $outputCallback);
             $this->deploymentStatus->completeStep($stepId, $afterRan->getCommandOutput(), $afterRan->exitCode());
