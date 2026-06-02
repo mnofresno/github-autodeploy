@@ -4,12 +4,14 @@ namespace Mariano\GitAutoDeploy\Test;
 
 use Mariano\GitAutoDeploy\ConfigReader;
 use Mariano\GitAutoDeploy\Executer;
+use Mariano\GitAutoDeploy\Request;
 use Mariano\GitAutoDeploy\views\RanCommand;
 use PHPUnit\Framework\TestCase;
 
 class ExecuterTest extends TestCase {
     private $subject;
     private $configMock;
+    private $requestMock;
 
     public function setUp(): void {
         $this->configMock = $this->createMock(ConfigReader::class);
@@ -19,7 +21,11 @@ class ExecuterTest extends TestCase {
                 [ConfigReader::COMMAND_TIMEOUT, 3600], // Default timeout
             ]);
 
-        $this->subject = new Executer($this->configMock);
+        $this->requestMock = $this->createMock(Request::class);
+        $this->requestMock->method('getQueryParam')->willReturn('');
+        $this->requestMock->method('getQueryParamsAll')->willReturn([]);
+
+        $this->subject = new Executer($this->configMock, $this->requestMock);
     }
 
     public function testRunEscapesCommandWithoutWhitelistedStrings(): void {

@@ -828,9 +828,9 @@ class RunnerTest extends TestCase {
             $deployMock
         );
 
-        $executer = new class ($this->mockConfigReader) extends Executer {
-            public function __construct(ConfigReader $configReader) {
-                parent::__construct($configReader);
+        $executer = new class ($this->mockConfigReader, $this->mockRequest) extends Executer {
+            public function __construct(ConfigReader $configReader, Request $request) {
+                parent::__construct($configReader, $request);
             }
 
             public function run(string $command, ?callable $outputCallback = null): \Mariano\GitAutoDeploy\views\RanCommand {
