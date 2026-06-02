@@ -4,12 +4,14 @@ namespace Mariano\GitAutoDeploy\Test;
 
 use Mariano\GitAutoDeploy\ConfigReader;
 use Mariano\GitAutoDeploy\Executer;
+use Mariano\GitAutoDeploy\Request;
 use Mariano\GitAutoDeploy\views\RanCommand;
 use PHPUnit\Framework\TestCase;
 
 class ExecuterTest extends TestCase {
     private $subject;
     private $configMock;
+    private $requestMock;
 
     public function setUp(): void {
         $this->configMock = $this->createMock(ConfigReader::class);
@@ -19,7 +21,11 @@ class ExecuterTest extends TestCase {
                 [ConfigReader::COMMAND_TIMEOUT, 3600], // Default timeout
             ]);
 
-        $this->subject = new Executer($this->configMock);
+        $this->requestMock = $this->createMock(Request::class);
+        $this->requestMock->method('getQueryParam')->willReturn('');
+        $this->requestMock->method('getQueryParamsAll')->willReturn([]);
+
+        $this->subject = new Executer($this->configMock, $this->requestMock);
     }
 
     public function testRunEscapesCommandWithoutWhitelistedStrings(): void {
@@ -69,7 +75,7 @@ class ExecuterTest extends TestCase {
                 [ConfigReader::COMMAND_TIMEOUT, 1], // 1 segundo de timeout (más corto para CI)
             ]);
 
-        $subject = new Executer($this->configMock);
+        $subject = new Executer($this->configMock, $this->requestMock);
 
         // Ejecutar comando que tardará más que el timeout
         // Usar un comando que definitivamente tarda más
@@ -109,7 +115,7 @@ class ExecuterTest extends TestCase {
                 [ConfigReader::COMMAND_TIMEOUT, 10],
             ]);
 
-        $subject = new Executer($this->configMock);
+        $subject = new Executer($this->configMock, $this->requestMock);
         $result = $subject->run('echo "test output"');
 
         $this->assertInstanceOf(RanCommand::class, $result);
@@ -124,7 +130,7 @@ class ExecuterTest extends TestCase {
                 [ConfigReader::COMMAND_TIMEOUT, 10],
             ]);
 
-        $subject = new Executer($this->configMock);
+        $subject = new Executer($this->configMock, $this->requestMock);
 
         // Comando multilínea simple
         $multilineCommand = "if [ 1 -eq 1 ]; then\n  echo 'test multiline'\nfi";
@@ -149,7 +155,7 @@ class ExecuterTest extends TestCase {
                 [ConfigReader::COMMAND_TIMEOUT, 10],
             ]);
 
-        $subject = new Executer($this->configMock);
+        $subject = new Executer($this->configMock, $this->requestMock);
 
         // Comando multilínea más complejo similar al ejemplo del usuario
         $multilineCommand = "if [ ! -d '/tmp/test-dir' ]; then\n  mkdir -p /tmp/test-dir\n  echo 'Directory created'\nfi";

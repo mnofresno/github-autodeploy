@@ -6,6 +6,7 @@ use Mariano\GitAutoDeploy\views\RanCommand;
 
 class Executer {
     private $configReader;
+    private $request;
     public const EXIT_CODE_TIMEOUT = 124;
 
     public const WHITELISTED_STRINGS = [
@@ -13,8 +14,9 @@ class Executer {
         'echo $PWD',
     ];
 
-    public function __construct(ConfigReader $configReader) {
+    public function __construct(ConfigReader $configReader, Request $request) {
         $this->configReader = $configReader;
+        $this->request = $request;
     }
 
     public function run(string $command, ?callable $outputCallback = null): RanCommand {
@@ -47,7 +49,9 @@ class Executer {
             2 => ['pipe', 'w'],
         ];
 
-        $process = proc_open($command, $descriptorspec, $pipes);
+        $env = $this->buildDeployEnv();
+
+        $process = proc_open($command, $descriptorspec, $pipes, null, null, $env);
 
         if (!is_resource($process)) {
             return [
@@ -192,5 +196,16 @@ class Executer {
 
     private function whoami(): string {
         return exec('whoami');
+    }
+
+    private function buildDeployEnv(): array {
+        $result = array_merge($_SERVER, $_ENV);
+        foreach ($this->request->getQueryParamsAll() as $k => $v) {
+            if (strpos($k, 'env_') === 0) {
+                $name = substr($k, 4); // strip 'env_' prefix
+                $result['DEPLOY_' . strtoupper(str_replace('-', '_', $name))] = $v;
+            }
+        }
+        return $result;
     }
 }
