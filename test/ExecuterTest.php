@@ -75,7 +75,7 @@ class ExecuterTest extends TestCase {
                 [ConfigReader::COMMAND_TIMEOUT, 1], // 1 segundo de timeout (más corto para CI)
             ]);
 
-        $subject = new Executer($this->configMock);
+        $subject = new Executer($this->configMock, $this->requestMock);
 
         // Ejecutar comando que tardará más que el timeout
         // Usar un comando que definitivamente tarda más
@@ -115,7 +115,7 @@ class ExecuterTest extends TestCase {
                 [ConfigReader::COMMAND_TIMEOUT, 10],
             ]);
 
-        $subject = new Executer($this->configMock);
+        $subject = new Executer($this->configMock, $this->requestMock);
         $result = $subject->run('echo "test output"');
 
         $this->assertInstanceOf(RanCommand::class, $result);
@@ -130,7 +130,7 @@ class ExecuterTest extends TestCase {
                 [ConfigReader::COMMAND_TIMEOUT, 10],
             ]);
 
-        $subject = new Executer($this->configMock);
+        $subject = new Executer($this->configMock, $this->requestMock);
 
         // Comando multilínea simple
         $multilineCommand = "if [ 1 -eq 1 ]; then\n  echo 'test multiline'\nfi";
@@ -155,7 +155,7 @@ class ExecuterTest extends TestCase {
                 [ConfigReader::COMMAND_TIMEOUT, 10],
             ]);
 
-        $subject = new Executer($this->configMock);
+        $subject = new Executer($this->configMock, $this->requestMock);
 
         // Comando multilínea más complejo similar al ejemplo del usuario
         $multilineCommand = "if [ ! -d '/tmp/test-dir' ]; then\n  mkdir -p /tmp/test-dir\n  echo 'Directory created'\nfi";
