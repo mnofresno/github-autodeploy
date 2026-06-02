@@ -46,6 +46,14 @@ self_update() {
     exit 1
   fi
 
+  # If WEBROOT is not a symlink to INSTALL_DIR, use WEBROOT directly (some servers
+  # have the code in /var/www instead of /opt)
+  if [ -L "$WEBROOT" ] && [ "$(readlink -f "$WEBROOT")" = "$(readlink -f "$INSTALL_DIR")" ]; then
+    TARGET_DIR="$INSTALL_DIR"
+  else
+    TARGET_DIR="$WEBROOT"
+  fi
+
   echo "Starting self-update..."
   TEMP_GITIGNORE=$(mktemp)
   curl -sSL "$GITIGNORE_URL" -o "$TEMP_GITIGNORE"
@@ -56,21 +64,21 @@ self_update() {
   echo "Extracting the downloaded version..."
   TEMP_DIR=$(mktemp -d)
   unzip -q "$TEMP_ZIP" -d "$TEMP_DIR"
-  echo "Updating files in $INSTALL_DIR..."
-  rsync -av --progress --delete $EXCLUDE_FILES "$TEMP_DIR/github-autodeploy-master/" "$INSTALL_DIR/"
-  echo "Changing ownership of all files in $INSTALL_DIR to www-data:www-data..."
-  chown -R www-data:www-data "$INSTALL_DIR"
+  echo "Updating files in $TARGET_DIR..."
+  rsync -av --progress --delete $EXCLUDE_FILES "$TEMP_DIR/github-autodeploy-master/" "$TARGET_DIR/"
+  echo "Changing ownership of all files in $TARGET_DIR to www-data:www-data..."
+  chown -R www-data:www-data "$TARGET_DIR"
   echo "Setting executable permissions on scripts..."
-  chmod +x "$INSTALL_DIR/install.sh"
-  chmod +x "$INSTALL_DIR/bin/trigger_for_repo"
-  chmod +x "$INSTALL_DIR/linter/lint.sh"
+  chmod +x "$TARGET_DIR/install.sh"
+  chmod +x "$TARGET_DIR/bin/trigger_for_repo"
+  chmod +x "$TARGET_DIR/linter/lint.sh"
   echo "Cleaning up temporary files..."
   rm -rf "$TEMP_DIR" "$TEMP_ZIP" "$TEMP_GITIGNORE"
   echo "Running composer install..."
-  if [ -f "$INSTALL_DIR/composer.json" ]; then
+  if [ -f "$TARGET_DIR/composer.json" ]; then
     # Install without dev dependencies and ignore platform requirements for optional extensions
-    composer install -d "$INSTALL_DIR" --no-dev --ignore-platform-req=ext-dom 2>&1 || \
-    composer install -d "$INSTALL_DIR" --ignore-platform-req=ext-dom
+    composer install -d "$TARGET_DIR" --no-dev --ignore-platform-req=ext-dom 2>&1 || \
+    composer install -d "$TARGET_DIR" --ignore-platform-req=ext-dom
   else
     echo "composer.json not found. Skipping composer install."
   fi
