@@ -29,10 +29,17 @@ on:
         required: true
         type: string
       runs_on:
-        description: 'Runner label to use for this deployment (optional)' 
+        description: 'Runner label to use for this deployment (optional)'
         required: false
         type: string
         default: 'ubuntu-latest'
+      # Custom env vars: pass as "KEY=VALUE KEY2=VALUE2" — each becomes
+      # DEPLOY_<KEY> in deploy commands (e.g. "mode=external-only" → $DEPLOY_mode).
+      env_vars:
+        description: 'Space-separated KEY=VALUE pairs (e.g. "mode=external-only services=notifications")'
+        required: false
+        type: string
+        default: ''
     secrets:
       KEY_FILE_FOR_DEPLOY:
         required: true
@@ -49,12 +56,25 @@ jobs:
           REPOSITORY: ${{ inputs.repository }}
           COMMIT_SHA: ${{ inputs.commit_sha }}
           COMMIT_AUTHOR: ${{ inputs.commit_author }}
+          ENV_VARS: ${{ inputs.env_vars }}
         run: |
           set -e  # Exit if any command fails
-          
+
           # Convert comma-separated URLs into array
           IFS=',' read -ra URLS <<< "$AUTODEPLOY_URL"
-          
+
+          # Build extra query params from ENV_VARS (e.g. "mode=external-only|services=notifications group-messages-bridge"
+          # becomes "env_mode=external-only&env_services=notifications%20group-messages-bridge")
+          extra_params=""
+          if [ -n "$ENV_VARS" ]; then
+            while IFS='=' read -r key value; do
+              if [ -n "$key" ] && [ -n "$value" ]; then
+                value_encoded=$(printf '%s' "$value" | sed 's/+/%%20/g; s/ /+/g')
+                extra_params="${extra_params}&env_${key}=${value_encoded}"
+              fi
+            done <<< "$(echo "$ENV_VARS" | tr '|' '\n')"
+          fi
+
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "🚀 Starting deployment to ${#URLS[@]} instance(s)"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -88,7 +108,7 @@ jobs:
             # ============================================
             
             echo "📤 Starting deployment in background..."
-            deployment_url="https://${INSTANCE_URL}?repo=${REPOSITORY}&key=${KEY_FILE_FOR_DEPLOY}"
+            deployment_url="https://${INSTANCE_URL}?repo=${REPOSITORY}&key=${KEY_FILE_FOR_DEPLOY}${extra_params}"
             echo "   URL: ${deployment_url}"
             echo ""
             

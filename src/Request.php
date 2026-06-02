@@ -74,6 +74,10 @@ class Request {
         return self::sanitizeQueryparam($value);
     }
 
+    public function getQueryParamsAll(): array {
+        return $this->queryParams;
+    }
+
     public function getBody(): array {
         return $this->body;
     }

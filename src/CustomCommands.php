@@ -56,6 +56,13 @@ class CustomCommands {
                 return $replacement ?: $matches[0];
             }
 
+            // Fallback: resolve unknown placeholders from query params
+            $value = $this->request->getQueryParam($baseKey);
+            if ($value !== '') {
+                $this->logger->debug("Resolving placeholder {$baseKey} from query param: {$value}");
+                return $value;
+            }
+
             return $matches[0];
         }, $command);
 
