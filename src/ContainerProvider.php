@@ -27,6 +27,8 @@ class ContainerProvider {
                     $fullMessage['context'] = $loggerContext->append($fullMessage['context']);
                     return $fullMessage;
                 });
+                // Rotate before Monolog writes - prevents unbounded log growth
+                (new LogRotator(self::LOG_FILE_PATH))->rotateIfNeeded();
                 $handler = new StreamHandler(self::LOG_FILE_PATH, $levels[$debugLevel]);
                 $logger->pushHandler($handler);
                 return $logger;
