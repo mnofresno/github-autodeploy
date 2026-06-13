@@ -70,14 +70,9 @@ class LogRotator {
         }
 
         for ($i = 1; $i <= $this->maxFiles; $i++) {
-            $rotatedGz = $this->rotatedFileName($i);
-            $rotatedPlain = $this->logFilePath . '.' . $i;
-            // Check compressed first (our rotator and Monolog with compression)
-            if (file_exists($rotatedGz)) {
-                $files[] = $rotatedGz;
-            } elseif (file_exists($rotatedPlain)) {
-                // Fallback: Monolog rotated without compression
-                $files[] = $rotatedPlain;
+            $rotated = $this->rotatedFileName($i);
+            if (file_exists($rotated)) {
+                $files[] = $rotated;
             }
         }
 
@@ -106,7 +101,7 @@ class LogRotator {
     private function compressFile(string $filePath): void {
         $gzFilePath = $filePath . '.gz';
         $content = file_get_contents($filePath);
-        file_put_contents($gzFilePath, gzcompress($content));
+        file_put_contents($gzFilePath, gzencode($content));
         unlink($filePath);
     }
 }

@@ -68,32 +68,32 @@ class LogRotatorTest extends TestCase {
 
         $rotator->rotate();
 
-        $decompressed = gzfile($this->logFile . '.1.gz');
-        $this->assertEquals($originalContent, implode('', $decompressed));
+        $decompressed = gzdecode(file_get_contents($this->logFile . '.1.gz'));
+        $this->assertEquals($originalContent, $decompressed);
     }
 
     public function testRotateShiftsExistingRotatedFiles(): void {
         file_put_contents($this->logFile, str_repeat('x', 2048));
-        file_put_contents($this->logFile . '.1.gz', gzcompress('old rotated 1'));
-        file_put_contents($this->logFile . '.2.gz', gzcompress('old rotated 2'));
+        file_put_contents($this->logFile . '.1.gz', gzencode('old rotated 1'));
+        file_put_contents($this->logFile . '.2.gz', gzencode('old rotated 2'));
         $rotator = new LogRotator($this->logFile, 1024, 3);
 
         $rotator->rotate();
 
         // .1.gz should now be what was .2.gz
-        $content2 = gzfile($this->logFile . '.2.gz');
-        $this->assertEquals('old rotated 1', implode('', $content2));
+        $content2 = gzdecode(file_get_contents($this->logFile . '.2.gz'));
+        $this->assertEquals('old rotated 1', $content2);
 
         // .3.gz should be what was .1.gz
-        $content3 = gzfile($this->logFile . '.3.gz');
-        $this->assertEquals('old rotated 2', implode('', $content3));
+        $content3 = gzdecode(file_get_contents($this->logFile . '.3.gz'));
+        $this->assertEquals('old rotated 2', $content3);
     }
 
     public function testRotateRemovesOldestWhenAtCapacity(): void {
         file_put_contents($this->logFile, str_repeat('x', 2048));
-        file_put_contents($this->logFile . '.1.gz', gzcompress('rotated 1'));
-        file_put_contents($this->logFile . '.2.gz', gzcompress('rotated 2'));
-        file_put_contents($this->logFile . '.3.gz', gzcompress('rotated 3 - should be removed'));
+        file_put_contents($this->logFile . '.1.gz', gzencode('rotated 1'));
+        file_put_contents($this->logFile . '.2.gz', gzencode('rotated 2'));
+        file_put_contents($this->logFile . '.3.gz', gzencode('rotated 3 - should be removed'));
         $rotator = new LogRotator($this->logFile, 1024, 3);
 
         $rotator->rotate();
@@ -106,8 +106,8 @@ class LogRotatorTest extends TestCase {
 
     public function testGetAllLogFilePathsReturnsCurrentAndRotated(): void {
         file_put_contents($this->logFile, 'current');
-        file_put_contents($this->logFile . '.1.gz', gzcompress('rotated 1'));
-        file_put_contents($this->logFile . '.2.gz', gzcompress('rotated 2'));
+        file_put_contents($this->logFile . '.1.gz', gzencode('rotated 1'));
+        file_put_contents($this->logFile . '.2.gz', gzencode('rotated 2'));
         $rotator = new LogRotator($this->logFile, 1024, 5);
 
         $files = $rotator->getAllLogFilePaths();
@@ -166,10 +166,10 @@ class LogRotatorTest extends TestCase {
         $rotator->rotate();
 
         // .1.gz should contain batch2, .2.gz should contain batch1
-        $content1 = gzfile($this->logFile . '.1.gz');
-        $this->assertEquals('batch2', implode('', $content1));
+        $content1 = gzdecode(file_get_contents($this->logFile . '.1.gz'));
+        $this->assertEquals('batch2', $content1);
 
-        $content2 = gzfile($this->logFile . '.2.gz');
-        $this->assertEquals('batch1', implode('', $content2));
+        $content2 = gzdecode(file_get_contents($this->logFile . '.2.gz'));
+        $this->assertEquals('batch1', $content2);
     }
 }
