@@ -7,10 +7,12 @@ use Ramsey\Uuid\Uuid;
 class RunSearcher {
     private $logFileName;
     private $configReader;
+    private $logRotator;
 
     public function __construct(ConfigReader $configReader, ?string $logFileName = null) {
         $this->logFileName = $logFileName;
         $this->configReader = $configReader;
+        $this->logRotator = new LogRotator($this->logFileName ?? $this->fileName());
     }
 
     public function search(string $runId, ?array $fields = null): array {
@@ -126,10 +128,18 @@ class RunSearcher {
         if (!Uuid::isValid($runId)) {
             return '';
         }
-        $fileName = escapeshellarg($this->logFileName ?? $this->fileName());
         $runId = escapeshellarg($runId);
-        exec("cat {$fileName} | grep {$runId}", $searchOutput);
-        return implode("\n", $searchOutput);
+        $results = [];
+        foreach ($this->logRotator->getAllLogFilePaths() as $logFile) {
+            $fileName = escapeshellarg($logFile);
+            if (substr($logFile, -3) === '.gz') {
+                exec("zcat {$fileName} | grep {$runId}", $output);
+            } else {
+                exec("cat {$fileName} | grep {$runId}", $output);
+            }
+            $results = array_merge($results, $output);
+        }
+        return implode("\n", $results);
     }
 
     private function fileName(): string {

@@ -4,7 +4,7 @@ namespace Mariano\GitAutoDeploy;
 
 use DI\Container;
 use DI\ContainerBuilder;
-use Monolog\Handler\StreamHandler;
+use Monolog\Handler\RotatingFileHandler;
 use Monolog\Logger;
 use Ramsey\Uuid\Uuid;
 
@@ -27,7 +27,7 @@ class ContainerProvider {
                     $fullMessage['context'] = $loggerContext->append($fullMessage['context']);
                     return $fullMessage;
                 });
-                $handler = new StreamHandler(self::LOG_FILE_PATH, $levels[$debugLevel]);
+                $handler = new RotatingFileHandler(self::LOG_FILE_PATH, LogRotator::DEFAULT_MAX_FILES, $levels[$debugLevel], true, null, false, true);
                 $logger->pushHandler($handler);
                 return $logger;
             },
