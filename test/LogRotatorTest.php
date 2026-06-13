@@ -37,7 +37,7 @@ class LogRotatorTest extends TestCase {
         $rotator->rotateIfNeeded();
 
         $this->assertFileExists($this->logFile);
-        $this->assertFileEqualsData('small content', $this->logFile);
+        $this->assertEquals('small content', file_get_contents($this->logFile));
         $this->assertFileNotExists($this->logFile . '.1.gz');
     }
 
@@ -56,7 +56,7 @@ class LogRotatorTest extends TestCase {
         $rotator->rotate();
 
         $this->assertFileExists($this->logFile);
-        $this->assertFileEqualsData('', $this->logFile);
+        $this->assertEquals('', file_get_contents($this->logFile));
         $this->assertFileExists($this->logFile . '.1.gz');
         $this->assertGreaterThan(0, filesize($this->logFile . '.1.gz'));
     }
