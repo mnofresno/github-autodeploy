@@ -328,7 +328,7 @@ class Runner {
                 . '/'
                 . $this->request->getQueryParam(Request::KEY_QUERY_PARAM)
                 . '" git -c safe.directory=' . $repoDir . ' fetch origin',
-            'git -c safe.directory=' . $repoDir . ' reset --hard origin/$(git symbolic-ref --short HEAD)',
+            'git -c safe.directory=' . $repoDir . ' reset --hard @{u}',
         ];
     }
 

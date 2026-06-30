@@ -218,7 +218,7 @@ class RunnerTest extends TestCase {
                 )],
                 [$this->logicalAnd(
                     $this->stringContains('safe.directory'),
-                    $this->stringContains('reset --hard origin/$(git symbolic-ref --short HEAD)')
+                    $this->stringContains('reset --hard @{u}')
                 )],
                 ['install_deps'],
                 ['restart_services'],
@@ -364,7 +364,7 @@ class RunnerTest extends TestCase {
                 )],
                 [$this->logicalAnd(
                     $this->stringContains('safe.directory'),
-                    $this->stringContains('reset --hard origin/$(git symbolic-ref --short HEAD)')
+                    $this->stringContains('reset --hard @{u}')
                 )],
             );
 
@@ -452,7 +452,7 @@ class RunnerTest extends TestCase {
                 )],
                 [$this->logicalAnd(
                     $this->stringContains('safe.directory'),
-                    $this->stringContains('reset --hard origin/$(git symbolic-ref --short HEAD)')
+                    $this->stringContains('reset --hard @{u}')
                 )],
                 ['curl -H "Authorization: Bearer secret_api_key_xyz" https://example.com/deploy'],
                 ['echo deploy_token_abc']
@@ -550,7 +550,7 @@ class RunnerTest extends TestCase {
                 )],
                 [$this->logicalAnd(
                     $this->stringContains('safe.directory'),
-                    $this->stringContains('reset --hard origin/$(git symbolic-ref --short HEAD)')
+                    $this->stringContains('reset --hard @{u}')
                 )],
                 ['echo "Base path: ' . $this->mockRepoCreator::BASE_REPO_DIR . '"']
             );
@@ -626,7 +626,7 @@ class RunnerTest extends TestCase {
                 $this->createRanCommand('echo $PWD', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('whoami', [], 0), // fetch - builtInCommands
                 $this->createRanCommand("GIT_SSH_COMMAND=\"ssh -i /test-keys/test-key-name\" git -c safe.directory='/tmp/test-repo-name' fetch origin", [], 0), // fetch - builtInCommands
-                $this->createRanCommand("git -c safe.directory='/tmp/test-repo-name' reset --hard origin/$(git symbolic-ref --short HEAD)", [], 0), // fetch - builtInCommands
+                $this->createRanCommand("git -c safe.directory='/tmp/test-repo-name' reset --hard @{u}", [], 0), // fetch - builtInCommands
                 $this->createRanCommand('false', ['error'], 1) // post_fetch - Este falla y debe lanzar excepción
             );
 
@@ -736,7 +736,7 @@ class RunnerTest extends TestCase {
                 $this->createRanCommand('echo $PWD', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('whoami', [], 0), // fetch - builtInCommands
                 $this->createRanCommand("GIT_SSH_COMMAND=\"ssh -i /test-keys/test-key-name\" git -c safe.directory='/tmp/test-repo-name' fetch origin", [], 0), // fetch - builtInCommands
-                $this->createRanCommand("git -c safe.directory='/tmp/test-repo-name' reset --hard origin/$(git symbolic-ref --short HEAD)", [], 0), // fetch - builtInCommands
+                $this->createRanCommand("git -c safe.directory='/tmp/test-repo-name' reset --hard @{u}", [], 0), // fetch - builtInCommands
                 $this->createRanCommand('sleep 100', ['Command timed out'], \Mariano\GitAutoDeploy\Executer::EXIT_CODE_TIMEOUT) // post_fetch - timeout
             );
 
