@@ -303,10 +303,11 @@ class Runner {
             ? $this->configReader->get(ConfigReader::REPOS_TEMPLATE_URI)
             : $queryParamClonePath;
         $repoCloneUri = str_replace(ConfigReader::REPO_KEY_TEMPLATE_PLACEHOLDER, $repoKey, $reposTemplatePath);
-        $repoDir = escapeshellarg($repoDirectory);
         return [
             'echo $PWD',
-            'GIT_TRUSTED_DIRS=' . $repoDir . ' GIT_SSH_COMMAND="ssh -i '
+            "if [ ! -d /home/www-data ]; then mkdir -p /home/www-data; fi
+git config --global --add safe.directory '$repoDirectory'",
+            'GIT_SSH_COMMAND="ssh -i '
                 . $this->configReader->get(ConfigReader::SSH_KEYS_PATH)
                 . '/'
                 . $this->request->getQueryParam(Request::KEY_QUERY_PARAM)
@@ -316,15 +317,12 @@ class Runner {
     }
 
     private function builtInCommands(): array {
-        $repoDir = escapeshellarg(
-            $this->configReader->get(ConfigReader::REPOS_BASE_PATH)
-            . DIRECTORY_SEPARATOR
-            . $this->request->getQueryParam(Request::REPO_QUERY_PARAM)
-        );
         return [
             'echo $PWD',
             'whoami',
-            'GIT_TRUSTED_DIRS=' . $repoDir . ' GIT_SSH_COMMAND="ssh -i '
+            "if [ ! -d /home/www-data ]; then mkdir -p /home/www-data; fi
+git config --global --add safe.directory /var/www/*",
+            'GIT_SSH_COMMAND="ssh -i '
                 . $this->configReader->get(ConfigReader::SSH_KEYS_PATH)
                 . '/'
                 . $this->request->getQueryParam(Request::KEY_QUERY_PARAM)

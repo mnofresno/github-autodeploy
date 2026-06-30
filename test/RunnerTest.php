@@ -207,12 +207,13 @@ class RunnerTest extends TestCase {
                 }
             });
         $this->executerMock
-            ->expects($this->exactly(6))
+            ->expects($this->exactly(7))
             ->method('run')
             ->withConsecutive(
                 ['echo $PWD'],
                 ['whoami'],
-                [$this->stringContains('GIT_TRUSTED_DIRS=')],
+                [$this->stringContains('safe.directory')],
+                [$this->stringContains('git fetch origin')],
                 ['git reset --hard origin/$(git symbolic-ref --short HEAD)'],
                 ['install_deps'],
                 ['restart_services'],
@@ -256,12 +257,15 @@ class RunnerTest extends TestCase {
         );
         $repoFullPath = "/tmp/$repoName";
         $this->executerMock
-            ->expects($this->exactly(4))
+            ->expects($this->exactly(5))
             ->method('run')
             ->withConsecutive(
                 ['echo $PWD'],
+                [$this->callback(function ($command) {
+                    return str_contains($command, 'safe.directory');
+                })],
                 [$this->callback(function ($command) use ($repoFullPath, $repoName) {
-                    if (str_contains($command, 'GIT_TRUSTED_DIRS=') && str_contains($command, "git clone 'git@github.com:testuser/'$repoName'.git' '$repoFullPath'")) {
+                    if (str_contains($command, 'git clone') && str_contains($command, "'$repoName'")) {
                         if (!is_dir($repoFullPath)) {
                             mkdir($repoFullPath, 0777, true);
                         }
@@ -346,13 +350,14 @@ class RunnerTest extends TestCase {
         );
 
         $this->executerMock
-            ->expects($this->exactly(5))
+            ->expects($this->exactly(6))
             ->method('run')
             ->withConsecutive(
                 ['echo my_secret_token_123 | docker login ghcr.io -u test_user --password-stdin'],
                 ['echo $PWD'],
                 ['whoami'],
-                [$this->stringContains('GIT_TRUSTED_DIRS=')],
+                [$this->stringContains('safe.directory')],
+                [$this->stringContains('git fetch origin')],
                 ['git reset --hard origin/$(git symbolic-ref --short HEAD)'],
             );
 
@@ -429,13 +434,14 @@ class RunnerTest extends TestCase {
         );
 
         $this->executerMock
-            ->expects($this->exactly(6))
+            ->expects($this->exactly(7))
             ->method('run')
             ->withConsecutive(
                 ['echo $PWD'],
                 ['whoami'],
-                [$this->stringContains('GIT_TRUSTED_DIRS=')],
-                [$this->stringContains('git reset --hard')],
+                [$this->stringContains('safe.directory')],
+                [$this->stringContains('git fetch origin')],
+                ['git reset --hard origin/$(git symbolic-ref --short HEAD)'],
                 ['curl -H "Authorization: Bearer secret_api_key_xyz" https://example.com/deploy'],
                 ['echo deploy_token_abc']
             );
@@ -519,15 +525,16 @@ class RunnerTest extends TestCase {
         );
 
         $this->executerMock
-            ->expects($this->exactly(7))
+            ->expects($this->exactly(8))
             ->method('run')
             ->withConsecutive(
                 ['echo "SSH keys: /home/test/.ssh"'],
                 ['echo "Repo: ' . $this->mockRepoCreator->testRepoName . '"'],
                 ['echo $PWD'],
                 ['whoami'],
-                [$this->stringContains('GIT_TRUSTED_DIRS=')],
-                [$this->stringContains('git reset --hard')],
+                [$this->stringContains('safe.directory')],
+                [$this->stringContains('git fetch origin')],
+                ['git reset --hard origin/$(git symbolic-ref --short HEAD)'],
                 ['echo "Base path: ' . $this->mockRepoCreator::BASE_REPO_DIR . '"']
             );
 
@@ -601,7 +608,8 @@ class RunnerTest extends TestCase {
                 $this->createRanCommand('echo "step 1"', [], 0), // pre_fetch
                 $this->createRanCommand('echo $PWD', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('whoami', [], 0), // fetch - builtInCommands
-                $this->createRanCommand("GIT_TRUSTED_DIRS='/tmp/test-repo-name' GIT_SSH_COMMAND=\"ssh -i /test-keys/test-key-name\" git fetch origin", [], 0), // fetch - builtInCommands
+                $this->createRanCommand("if [ ! -d /home/www-data ]; then mkdir -p /home/www-data; fi\ngit config --global --add safe.directory /var/www/*", [], 0), // fetch - builtInCommands
+                $this->createRanCommand('GIT_SSH_COMMAND="ssh -i /test-keys/test-key-name" git fetch origin', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('git reset --hard origin/$(git symbolic-ref --short HEAD)', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('false', ['error'], 1) // post_fetch - Este falla y debe lanzar excepción
             );
@@ -706,12 +714,13 @@ class RunnerTest extends TestCase {
 
         $executerMock = $this->createMock(Executer::class);
         $executerMock
-            ->expects($this->atLeast(5))
+            ->expects($this->atLeast(6))
             ->method('run')
             ->willReturnOnConsecutiveCalls(
                 $this->createRanCommand('echo $PWD', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('whoami', [], 0), // fetch - builtInCommands
-                $this->createRanCommand("GIT_TRUSTED_DIRS='/tmp/test-repo-name' GIT_SSH_COMMAND=\"ssh -i /test-keys/test-key-name\" git fetch origin", [], 0), // fetch - builtInCommands
+                $this->createRanCommand("if [ ! -d /home/www-data ]; then mkdir -p /home/www-data; fi\ngit config --global --add safe.directory /var/www/*", [], 0), // fetch - builtInCommands
+                $this->createRanCommand('GIT_SSH_COMMAND="ssh -i /test-keys/test-key-name" git fetch origin', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('git reset --hard origin/$(git symbolic-ref --short HEAD)', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('sleep 100', ['Command timed out'], \Mariano\GitAutoDeploy\Executer::EXIT_CODE_TIMEOUT) // post_fetch - timeout
             );
