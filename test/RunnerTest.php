@@ -348,7 +348,7 @@ class RunnerTest extends TestCase {
         );
 
         $this->executerMock
-            ->expects($this->exactly(7))
+            ->expects($this->exactly(6))
             ->method('run')
             ->withConsecutive(
                 ['echo my_secret_token_123 | docker login ghcr.io -u test_user --password-stdin'],
@@ -523,7 +523,7 @@ class RunnerTest extends TestCase {
         );
 
         $this->executerMock
-            ->expects($this->exactly(9))
+            ->expects($this->exactly(8))
             ->method('run')
             ->withConsecutive(
                 ['echo "SSH keys: /home/test/.ssh"'],
