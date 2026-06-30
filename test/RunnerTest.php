@@ -606,7 +606,7 @@ class RunnerTest extends TestCase {
                 $this->createRanCommand('echo "step 1"', [], 0), // pre_fetch
                 $this->createRanCommand('echo $PWD', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('whoami', [], 0), // fetch - builtInCommands
-                $this->createRanCommand('git config --global --add safe.directory "$(pwd)"', [], 0), // fetch - builtInCommands
+                $this->createRanCommand("git config --global --add safe.directory '/tmp/test-repo-name'", [], 0), // fetch - builtInCommands
                 $this->createRanCommand('GIT_SSH_COMMAND="ssh -i /test-keys/test-key-name" git fetch origin', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('git reset --hard origin/$(git symbolic-ref --short HEAD)', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('false', ['error'], 1) // post_fetch - Este falla y debe lanzar excepción

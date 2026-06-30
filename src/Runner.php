@@ -305,7 +305,7 @@ class Runner {
         $repoCloneUri = str_replace(ConfigReader::REPO_KEY_TEMPLATE_PLACEHOLDER, $repoKey, $reposTemplatePath);
         return [
             'echo $PWD',
-            'git config --global --add safe.directory "$repoDirectory"',
+            'git config --global --add safe.directory ' . escapeshellarg($repoDirectory),
             'GIT_SSH_COMMAND="ssh -i '
                 . $this->configReader->get(ConfigReader::SSH_KEYS_PATH)
                 . '/'
@@ -315,11 +315,18 @@ class Runner {
         ];
     }
 
+    private function getRepoDirectory(): string {
+        return $this->configReader->get(ConfigReader::REPOS_BASE_PATH)
+            . DIRECTORY_SEPARATOR
+            . $this->request->getQueryParam(Request::REPO_QUERY_PARAM);
+    }
+
     private function builtInCommands(): array {
+        $repoDir = $this->getRepoDirectory();
         return [
             'echo $PWD',
             'whoami',
-            'git config --global --add safe.directory "$(pwd)"',
+            'git config --global --add safe.directory ' . escapeshellarg($repoDir),
             'GIT_SSH_COMMAND="ssh -i '
                 . $this->configReader->get(ConfigReader::SSH_KEYS_PATH)
                 . '/'
