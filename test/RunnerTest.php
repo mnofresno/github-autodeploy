@@ -213,7 +213,7 @@ class RunnerTest extends TestCase {
                 ['echo $PWD'],
                 ['whoami'],
                 [$this->stringContains('GIT_TRUSTED_DIRS=')],
-                [$this->stringContains('git fetch origin')],
+                ['git reset --hard origin/$(git symbolic-ref --short HEAD)'],
                 ['install_deps'],
                 ['restart_services'],
             );
@@ -353,7 +353,7 @@ class RunnerTest extends TestCase {
                 ['echo $PWD'],
                 ['whoami'],
                 [$this->stringContains('GIT_TRUSTED_DIRS=')],
-                [$this->stringContains('git reset --hard')],
+                ['git reset --hard origin/$(git symbolic-ref --short HEAD)'],
             );
 
         $this->subject->run();
