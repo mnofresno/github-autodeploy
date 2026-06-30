@@ -601,7 +601,7 @@ class RunnerTest extends TestCase {
                 $this->createRanCommand('echo "step 1"', [], 0), // pre_fetch
                 $this->createRanCommand('echo $PWD', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('whoami', [], 0), // fetch - builtInCommands
-                $this->createRanCommand('GIT_TRUSTED_DIRS=*/ GIT_SSH_COMMAND="ssh -i /test-keys/test-key-name" git fetch origin', [], 0), // fetch - builtInCommands
+                $this->createRanCommand("GIT_TRUSTED_DIRS='/tmp/test-repo-name' GIT_SSH_COMMAND=\"ssh -i /test-keys/test-key-name\" git fetch origin", [], 0), // fetch - builtInCommands
                 $this->createRanCommand('git reset --hard origin/$(git symbolic-ref --short HEAD)', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('false', ['error'], 1) // post_fetch - Este falla y debe lanzar excepción
             );
@@ -711,7 +711,7 @@ class RunnerTest extends TestCase {
             ->willReturnOnConsecutiveCalls(
                 $this->createRanCommand('echo $PWD', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('whoami', [], 0), // fetch - builtInCommands
-                $this->createRanCommand('GIT_TRUSTED_DIRS=*/ GIT_SSH_COMMAND="ssh -i /test-keys/test-key-name" git fetch origin', [], 0), // fetch - builtInCommands
+                $this->createRanCommand("GIT_TRUSTED_DIRS='/tmp/test-repo-name' GIT_SSH_COMMAND=\"ssh -i /test-keys/test-key-name\" git fetch origin", [], 0), // fetch - builtInCommands
                 $this->createRanCommand('git reset --hard origin/$(git symbolic-ref --short HEAD)', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('sleep 100', ['Command timed out'], \Mariano\GitAutoDeploy\Executer::EXIT_CODE_TIMEOUT) // post_fetch - timeout
             );
