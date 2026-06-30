@@ -305,6 +305,7 @@ class Runner {
         $repoCloneUri = str_replace(ConfigReader::REPO_KEY_TEMPLATE_PLACEHOLDER, $repoKey, $reposTemplatePath);
         return [
             'echo $PWD',
+            'git config --global --add safe.directory "$repoDirectory"',
             'GIT_SSH_COMMAND="ssh -i '
                 . $this->configReader->get(ConfigReader::SSH_KEYS_PATH)
                 . '/'
@@ -318,6 +319,7 @@ class Runner {
         return [
             'echo $PWD',
             'whoami',
+            'git config --global --add safe.directory "$(pwd)"',
             'GIT_SSH_COMMAND="ssh -i '
                 . $this->configReader->get(ConfigReader::SSH_KEYS_PATH)
                 . '/'
