@@ -212,7 +212,10 @@ class RunnerTest extends TestCase {
             ->withConsecutive(
                 ['echo $PWD'],
                 ['whoami'],
-                [$this->stringContains('safe.directory')],
+                [$this->logicalAnd(
+                    $this->stringContains('safe.directory'),
+                    $this->stringContains("'/var/www/*'")
+                )],
                 [$this->stringContains('git fetch origin')],
                 ['git reset --hard origin/$(git symbolic-ref --short HEAD)'],
                 ['install_deps'],
@@ -261,8 +264,8 @@ class RunnerTest extends TestCase {
             ->method('run')
             ->withConsecutive(
                 ['echo $PWD'],
-                [$this->callback(function ($command) {
-                    return str_contains($command, 'safe.directory');
+                [$this->callback(function ($command) use ($repoFullPath) {
+                    return str_contains($command, 'safe.directory') && str_contains($command, "'$repoFullPath'");
                 })],
                 [$this->callback(function ($command) use ($repoFullPath, $repoName) {
                     if (str_contains($command, 'git clone') && str_contains($command, "'$repoName'")) {
@@ -356,7 +359,10 @@ class RunnerTest extends TestCase {
                 ['echo my_secret_token_123 | docker login ghcr.io -u test_user --password-stdin'],
                 ['echo $PWD'],
                 ['whoami'],
-                [$this->stringContains('safe.directory')],
+                [$this->logicalAnd(
+                    $this->stringContains('safe.directory'),
+                    $this->stringContains("'/var/www/*'")
+                )],
                 [$this->stringContains('git fetch origin')],
                 ['git reset --hard origin/$(git symbolic-ref --short HEAD)'],
             );
@@ -439,7 +445,10 @@ class RunnerTest extends TestCase {
             ->withConsecutive(
                 ['echo $PWD'],
                 ['whoami'],
-                [$this->stringContains('safe.directory')],
+                [$this->logicalAnd(
+                    $this->stringContains('safe.directory'),
+                    $this->stringContains("'/var/www/*'")
+                )],
                 [$this->stringContains('git fetch origin')],
                 ['git reset --hard origin/$(git symbolic-ref --short HEAD)'],
                 ['curl -H "Authorization: Bearer secret_api_key_xyz" https://example.com/deploy'],
@@ -532,7 +541,10 @@ class RunnerTest extends TestCase {
                 ['echo "Repo: ' . $this->mockRepoCreator->testRepoName . '"'],
                 ['echo $PWD'],
                 ['whoami'],
-                [$this->stringContains('safe.directory')],
+                [$this->logicalAnd(
+                    $this->stringContains('safe.directory'),
+                    $this->stringContains("'/var/www/*'")
+                )],
                 [$this->stringContains('git fetch origin')],
                 ['git reset --hard origin/$(git symbolic-ref --short HEAD)'],
                 ['echo "Base path: ' . $this->mockRepoCreator::BASE_REPO_DIR . '"']
@@ -608,7 +620,7 @@ class RunnerTest extends TestCase {
                 $this->createRanCommand('echo "step 1"', [], 0), // pre_fetch
                 $this->createRanCommand('echo $PWD', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('whoami', [], 0), // fetch - builtInCommands
-                $this->createRanCommand("if [ ! -d /home/www-data ]; then mkdir -p /home/www-data; fi\ngit config --global --add safe.directory /var/www/*", [], 0), // fetch - builtInCommands
+                $this->createRanCommand("if [ ! -d /home/www-data ]; then mkdir -p /home/www-data; fi\ngit config --global --add safe.directory '/var/www/*'", [], 0), // fetch - builtInCommands
                 $this->createRanCommand('GIT_SSH_COMMAND="ssh -i /test-keys/test-key-name" git fetch origin', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('git reset --hard origin/$(git symbolic-ref --short HEAD)', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('false', ['error'], 1) // post_fetch - Este falla y debe lanzar excepción
@@ -719,7 +731,7 @@ class RunnerTest extends TestCase {
             ->willReturnOnConsecutiveCalls(
                 $this->createRanCommand('echo $PWD', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('whoami', [], 0), // fetch - builtInCommands
-                $this->createRanCommand("if [ ! -d /home/www-data ]; then mkdir -p /home/www-data; fi\ngit config --global --add safe.directory /var/www/*", [], 0), // fetch - builtInCommands
+                $this->createRanCommand("if [ ! -d /home/www-data ]; then mkdir -p /home/www-data; fi\ngit config --global --add safe.directory '/var/www/*'", [], 0), // fetch - builtInCommands
                 $this->createRanCommand('GIT_SSH_COMMAND="ssh -i /test-keys/test-key-name" git fetch origin', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('git reset --hard origin/$(git symbolic-ref --short HEAD)', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('sleep 100', ['Command timed out'], \Mariano\GitAutoDeploy\Executer::EXIT_CODE_TIMEOUT) // post_fetch - timeout

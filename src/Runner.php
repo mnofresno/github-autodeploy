@@ -303,10 +303,11 @@ class Runner {
             ? $this->configReader->get(ConfigReader::REPOS_TEMPLATE_URI)
             : $queryParamClonePath;
         $repoCloneUri = str_replace(ConfigReader::REPO_KEY_TEMPLATE_PLACEHOLDER, $repoKey, $reposTemplatePath);
+        $repoDir = escapeshellarg($repoDirectory);
         return [
             'echo $PWD',
             "if [ ! -d /home/www-data ]; then mkdir -p /home/www-data; fi
-git config --global --add safe.directory '$repoDirectory'",
+git config --global --add safe.directory $repoDir",
             'GIT_SSH_COMMAND="ssh -i '
                 . $this->configReader->get(ConfigReader::SSH_KEYS_PATH)
                 . '/'
@@ -321,7 +322,7 @@ git config --global --add safe.directory '$repoDirectory'",
             'echo $PWD',
             'whoami',
             "if [ ! -d /home/www-data ]; then mkdir -p /home/www-data; fi
-git config --global --add safe.directory /var/www/*",
+git config --global --add safe.directory '/var/www/*'",
             'GIT_SSH_COMMAND="ssh -i '
                 . $this->configReader->get(ConfigReader::SSH_KEYS_PATH)
                 . '/'
