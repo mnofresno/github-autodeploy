@@ -284,6 +284,43 @@ class RunnerTest extends TestCase {
         $this->subject->run(true);
     }
 
+    public function testRepoNotExistsUsesRepoSpecificTemplateUriWhenConfigured(): void {
+        $this->mockRequest->expects($this->any())
+            ->method('getBody')
+            ->willReturn([]);
+        $this->mockResponse->method('getRunId')->willReturn('test_run_id');
+
+        $repoName = uniqid('repo-specific-template-test');
+        $repoFullPath = "/tmp/$repoName";
+        $this->setupForRepoName($repoName, 1, [
+            ConfigReader::REPOS_TEMPLATE_URIS => [
+                $repoName => 'git@github.com:bpf-project/{$repo_key}.git',
+            ],
+        ], null);
+
+        $commands = [];
+        $this->executerMock
+            ->expects($this->exactly(4))
+            ->method('run')
+            ->willReturnCallback(function (string $command) use (&$commands, $repoName, $repoFullPath) {
+                $commands[] = $command;
+                if (str_contains($command, 'git clone') && str_contains($command, "git@github.com:bpf-project/'$repoName'.git")) {
+                    if (!is_dir($repoFullPath)) {
+                        mkdir($repoFullPath, 0777, true);
+                    }
+                }
+                return $this->createRanCommand($command, [], 0);
+            });
+        $this->mockResponse->expects($this->once())
+            ->method('setStatusCode')
+            ->with($this->equalTo(201));
+        $this->subject->run(true);
+        $this->assertContains('echo $PWD', $commands);
+        $this->assertTrue((bool) array_filter($commands, function (string $command) use ($repoName): bool {
+            return str_contains($command, 'git clone') && str_contains($command, "git@github.com:bpf-project/'$repoName'.git");
+        }));
+    }
+
     public function testPreFetchCommandsWithSecretsPlaceholdersAreReplaced(): void {
         $this->mockConfigReader->expects($this->any())
             ->method('get')
@@ -917,17 +954,25 @@ class RunnerTest extends TestCase {
         return $this->setupForRepoName($this->mockRepoCreator->testRepoName, 1, []);
     }
 
-    private function setupForRepoName(string $repoName, int $countOfRepoReads): InvocationMocker {
+    private function setupForRepoName(string $repoName, int $countOfRepoReads, array $extraConfigValues = [], ?string $clonePath = 'git@github.com:testuser/{$repo_key}.git'): InvocationMocker {
+        $configValues = [
+            ConfigReader::ENABLE_CLONE => true,
+            ConfigReader::IPS_ALLOWLIST => ['127.0.0.1'],
+            ConfigReader::REPOS_TEMPLATE_URI => 'git@github.com:testuser/{$repo_key}.git',
+            ConfigReader::REPOS_BASE_PATH => $this->mockRepoCreator::BASE_REPO_DIR,
+            ConfigReader::CUSTOM_UPDATE_COMMANDS => [ConfigReader::DEFAULT_COMMANDS => ['echo -n ""', 'ls -a']],
+            ConfigReader::COMMAND_TIMEOUT => 3600,
+        ];
+        foreach ($extraConfigValues as $key => $value) {
+            $configValues[$key] = $value;
+        }
+        $returnMap = [];
+        foreach ($configValues as $key => $value) {
+            $returnMap[] = [$key, $value];
+        }
         $this->mockConfigReader->expects($this->any())
             ->method('get')
-            ->will($this->returnValueMap([
-                [ConfigReader::ENABLE_CLONE, true],
-                [ConfigReader::IPS_ALLOWLIST, ['127.0.0.1']],
-                [ConfigReader::REPOS_TEMPLATE_URI, 'git@github.com:testuser/{$repo_key}.git'],
-                [ConfigReader::REPOS_BASE_PATH, $this->mockRepoCreator::BASE_REPO_DIR],
-                [ConfigReader::CUSTOM_UPDATE_COMMANDS, [ConfigReader::DEFAULT_COMMANDS => ['echo -n ""', 'ls -a']]],
-                [ConfigReader::COMMAND_TIMEOUT, 3600],
-            ]));
+            ->will($this->returnValueMap($returnMap));
         $this->mockRequest->expects($this->atLeast(1))
             ->method('getHeaders')
             ->will($this->returnValue([]));
@@ -951,7 +996,7 @@ class RunnerTest extends TestCase {
         $this->mockRequest->expects($this->any())
             ->method('getQueryParam')
             ->will($this->returnValueMap([
-                [Request::CLONE_PATH_QUERY_PARAM, 'git@github.com:testuser/{$repo_key}.git'],
+                [Request::CLONE_PATH_QUERY_PARAM, $clonePath ?? ''],
                 [Request::REPO_QUERY_PARAM, $repoName],
                 [Request::KEY_QUERY_PARAM, 'test-key-name'],
             ]));

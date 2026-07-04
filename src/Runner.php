@@ -297,12 +297,13 @@ class Runner {
         if (!$this->configReader->get(ConfigReader::ENABLE_CLONE)) {
             throw new BadRequestException(new RepoNotExists(), $this->logger);
         }
-        $repoKey = escapeshellarg($this->request->getQueryParam(Request::REPO_QUERY_PARAM));
-        $queryParamClonePath = $this->request->getQueryParam(Request::CLONE_PATH_QUERY_PARAM);
-        $reposTemplatePath = $queryParamClonePath === ''
-            ? $this->configReader->get(ConfigReader::REPOS_TEMPLATE_URI)
-            : $queryParamClonePath;
-        $repoCloneUri = str_replace(ConfigReader::REPO_KEY_TEMPLATE_PLACEHOLDER, $repoKey, $reposTemplatePath);
+        $repoCloneUri = $this->configReader->resolveRepoTemplateUri(
+            $this->request->getQueryParam(Request::REPO_QUERY_PARAM),
+            $this->request->getQueryParam(Request::CLONE_PATH_QUERY_PARAM)
+        );
+        if ($repoCloneUri === null) {
+            throw new BadRequestException(new RepoNotExists(), $this->logger);
+        }
         return [
             'echo $PWD',
             'GIT_SSH_COMMAND="ssh -i '
