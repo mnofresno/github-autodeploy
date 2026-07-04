@@ -306,14 +306,14 @@ class Runner {
             return [
                 'echo $PWD',
                 'whoami',
-                $gitCommandPrefix . ' git -c safe.directory=' . $repoDir . ' fetch origin',
+                $gitCommandPrefix . ' -c safe.directory=' . $repoDir . ' fetch origin',
                 'git -c safe.directory=' . $repoDir . ' reset --hard @{u}',
             ];
         }
         return [
             'echo $PWD',
             'whoami',
-            $gitCommandPrefix . ' git -c safe.directory=' . $repoDir . ' fetch origin',
+            $gitCommandPrefix . ' -c safe.directory=' . $repoDir . ' fetch origin',
             'git -c safe.directory=' . $repoDir . ' reset --hard @{u}',
         ];
     }
@@ -342,7 +342,7 @@ class Runner {
         $gitCommandPrefix = $this->buildGitCommandPrefix($transportConfig, $repoDirArg);
         return [
             'echo $PWD',
-            $gitCommandPrefix . " git clone '$repoCloneUri' " . $repoDirArg,
+            $gitCommandPrefix . " clone '$repoCloneUri' " . $repoDirArg,
         ];
     }
 
@@ -350,14 +350,14 @@ class Runner {
         if (($transportConfig['strategy'] ?? 'ssh') === 'https') {
             $credentialHelper = $this->buildHttpsCredentialHelperArg($transportConfig);
             return $credentialHelper !== ''
-                ? $credentialHelper
-                : '';
+                ? 'git ' . $credentialHelper
+                : 'git';
         }
 
         $sshKey = $this->configReader->get(ConfigReader::SSH_KEYS_PATH)
             . '/'
             . $this->request->getQueryParam(Request::KEY_QUERY_PARAM);
-        return 'GIT_SSH_COMMAND="ssh -i ' . $sshKey . '"';
+        return 'GIT_SSH_COMMAND="ssh -i ' . $sshKey . '" git';
     }
 
     private function buildHttpsCredentialHelperArg(array $transportConfig): string {

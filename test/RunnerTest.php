@@ -348,7 +348,7 @@ class RunnerTest extends TestCase {
             ->method('run')
             ->willReturnCallback(function (string $command) use (&$commands, $repoFullPath, $repoName) {
                 $commands[] = $command;
-                if (str_contains($command, 'git clone') && str_contains($command, "https://github.com/bpf-project/'$repoName'.git")) {
+                if (str_contains($command, ' clone ') && str_contains($command, "https://github.com/bpf-project/'$repoName'.git")) {
                     if (!is_dir($repoFullPath)) {
                         mkdir($repoFullPath, 0777, true);
                     }
