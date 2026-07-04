@@ -253,7 +253,7 @@ class Runner {
         $repoDirectory = $this->configReader->get(ConfigReader::REPOS_BASE_PATH)
             . DIRECTORY_SEPARATOR
             . $this->request->getQueryParam(Request::REPO_QUERY_PARAM);
-        if (!is_dir($repoDirectory)) {
+        if (!is_dir($repoDirectory) || ($this->createRepoIfNotExists && !is_dir($repoDirectory . DIRECTORY_SEPARATOR . '.git'))) {
             if ($this->createRepoIfNotExists) {
                 $parentDirectory = dirname($repoDirectory);
                 chdir($parentDirectory);
