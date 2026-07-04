@@ -158,6 +158,37 @@ class DeployConfigReaderTest extends TestCase {
         $this->deployConfigReader->fetchRepoConfig($this->mockRepoCreator->testRepoName);
     }
 
+    public function testFetchRepoConfigWithGitTransportSection(): void {
+        $this->configReaderMock->method('get')
+            ->with(ConfigReader::REPOS_BASE_PATH)
+            ->willReturn(MockRepoCreator::BASE_REPO_DIR);
+
+        $this->mockRepoCreator->withConfigYaml([
+            ConfigReader::GIT_TRANSPORT => [
+                'strategy' => 'https',
+                'template_uri' => 'https://github.com/bpf-project/{$repo_key}.git',
+                'credentials' => [
+                    'username' => 'x-access-token',
+                    'token' => 'ghp_test_token',
+                ],
+            ],
+            ConfigReader::POST_FETCH_COMMANDS => ['echo ok'],
+        ]);
+
+        $config = $this->deployConfigReader->fetchRepoConfig($this->mockRepoCreator->testRepoName);
+
+        $this->assertNotNull($config);
+        $this->assertSame([
+            'strategy' => 'https',
+            'template_uri' => 'https://github.com/bpf-project/{$repo_key}.git',
+            'credentials' => [
+                'username' => 'x-access-token',
+                'token' => 'ghp_test_token',
+            ],
+        ], $config->gitTransport());
+        $this->assertSame(['echo ok'], $config->postFetchCommands());
+    }
+
     public function testFetchRepoConfigYamlWithMultilineCommands() {
         $this->configReaderMock->method('get')
             ->with(ConfigReader::REPOS_BASE_PATH)

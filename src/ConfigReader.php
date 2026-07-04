@@ -16,6 +16,7 @@ class ConfigReader {
     public const SECRETS = 'secrets';
     public const REPOS_TEMPLATE_URI = 'repos_template_uri';
     public const REPOS_TEMPLATE_URIS = 'repos_template_uris';
+    public const GIT_TRANSPORT = 'git_transport';
     public const REPO_KEY_TEMPLATE_PLACEHOLDER = '{$repo_key}';
     public const WHITELISTED_STRINGS_KEY = 'whitelisted_command_strings';
     public const ENABLE_CLONE = 'enable_clone';
@@ -43,19 +44,74 @@ class ConfigReader {
     }
 
     public function resolveRepoTemplateUri(string $repoKey, string $clonePath = ''): ?string {
-        $template = $this->selectRepoTemplateUri($repoKey, $clonePath);
+        $template = $this->resolveRepoTransportConfig($repoKey, $clonePath);
+        if (!$template) {
+            return null;
+        }
+
+        return $template['template_uri'] ?? null;
+    }
+
+    public function resolveRepoTransportConfig(string $repoKey, string $clonePath = ''): ?array {
+        $template = $this->selectRepoTransportSource($repoKey, $clonePath);
+        if (!is_string($template) || $template === '') {
+            if (!is_array($template)) {
+                return null;
+            }
+            return $this->normalizeRepoTransportConfig($template, $repoKey);
+        }
+
+        return $this->normalizeRepoTransportConfig([
+            'template_uri' => $template,
+        ], $repoKey);
+    }
+
+    public function normalizeRepoTransportConfig(array $transportConfig, string $repoKey): ?array {
+        $template = $transportConfig['template_uri']
+            ?? $transportConfig['uri']
+            ?? $transportConfig['clone_uri']
+            ?? $transportConfig['fetch_uri']
+            ?? null;
         if (!is_string($template) || $template === '') {
             return null;
         }
 
-        return str_replace(
-            self::REPO_KEY_TEMPLATE_PLACEHOLDER,
-            escapeshellarg($repoKey),
-            $template
-        );
+        $strategy = $transportConfig['strategy']
+            ?? $transportConfig['transport']
+            ?? $transportConfig['protocol']
+            ?? null;
+        if (!is_string($strategy) || $strategy === '') {
+            $strategy = preg_match('/^https?:\/\//i', $template) === 1 ? 'https' : 'ssh';
+        }
+
+        $normalized = [
+            'strategy' => strtolower($strategy),
+            'template_uri' => str_replace(
+                self::REPO_KEY_TEMPLATE_PLACEHOLDER,
+                escapeshellarg($repoKey),
+                $template
+            ),
+        ];
+
+        foreach (['credentials_file', 'credentials_username', 'credentials_token', 'ssh_key'] as $key) {
+            if (isset($transportConfig[$key]) && is_string($transportConfig[$key]) && $transportConfig[$key] !== '') {
+                $normalized[$key] = $transportConfig[$key];
+            }
+        }
+
+        if (isset($transportConfig['credentials']) && is_array($transportConfig['credentials'])) {
+            $normalized['credentials'] = array_filter([
+                'username' => $transportConfig['credentials']['username'] ?? $transportConfig['credentials']['user'] ?? null,
+                'token' => $transportConfig['credentials']['token'] ?? $transportConfig['credentials']['password'] ?? null,
+            ], static function ($value): bool {
+                return is_string($value) && $value !== '';
+            });
+        }
+
+        return $normalized;
     }
 
-    private function selectRepoTemplateUri(string $repoKey, string $clonePath = '') {
+    private function selectRepoTransportSource(string $repoKey, string $clonePath = '') {
         if ($clonePath !== '') {
             return $clonePath;
         }
@@ -63,10 +119,10 @@ class ConfigReader {
         $templateUris = $this->get(self::REPOS_TEMPLATE_URIS);
         if (is_array($templateUris)) {
             $repoSpecificTemplate = $templateUris[$repoKey] ?? $templateUris['default'] ?? $templateUris['_default_'] ?? null;
-            if (is_string($repoSpecificTemplate) && $repoSpecificTemplate !== '') {
+            if ((is_string($repoSpecificTemplate) || is_array($repoSpecificTemplate)) && $repoSpecificTemplate !== '') {
                 return $repoSpecificTemplate;
             }
-        } elseif (is_string($templateUris) && $templateUris !== '') {
+        } elseif ((is_string($templateUris) || is_array($templateUris)) && $templateUris !== '') {
             return $templateUris;
         }
 

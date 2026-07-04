@@ -321,6 +321,55 @@ class RunnerTest extends TestCase {
         }));
     }
 
+    public function testHttpsTransportUsesCredentialHelperAndDoesNotUseSsh(): void {
+        $this->mockRequest->expects($this->any())
+            ->method('getBody')
+            ->willReturn([]);
+        $this->mockResponse->method('getRunId')->willReturn('test_run_id');
+
+        $repoName = uniqid('https-transport-test');
+        $repoFullPath = "/tmp/$repoName";
+        $this->setupForRepoName($repoName, 1, [
+            ConfigReader::REPOS_TEMPLATE_URIS => [
+                $repoName => [
+                    'strategy' => 'https',
+                    'template_uri' => 'https://github.com/bpf-project/{$repo_key}.git',
+                    'credentials' => [
+                        'username' => 'x-access-token',
+                        'token' => 'ghp_test_token',
+                    ],
+                ],
+            ],
+        ], null);
+
+        $commands = [];
+        $this->executerMock
+            ->expects($this->atLeast(4))
+            ->method('run')
+            ->willReturnCallback(function (string $command) use (&$commands, $repoFullPath, $repoName) {
+                $commands[] = $command;
+                if (str_contains($command, 'git clone') && str_contains($command, "https://github.com/bpf-project/'$repoName'.git")) {
+                    if (!is_dir($repoFullPath)) {
+                        mkdir($repoFullPath, 0777, true);
+                    }
+                }
+                return $this->createRanCommand($command, [], 0);
+            });
+
+        $this->mockResponse->expects($this->once())
+            ->method('setStatusCode')
+            ->with($this->equalTo(201));
+
+        $this->subject->run(true);
+
+        $this->assertNotEmpty(array_filter($commands, function (string $command): bool {
+            return str_contains($command, 'credential.helper=store --file=');
+        }));
+        $this->assertEmpty(array_filter($commands, function (string $command): bool {
+            return str_contains($command, 'GIT_SSH_COMMAND');
+        }));
+    }
+
     public function testPreFetchCommandsWithSecretsPlaceholdersAreReplaced(): void {
         $this->mockConfigReader->expects($this->any())
             ->method('get')

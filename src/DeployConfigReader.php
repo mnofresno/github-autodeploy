@@ -75,6 +75,10 @@ class DeployConfigReader {
             public function verboseMatchers(): array {
                 return $this->configData[ConfigReader::VERBOSE_MATCHER] ?? [];
             }
+
+            public function gitTransport(): ?array {
+                return $this->configData[ConfigReader::GIT_TRANSPORT] ?? null;
+            }
         };
     }
 
@@ -100,19 +104,52 @@ class DeployConfigReader {
             if (
                 $key !== ConfigReader::CUSTOM_UPDATE_COMMANDS &&
                 $key !== ConfigReader::POST_FETCH_COMMANDS &&
-                $key !== ConfigReader::PRE_FETCH_COMMANDS
+                $key !== ConfigReader::PRE_FETCH_COMMANDS &&
+                $key !== ConfigReader::GIT_TRANSPORT
             ) {
                 continue;
             }
 
             if (!is_array($commandsList)) {
+                if ($key === ConfigReader::GIT_TRANSPORT) {
+                    throw InvalidDeployFileException::build($commandsList, $this->logger);
+                }
+
                 throw InvalidDeployFileException::build($commandsList, $this->logger);
+            }
+
+            if ($key === ConfigReader::GIT_TRANSPORT) {
+                $this->assertGitTransport($commandsList);
+                continue;
             }
 
             foreach ($commandsList as $command) {
                 if (!is_string($command)) {
                     throw InvalidDeployFileException::build($command, $this->logger);
                 }
+            }
+        }
+    }
+
+    private function assertGitTransport(array $transportData): void {
+        foreach ($transportData as $key => $value) {
+            if (in_array($key, ['strategy', 'template_uri', 'uri', 'clone_uri', 'fetch_uri', 'credentials_file', 'credentials_username', 'credentials_token'], true)) {
+                if (!is_string($value)) {
+                    throw InvalidDeployFileException::build($value, $this->logger);
+                }
+                continue;
+            }
+
+            if ($key === 'credentials') {
+                if (!is_array($value)) {
+                    throw InvalidDeployFileException::build($value, $this->logger);
+                }
+                foreach ($value as $credentialKey => $credentialValue) {
+                    if (!is_string($credentialValue)) {
+                        throw InvalidDeployFileException::build($credentialValue, $this->logger);
+                    }
+                }
+                continue;
             }
         }
     }

@@ -257,8 +257,9 @@ class Runner {
             if ($this->createRepoIfNotExists) {
                 $parentDirectory = dirname($repoDirectory);
                 chdir($parentDirectory);
+                $transportConfig = $this->resolveGitTransportConfig();
                 $this->runCollectionOfCommands(
-                    $this->cloneRepoCommands($repoDirectory),
+                    $this->cloneRepoCommands($repoDirectory, $transportConfig),
                     $commandView,
                     DeploymentStatus::PHASE_PRE_FETCH
                 );
@@ -293,44 +294,135 @@ class Runner {
         return empty($commands) ? [] : array_map([$this->customCommands, 'hydratePlaceHolders'], $commands);
     }
 
-    private function cloneRepoCommands(string $repoDirectory): array {
-        if (!$this->configReader->get(ConfigReader::ENABLE_CLONE)) {
-            throw new BadRequestException(new RepoNotExists(), $this->logger);
-        }
-        $repoCloneUri = $this->configReader->resolveRepoTemplateUri(
-            $this->request->getQueryParam(Request::REPO_QUERY_PARAM),
-            $this->request->getQueryParam(Request::CLONE_PATH_QUERY_PARAM)
-        );
-        if ($repoCloneUri === null) {
-            throw new BadRequestException(new RepoNotExists(), $this->logger);
-        }
-        return [
-            'echo $PWD',
-            'GIT_SSH_COMMAND="ssh -i '
-                . $this->configReader->get(ConfigReader::SSH_KEYS_PATH)
-                . '/'
-                . $this->request->getQueryParam(Request::KEY_QUERY_PARAM)
-                . "\" git clone '$repoCloneUri'"
-                . " '$repoDirectory'",
-        ];
-    }
-
     private function builtInCommands(): array {
         $repoDir = escapeshellarg(
             $this->configReader->get(ConfigReader::REPOS_BASE_PATH)
             . DIRECTORY_SEPARATOR
             . $this->request->getQueryParam(Request::REPO_QUERY_PARAM)
         );
+        $transportConfig = $this->resolveGitTransportConfig();
+        $gitCommandPrefix = $this->buildGitCommandPrefix($transportConfig, $repoDir);
+        if (($transportConfig['strategy'] ?? 'ssh') === 'https') {
+            return [
+                'echo $PWD',
+                'whoami',
+                $gitCommandPrefix . ' git -c safe.directory=' . $repoDir . ' fetch origin',
+                'git -c safe.directory=' . $repoDir . ' reset --hard @{u}',
+            ];
+        }
         return [
             'echo $PWD',
             'whoami',
-            'GIT_SSH_COMMAND="ssh -i '
-                . $this->configReader->get(ConfigReader::SSH_KEYS_PATH)
-                . '/'
-                . $this->request->getQueryParam(Request::KEY_QUERY_PARAM)
-                . '" git -c safe.directory=' . $repoDir . ' fetch origin',
+            $gitCommandPrefix . ' git -c safe.directory=' . $repoDir . ' fetch origin',
             'git -c safe.directory=' . $repoDir . ' reset --hard @{u}',
         ];
+    }
+
+    private function cloneRepoCommands(string $repoDirectory, ?array $transportConfig = null): array {
+        if (!$this->configReader->get(ConfigReader::ENABLE_CLONE)) {
+            throw new BadRequestException(new RepoNotExists(), $this->logger);
+        }
+        $transportConfig = $transportConfig ?? $this->resolveGitTransportConfig();
+        $repoCloneUri = $transportConfig['template_uri'] ?? $this->configReader->resolveRepoTemplateUri(
+            $this->request->getQueryParam(Request::REPO_QUERY_PARAM),
+            $this->request->getQueryParam(Request::CLONE_PATH_QUERY_PARAM)
+        );
+        if (!$repoCloneUri) {
+            throw new BadRequestException(new RepoNotExists(), $this->logger);
+        }
+
+        if (!$transportConfig) {
+            $transportConfig = [
+                'strategy' => preg_match('/^https?:\/\//i', $repoCloneUri) === 1 ? 'https' : 'ssh',
+                'template_uri' => $repoCloneUri,
+            ];
+        }
+
+        $repoDirArg = escapeshellarg($repoDirectory);
+        $gitCommandPrefix = $this->buildGitCommandPrefix($transportConfig, $repoDirArg);
+        return [
+            'echo $PWD',
+            $gitCommandPrefix . " git clone '$repoCloneUri' " . $repoDirArg,
+        ];
+    }
+
+    private function buildGitCommandPrefix(?array $transportConfig, string $repoDir): string {
+        if (($transportConfig['strategy'] ?? 'ssh') === 'https') {
+            $credentialHelper = $this->buildHttpsCredentialHelperArg($transportConfig);
+            return $credentialHelper !== ''
+                ? $credentialHelper
+                : '';
+        }
+
+        $sshKey = $this->configReader->get(ConfigReader::SSH_KEYS_PATH)
+            . '/'
+            . $this->request->getQueryParam(Request::KEY_QUERY_PARAM);
+        return 'GIT_SSH_COMMAND="ssh -i ' . $sshKey . '"';
+    }
+
+    private function buildHttpsCredentialHelperArg(array $transportConfig): string {
+        $credentialsFile = $transportConfig['credentials_file'] ?? '';
+        if ($credentialsFile !== '') {
+            return '-c ' . escapeshellarg('credential.helper=store --file=' . $credentialsFile);
+        }
+
+        $credentials = $transportConfig['credentials'] ?? [];
+        $username = null;
+        $token = null;
+        if (is_array($credentials)) {
+            $username = $credentials['username'] ?? $credentials['user'] ?? null;
+            $token = $credentials['token'] ?? $credentials['password'] ?? null;
+        }
+        $username = $username ?: ($transportConfig['credentials_username'] ?? 'x-access-token');
+        $token = $token ?: ($transportConfig['credentials_token'] ?? '');
+        if (!is_string($token) || $token === '') {
+            return '';
+        }
+
+        $host = parse_url($transportConfig['template_uri'] ?? '', PHP_URL_HOST);
+        if (!is_string($host) || $host === '') {
+            return '';
+        }
+
+        $credentialUrl = sprintf(
+            'https://%s:%s@%s',
+            rawurlencode((string) $username),
+            rawurlencode($token),
+            $host
+        );
+        $tempFile = tempnam(sys_get_temp_dir(), 'git-autodeploy-');
+        if ($tempFile === false) {
+            return '';
+        }
+
+        file_put_contents($tempFile, $credentialUrl . PHP_EOL);
+        chmod($tempFile, 0600);
+        register_shutdown_function(static function () use ($tempFile): void {
+            @unlink($tempFile);
+        });
+
+        return '-c ' . escapeshellarg('credential.helper=store --file=' . $tempFile);
+    }
+
+    private function resolveGitTransportConfig(): ?array {
+        $repoName = $this->request->getQueryParam(Request::REPO_QUERY_PARAM);
+        $queryParams = $this->request->getQueryParamsAll();
+        $clonePath = array_key_exists(Request::CLONE_PATH_QUERY_PARAM, $queryParams)
+            ? $this->request->getQueryParam(Request::CLONE_PATH_QUERY_PARAM)
+            : '';
+        $transportConfig = $this->configReader->resolveRepoTransportConfig($repoName, $clonePath);
+        $repoConfig = $this->deployConfigReader->fetchRepoConfig($repoName);
+        if ($repoConfig && method_exists($repoConfig, 'gitTransport')) {
+            $repoTransport = $repoConfig->gitTransport();
+            if (is_array($repoTransport) && !empty($repoTransport)) {
+                $transportConfig = $transportConfig
+                    ? array_replace_recursive($transportConfig, $repoTransport)
+                    : $repoTransport;
+                $transportConfig = $this->configReader->normalizeRepoTransportConfig($transportConfig, $repoName);
+            }
+        }
+
+        return $transportConfig;
     }
 
     private function getCustomCommands(): ?array {

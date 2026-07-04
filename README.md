@@ -130,6 +130,8 @@ git reset --hard origin/$(git symbolic-ref --short HEAD)
 
 The `.git-auto-deploy.yml` file customizes the deployment process for each repository. It defines commands to execute at different stages, providing granular control over the deployment workflow.
 
+Repository transport can also be customized in `config.json` or in a repo-local `.git-auto-deploy.yml/json/yaml` file with `git_transport`. Use `strategy: https` with either a `credentials_file` or inline `credentials` when you want `git fetch`/`git clone` to use HTTPS instead of SSH.
+
 ### Structure of `.git-auto-deploy.yml`
 
 The file is structured with two main sections:

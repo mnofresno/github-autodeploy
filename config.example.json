@@ -8,7 +8,15 @@
     "ReposBasePath": "/var/www",
     "repos_template_uris": {
         "default": "git@github.com:testuser/{$repo_key}.git",
-        "example-repo": "git@github.com:other-org/{$repo_key}.git"
+        "example-repo": "git@github.com:other-org/{$repo_key}.git",
+        "example-https-repo": {
+            "strategy": "https",
+            "template_uri": "https://github.com/example/{$repo_key}.git",
+            "credentials": {
+                "username": "x-access-token",
+                "token": "ghp_xxx"
+            }
+        }
     },
     "repos_template_uri": "git@github.com:testuser/{$repo_key}.git",
     "custom_commands": {
