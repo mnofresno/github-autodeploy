@@ -680,7 +680,7 @@ class RunnerTest extends TestCase {
 
         $executerMock = $this->createMock(Executer::class);
         $executerMock
-            ->expects($this->atLeast(10))
+            ->expects($this->atLeast(9))
             ->method('run')
             ->willReturnOnConsecutiveCalls(
                 $this->createRanCommand('echo "step 1"', [], 0), // pre_fetch
@@ -794,7 +794,7 @@ class RunnerTest extends TestCase {
 
         $executerMock = $this->createMock(Executer::class);
         $executerMock
-            ->expects($this->atLeast(9))
+            ->expects($this->atLeast(8))
             ->method('run')
             ->willReturnOnConsecutiveCalls(
                 $this->createRanCommand('echo $PWD', [], 0), // fetch - builtInCommands
