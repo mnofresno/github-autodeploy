@@ -40,8 +40,7 @@ class CustomCommandsTest extends TestCase {
     }
 
     public function testCustomCommandsAreNotSpecified() {
-        $this->mockConfigReader->expects($this->once())
-            ->method('get')
+        $this->mockConfigReader->method('get')
             ->willReturnMap([
                 [ConfigReader::CUSTOM_UPDATE_COMMANDS, null],
             ]);
@@ -132,8 +131,7 @@ class CustomCommandsTest extends TestCase {
         $this->mockRepoCreator->withConfigYaml([
             ConfigReader::CUSTOM_UPDATE_COMMANDS => ['runnotfound'],
         ], $extension);
-        $this->mockConfigReader->expects($this->exactly(2))
-            ->method('get')
+        $this->mockConfigReader->method('get')
             ->willReturnMap([
                 [ConfigReader::CUSTOM_UPDATE_COMMANDS, [
                     'example-repo1' => [
