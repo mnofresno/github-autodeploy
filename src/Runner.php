@@ -425,9 +425,14 @@ class Runner {
 
     private function resolveRepoCloneUri(?array $transportConfig = null): string {
         $transportConfig = $transportConfig ?? $this->resolveGitTransportConfig();
+        $repoName = $this->request->getQueryParam(Request::REPO_QUERY_PARAM);
+        $queryParams = $this->request->getQueryParamsAll();
+        $clonePath = array_key_exists(Request::CLONE_PATH_QUERY_PARAM, $queryParams)
+            ? $this->request->getQueryParam(Request::CLONE_PATH_QUERY_PARAM)
+            : '';
         return $transportConfig['template_uri'] ?? $this->configReader->resolveRepoTemplateUri(
-            $this->request->getQueryParam(Request::REPO_QUERY_PARAM),
-            $this->request->getQueryParam(Request::CLONE_PATH_QUERY_PARAM)
+            $repoName,
+            $clonePath
         );
     }
 
