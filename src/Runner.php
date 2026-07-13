@@ -295,11 +295,10 @@ class Runner {
     }
 
     private function builtInCommands(): array {
-        $repoDir = escapeshellarg(
-            $this->configReader->get(ConfigReader::REPOS_BASE_PATH)
+        $repoPath = $this->configReader->get(ConfigReader::REPOS_BASE_PATH)
             . DIRECTORY_SEPARATOR
-            . $this->request->getQueryParam(Request::REPO_QUERY_PARAM)
-        );
+            . $this->request->getQueryParam(Request::REPO_QUERY_PARAM);
+        $repoDir = escapeshellarg(realpath($repoPath) ?: $repoPath);
         $transportConfig = $this->resolveGitTransportConfig();
         $gitCommandPrefix = $this->buildGitCommandPrefix($transportConfig, $repoDir);
         if (($transportConfig['strategy'] ?? 'ssh') === 'https') {
