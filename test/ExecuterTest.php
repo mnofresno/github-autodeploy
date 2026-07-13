@@ -45,11 +45,16 @@ class ExecuterTest extends TestCase {
     }
 
     public function testRunDoesNotEscapeRemoteOriginUrlCommandSubstitution(): void {
-        $command = 'git remote add origin "$(git config --get remote.origin.url)"';
+        $command = "git remote set-url origin \"\$(git config --get remote.origin.url)\"\n"
+            . "if [ \$? -ne 0 ]; then\n"
+            . "  git remote add origin \"\$(git config --get remote.origin.url)\"\n"
+            . "fi";
         $result = $this->subject->run($command);
 
         $this->assertInstanceOf(RanCommand::class, $result);
-        $this->assertEquals($command, $result->jsonSerialize()['command']);
+        $executed = $result->jsonSerialize()['command'];
+        $this->assertStringStartsWith('bash -c ', $executed);
+        $this->assertStringContainsString('$(git config --get remote.origin.url)', $executed);
     }
 
     public function testRunHandlesMultipleWhitelistedStrings(): void {

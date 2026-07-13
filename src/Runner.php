@@ -307,12 +307,16 @@ class Runner {
         $transportConfig = $this->resolveGitTransportConfig();
         $gitCommandPrefix = $this->buildGitCommandPrefix($transportConfig, $repoDir);
         $repoGitCommandPrefix = $gitCommandPrefix . ' --git-dir=' . $repoGitDir . ' --work-tree=' . $repoDir;
+        $remoteUrl = '$(git config --get remote.origin.url)';
         return [
             'echo $PWD',
             'whoami',
             'mkdir -p ' . $repoGitDir,
             $repoGitCommandPrefix . ' init',
-            $repoGitCommandPrefix . ' remote add origin "$(git config --get remote.origin.url)"',
+            $repoGitCommandPrefix . ' remote set-url origin "' . $remoteUrl . '"' . "\n"
+                . 'if [ $? -ne 0 ]; then' . "\n"
+                . '  ' . $repoGitCommandPrefix . ' remote add origin "' . $remoteUrl . '"' . "\n"
+                . 'fi',
             $repoGitCommandPrefix . ' fetch --no-write-fetch-head origin main',
             'git --git-dir=' . $repoGitDir . ' --work-tree=' . $repoDir . ' reset --hard "origin/main"',
         ];
