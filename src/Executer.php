@@ -10,6 +10,7 @@ class Executer {
     public const EXIT_CODE_TIMEOUT = 124;
 
     public const WHITELISTED_STRINGS = [
+        '$(git config --get remote.origin.url)',
         '$(git symbolic-ref --short HEAD)',
         'echo $PWD',
     ];

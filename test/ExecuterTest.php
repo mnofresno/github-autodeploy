@@ -17,7 +17,7 @@ class ExecuterTest extends TestCase {
         $this->configMock = $this->createMock(ConfigReader::class);
         $this->configMock->method('get')
             ->willReturnMap([
-                [ConfigReader::WHITELISTED_STRINGS_KEY, ['$(git symbolic-ref --short HEAD)']],
+                [ConfigReader::WHITELISTED_STRINGS_KEY, ['$(git config --get remote.origin.url)', '$(git symbolic-ref --short HEAD)']],
                 [ConfigReader::COMMAND_TIMEOUT, 3600], // Default timeout
             ]);
 
@@ -38,6 +38,14 @@ class ExecuterTest extends TestCase {
 
     public function testRunDoesNotEscapeWhitelistedStrings(): void {
         $command = 'echo $(git symbolic-ref --short HEAD)';
+        $result = $this->subject->run($command);
+
+        $this->assertInstanceOf(RanCommand::class, $result);
+        $this->assertEquals($command, $result->jsonSerialize()['command']);
+    }
+
+    public function testRunDoesNotEscapeRemoteOriginUrlCommandSubstitution(): void {
+        $command = 'git remote add origin "$(git config --get remote.origin.url)"';
         $result = $this->subject->run($command);
 
         $this->assertInstanceOf(RanCommand::class, $result);
