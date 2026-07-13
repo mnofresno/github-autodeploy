@@ -280,7 +280,7 @@ class RunnerTest extends TestCase {
             ->withConsecutive(
                 ['echo $PWD'],
                 [$this->callback(function ($command) use ($repoFullPath, $repoName) {
-                    if (str_contains($command, 'git clone') && str_contains($command, "'$repoName'")) {
+                    if (str_contains($command, 'git clone') && str_contains($command, $repoName)) {
                         if (!is_dir($repoFullPath)) {
                             mkdir($repoFullPath, 0777, true);
                         }
