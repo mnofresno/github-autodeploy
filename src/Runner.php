@@ -305,6 +305,7 @@ class Runner {
             return [
                 'echo $PWD',
                 'whoami',
+                'sudo chown -R "$(whoami)":"$(whoami)" ' . $repoDir,
                 $gitCommandPrefix . ' -c safe.directory=' . $repoDir . ' fetch --no-write-fetch-head origin',
                 'git -c safe.directory=' . $repoDir . ' reset --hard @{u}',
             ];
@@ -312,6 +313,7 @@ class Runner {
         return [
             'echo $PWD',
             'whoami',
+            'sudo chown -R "$(whoami)":"$(whoami)" ' . $repoDir,
             $gitCommandPrefix . ' -c safe.directory=' . $repoDir . ' fetch --no-write-fetch-head origin',
             'git -c safe.directory=' . $repoDir . ' reset --hard @{u}',
         ];

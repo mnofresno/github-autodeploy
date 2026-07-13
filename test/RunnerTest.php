@@ -207,11 +207,12 @@ class RunnerTest extends TestCase {
                 }
             });
         $this->executerMock
-            ->expects($this->exactly(6))
+            ->expects($this->exactly(7))
             ->method('run')
             ->withConsecutive(
                 ['echo $PWD'],
                 ['whoami'],
+                [$this->stringContains('sudo chown -R')],
                 [$this->logicalAnd(
                     $this->stringContains('safe.directory'),
                     $this->stringContains('fetch --no-write-fetch-head origin')
@@ -438,12 +439,13 @@ class RunnerTest extends TestCase {
         );
 
         $this->executerMock
-            ->expects($this->exactly(5))
+            ->expects($this->exactly(6))
             ->method('run')
             ->withConsecutive(
                 ['echo my_secret_token_123 | docker login ghcr.io -u test_user --password-stdin'],
                 ['echo $PWD'],
                 ['whoami'],
+                [$this->stringContains('sudo chown -R')],
                 [$this->logicalAnd(
                     $this->stringContains('safe.directory'),
                     $this->stringContains('fetch --no-write-fetch-head origin')
@@ -527,11 +529,12 @@ class RunnerTest extends TestCase {
         );
 
         $this->executerMock
-            ->expects($this->exactly(6))
+            ->expects($this->exactly(7))
             ->method('run')
             ->withConsecutive(
                 ['echo $PWD'],
                 ['whoami'],
+                [$this->stringContains('sudo chown -R')],
                 [$this->logicalAnd(
                     $this->stringContains('safe.directory'),
                     $this->stringContains('fetch --no-write-fetch-head origin')
@@ -623,13 +626,14 @@ class RunnerTest extends TestCase {
         );
 
         $this->executerMock
-            ->expects($this->exactly(7))
+            ->expects($this->exactly(8))
             ->method('run')
             ->withConsecutive(
                 ['echo "SSH keys: /home/test/.ssh"'],
                 ['echo "Repo: ' . $this->mockRepoCreator->testRepoName . '"'],
                 ['echo $PWD'],
                 ['whoami'],
+                [$this->stringContains('sudo chown -R')],
                 [$this->logicalAnd(
                     $this->stringContains('safe.directory'),
                     $this->stringContains('fetch --no-write-fetch-head origin')
@@ -705,7 +709,7 @@ class RunnerTest extends TestCase {
 
         $executerMock = $this->createMock(Executer::class);
         $executerMock
-            ->expects($this->atLeast(5))
+            ->expects($this->atLeast(6))
             ->method('run')
             ->willReturnOnConsecutiveCalls(
                 $this->createRanCommand('echo "step 1"', [], 0), // pre_fetch
@@ -821,6 +825,7 @@ class RunnerTest extends TestCase {
             ->willReturnOnConsecutiveCalls(
                 $this->createRanCommand('echo $PWD', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('whoami', [], 0), // fetch - builtInCommands
+                $this->createRanCommand('sudo chown -R "$(whoami)":"$(whoami)" \'' . $this->mockRepoCreator::BASE_REPO_DIR . '/' . $this->mockRepoCreator->testRepoName . '\'', [], 0), // fetch - builtInCommands
                 $this->createRanCommand("GIT_SSH_COMMAND=\"ssh -i /test-keys/test-key-name\" git -c safe.directory='/tmp/test-repo-name' fetch --no-write-fetch-head origin", [], 0), // fetch - builtInCommands
                 $this->createRanCommand("git -c safe.directory='/tmp/test-repo-name' reset --hard @{u}", [], 0), // fetch - builtInCommands
                 $this->createRanCommand('sleep 100', ['Command timed out'], \Mariano\GitAutoDeploy\Executer::EXIT_CODE_TIMEOUT) // post_fetch - timeout
