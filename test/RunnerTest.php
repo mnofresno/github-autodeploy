@@ -214,7 +214,7 @@ class RunnerTest extends TestCase {
                 ['whoami'],
                 [$this->logicalAnd(
                     $this->stringContains('safe.directory'),
-                    $this->stringContains('fetch origin')
+                    $this->stringContains('fetch --no-write-fetch-head origin')
                 )],
                 [$this->logicalAnd(
                     $this->stringContains('safe.directory'),
@@ -242,7 +242,7 @@ class RunnerTest extends TestCase {
                 ['custom_pre_setting'],
                 ['echo -n ""'],
                 ['ls -a'],
-                ['GIT_SSH_COMMAND="ssh -i /test-key-name" git fetch origin'],
+                ['GIT_SSH_COMMAND="ssh -i /test-key-name" git fetch --no-write-fetch-head origin'],
                 ['git reset --hard origin/$(git symbolic-ref --short HEAD)'],
             );
         $this->mockResponse->expects($this->once())
@@ -446,7 +446,7 @@ class RunnerTest extends TestCase {
                 ['whoami'],
                 [$this->logicalAnd(
                     $this->stringContains('safe.directory'),
-                    $this->stringContains('fetch origin')
+                    $this->stringContains('fetch --no-write-fetch-head origin')
                 )],
                 [$this->logicalAnd(
                     $this->stringContains('safe.directory'),
@@ -534,7 +534,7 @@ class RunnerTest extends TestCase {
                 ['whoami'],
                 [$this->logicalAnd(
                     $this->stringContains('safe.directory'),
-                    $this->stringContains('fetch origin')
+                    $this->stringContains('fetch --no-write-fetch-head origin')
                 )],
                 [$this->logicalAnd(
                     $this->stringContains('safe.directory'),
@@ -632,7 +632,7 @@ class RunnerTest extends TestCase {
                 ['whoami'],
                 [$this->logicalAnd(
                     $this->stringContains('safe.directory'),
-                    $this->stringContains('fetch origin')
+                    $this->stringContains('fetch --no-write-fetch-head origin')
                 )],
                 [$this->logicalAnd(
                     $this->stringContains('safe.directory'),
@@ -711,7 +711,7 @@ class RunnerTest extends TestCase {
                 $this->createRanCommand('echo "step 1"', [], 0), // pre_fetch
                 $this->createRanCommand('echo $PWD', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('whoami', [], 0), // fetch - builtInCommands
-                $this->createRanCommand("GIT_SSH_COMMAND=\"ssh -i /test-keys/test-key-name\" git -c safe.directory='/tmp/test-repo-name' fetch origin", [], 0), // fetch - builtInCommands
+                $this->createRanCommand("GIT_SSH_COMMAND=\"ssh -i /test-keys/test-key-name\" git -c safe.directory='/tmp/test-repo-name' fetch --no-write-fetch-head origin", [], 0), // fetch - builtInCommands
                 $this->createRanCommand("git -c safe.directory='/tmp/test-repo-name' reset --hard @{u}", [], 0), // fetch - builtInCommands
                 $this->createRanCommand('false', ['error'], 1) // post_fetch - Este falla y debe lanzar excepción
             );
@@ -821,7 +821,7 @@ class RunnerTest extends TestCase {
             ->willReturnOnConsecutiveCalls(
                 $this->createRanCommand('echo $PWD', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('whoami', [], 0), // fetch - builtInCommands
-                $this->createRanCommand("GIT_SSH_COMMAND=\"ssh -i /test-keys/test-key-name\" git -c safe.directory='/tmp/test-repo-name' fetch origin", [], 0), // fetch - builtInCommands
+                $this->createRanCommand("GIT_SSH_COMMAND=\"ssh -i /test-keys/test-key-name\" git -c safe.directory='/tmp/test-repo-name' fetch --no-write-fetch-head origin", [], 0), // fetch - builtInCommands
                 $this->createRanCommand("git -c safe.directory='/tmp/test-repo-name' reset --hard @{u}", [], 0), // fetch - builtInCommands
                 $this->createRanCommand('sleep 100', ['Command timed out'], \Mariano\GitAutoDeploy\Executer::EXIT_CODE_TIMEOUT) // post_fetch - timeout
             );
