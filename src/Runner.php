@@ -299,23 +299,20 @@ class Runner {
             . DIRECTORY_SEPARATOR
             . $this->request->getQueryParam(Request::REPO_QUERY_PARAM);
         $repoDir = escapeshellarg(realpath($repoPath) ?: $repoPath);
+        $repoGitDir = escapeshellarg($this->buildDeployGitDir(realpath($repoPath) ?: $repoPath));
         $transportConfig = $this->resolveGitTransportConfig();
         $gitCommandPrefix = $this->buildGitCommandPrefix($transportConfig, $repoDir);
-        if (($transportConfig['strategy'] ?? 'ssh') === 'https') {
-            return [
-                'echo $PWD',
-                'whoami',
-                'sudo chown -R "$(whoami)":"$(whoami)" ' . $repoDir,
-                $gitCommandPrefix . ' -c safe.directory=' . $repoDir . ' fetch --no-write-fetch-head origin',
-                'git -c safe.directory=' . $repoDir . ' reset --hard @{u}',
-            ];
-        }
+        $branchSelector = '$(git symbolic-ref --short HEAD 2>/dev/null || echo main)';
+        $repoCloneUri = escapeshellarg($this->resolveRepoCloneUri($transportConfig));
         return [
             'echo $PWD',
             'whoami',
-            'sudo chown -R "$(whoami)":"$(whoami)" ' . $repoDir,
-            $gitCommandPrefix . ' -c safe.directory=' . $repoDir . ' fetch --no-write-fetch-head origin',
-            'git -c safe.directory=' . $repoDir . ' reset --hard @{u}',
+            'mkdir -p ' . $repoGitDir,
+            $gitCommandPrefix . ' --git-dir=' . $repoGitDir . ' --work-tree=' . $repoDir . ' init',
+            $gitCommandPrefix . ' --git-dir=' . $repoGitDir . ' --work-tree=' . $repoDir . ' remote remove origin >/dev/null 2>&1 || true',
+            $gitCommandPrefix . ' --git-dir=' . $repoGitDir . ' --work-tree=' . $repoDir . ' remote add origin ' . $repoCloneUri,
+            $gitCommandPrefix . ' --git-dir=' . $repoGitDir . ' --work-tree=' . $repoDir . ' fetch --no-write-fetch-head origin "' . $branchSelector . '"',
+            'git --git-dir=' . $repoGitDir . ' --work-tree=' . $repoDir . ' reset --hard "origin/' . $branchSelector . '"',
         ];
     }
 
@@ -424,6 +421,21 @@ class Runner {
         }
 
         return $transportConfig;
+    }
+
+    private function resolveRepoCloneUri(?array $transportConfig = null): string {
+        $transportConfig = $transportConfig ?? $this->resolveGitTransportConfig();
+        return $transportConfig['template_uri'] ?? $this->configReader->resolveRepoTemplateUri(
+            $this->request->getQueryParam(Request::REPO_QUERY_PARAM),
+            $this->request->getQueryParam(Request::CLONE_PATH_QUERY_PARAM)
+        );
+    }
+
+    private function buildDeployGitDir(string $repoPath): string {
+        return rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR)
+            . DIRECTORY_SEPARATOR
+            . 'git-autodeploy-'
+            . sha1($repoPath);
     }
 
     private function getCustomCommands(): ?array {

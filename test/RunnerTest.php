@@ -27,6 +27,18 @@ class RunnerTest extends TestCase {
     private $mockRepoCreator;
     private $executerMock;
 
+    private function repoPath(): string {
+        return $this->mockRepoCreator::BASE_REPO_DIR . DIRECTORY_SEPARATOR . $this->mockRepoCreator->testRepoName;
+    }
+
+    private function deployGitDir(): string {
+        return sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'git-autodeploy-' . sha1($this->repoPath());
+    }
+
+    private function branchSelector(): string {
+        return '$(git symbolic-ref --short HEAD 2>/dev/null || echo main)';
+    }
+
     public function setUp(): void {
         $this->mockRepoCreator = new MockRepoCreator();
         $this->mockRepoCreator->spinUp();
@@ -207,19 +219,31 @@ class RunnerTest extends TestCase {
                 }
             });
         $this->executerMock
-            ->expects($this->exactly(7))
+            ->expects($this->exactly(10))
             ->method('run')
             ->withConsecutive(
                 ['echo $PWD'],
                 ['whoami'],
-                [$this->stringContains('sudo chown -R')],
+                ['mkdir -p ' . escapeshellarg($this->deployGitDir())],
                 [$this->logicalAnd(
-                    $this->stringContains('safe.directory'),
-                    $this->stringContains('fetch --no-write-fetch-head origin')
+                    $this->stringContains('git --git-dir=' . escapeshellarg($this->deployGitDir())),
+                    $this->stringContains(' init')
                 )],
                 [$this->logicalAnd(
-                    $this->stringContains('safe.directory'),
-                    $this->stringContains('reset --hard @{u}')
+                    $this->stringContains('remote remove origin'),
+                    $this->stringContains('|| true')
+                )],
+                [$this->logicalAnd(
+                    $this->stringContains('remote add origin'),
+                    $this->stringContains('.git')
+                )],
+                [$this->logicalAnd(
+                    $this->stringContains('fetch --no-write-fetch-head origin "' . $this->branchSelector() . '"'),
+                    $this->stringContains('git --git-dir=' . escapeshellarg($this->deployGitDir()))
+                )],
+                [$this->logicalAnd(
+                    $this->stringContains('reset --hard "origin/' . $this->branchSelector() . '"'),
+                    $this->stringContains('git --git-dir=' . escapeshellarg($this->deployGitDir()))
                 )],
                 ['install_deps'],
                 ['restart_services'],
@@ -439,20 +463,32 @@ class RunnerTest extends TestCase {
         );
 
         $this->executerMock
-            ->expects($this->exactly(6))
+            ->expects($this->exactly(9))
             ->method('run')
             ->withConsecutive(
                 ['echo my_secret_token_123 | docker login ghcr.io -u test_user --password-stdin'],
                 ['echo $PWD'],
                 ['whoami'],
-                [$this->stringContains('sudo chown -R')],
+                ['mkdir -p ' . escapeshellarg($this->deployGitDir())],
                 [$this->logicalAnd(
-                    $this->stringContains('safe.directory'),
-                    $this->stringContains('fetch --no-write-fetch-head origin')
+                    $this->stringContains('git --git-dir=' . escapeshellarg($this->deployGitDir())),
+                    $this->stringContains(' init')
                 )],
                 [$this->logicalAnd(
-                    $this->stringContains('safe.directory'),
-                    $this->stringContains('reset --hard @{u}')
+                    $this->stringContains('remote remove origin'),
+                    $this->stringContains('|| true')
+                )],
+                [$this->logicalAnd(
+                    $this->stringContains('remote add origin'),
+                    $this->stringContains('git --git-dir=' . escapeshellarg($this->deployGitDir()))
+                )],
+                [$this->logicalAnd(
+                    $this->stringContains('fetch --no-write-fetch-head origin "' . $this->branchSelector() . '"'),
+                    $this->stringContains('git --git-dir=' . escapeshellarg($this->deployGitDir()))
+                )],
+                [$this->logicalAnd(
+                    $this->stringContains('reset --hard "origin/' . $this->branchSelector() . '"'),
+                    $this->stringContains('git --git-dir=' . escapeshellarg($this->deployGitDir()))
                 )],
             );
 
@@ -529,19 +565,31 @@ class RunnerTest extends TestCase {
         );
 
         $this->executerMock
-            ->expects($this->exactly(7))
+            ->expects($this->exactly(10))
             ->method('run')
             ->withConsecutive(
                 ['echo $PWD'],
                 ['whoami'],
-                [$this->stringContains('sudo chown -R')],
+                ['mkdir -p ' . escapeshellarg($this->deployGitDir())],
                 [$this->logicalAnd(
-                    $this->stringContains('safe.directory'),
-                    $this->stringContains('fetch --no-write-fetch-head origin')
+                    $this->stringContains('git --git-dir=' . escapeshellarg($this->deployGitDir())),
+                    $this->stringContains(' init')
                 )],
                 [$this->logicalAnd(
-                    $this->stringContains('safe.directory'),
-                    $this->stringContains('reset --hard @{u}')
+                    $this->stringContains('remote remove origin'),
+                    $this->stringContains('|| true')
+                )],
+                [$this->logicalAnd(
+                    $this->stringContains('remote add origin'),
+                    $this->stringContains('git --git-dir=' . escapeshellarg($this->deployGitDir()))
+                )],
+                [$this->logicalAnd(
+                    $this->stringContains('fetch --no-write-fetch-head origin "' . $this->branchSelector() . '"'),
+                    $this->stringContains('git --git-dir=' . escapeshellarg($this->deployGitDir()))
+                )],
+                [$this->logicalAnd(
+                    $this->stringContains('reset --hard "origin/' . $this->branchSelector() . '"'),
+                    $this->stringContains('git --git-dir=' . escapeshellarg($this->deployGitDir()))
                 )],
                 ['curl -H "Authorization: Bearer secret_api_key_xyz" https://example.com/deploy'],
                 ['echo deploy_token_abc']
@@ -626,21 +674,33 @@ class RunnerTest extends TestCase {
         );
 
         $this->executerMock
-            ->expects($this->exactly(8))
+            ->expects($this->exactly(11))
             ->method('run')
             ->withConsecutive(
                 ['echo "SSH keys: /home/test/.ssh"'],
                 ['echo "Repo: ' . $this->mockRepoCreator->testRepoName . '"'],
                 ['echo $PWD'],
                 ['whoami'],
-                [$this->stringContains('sudo chown -R')],
+                ['mkdir -p ' . escapeshellarg($this->deployGitDir())],
                 [$this->logicalAnd(
-                    $this->stringContains('safe.directory'),
-                    $this->stringContains('fetch --no-write-fetch-head origin')
+                    $this->stringContains('git --git-dir=' . escapeshellarg($this->deployGitDir())),
+                    $this->stringContains(' init')
                 )],
                 [$this->logicalAnd(
-                    $this->stringContains('safe.directory'),
-                    $this->stringContains('reset --hard @{u}')
+                    $this->stringContains('remote remove origin'),
+                    $this->stringContains('|| true')
+                )],
+                [$this->logicalAnd(
+                    $this->stringContains('remote add origin'),
+                    $this->stringContains('git --git-dir=' . escapeshellarg($this->deployGitDir()))
+                )],
+                [$this->logicalAnd(
+                    $this->stringContains('fetch --no-write-fetch-head origin "' . $this->branchSelector() . '"'),
+                    $this->stringContains('git --git-dir=' . escapeshellarg($this->deployGitDir()))
+                )],
+                [$this->logicalAnd(
+                    $this->stringContains('reset --hard "origin/' . $this->branchSelector() . '"'),
+                    $this->stringContains('git --git-dir=' . escapeshellarg($this->deployGitDir()))
                 )],
                 ['echo "Base path: ' . $this->mockRepoCreator::BASE_REPO_DIR . '"']
             );
@@ -709,15 +769,18 @@ class RunnerTest extends TestCase {
 
         $executerMock = $this->createMock(Executer::class);
         $executerMock
-            ->expects($this->atLeast(6))
+            ->expects($this->atLeast(10))
             ->method('run')
             ->willReturnOnConsecutiveCalls(
                 $this->createRanCommand('echo "step 1"', [], 0), // pre_fetch
-                $this->createRanCommand('sudo chown -R "$(whoami)":"$(whoami)" \'' . $this->mockRepoCreator::BASE_REPO_DIR . '/' . $this->mockRepoCreator->testRepoName . '\'', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('echo $PWD', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('whoami', [], 0), // fetch - builtInCommands
-                $this->createRanCommand("GIT_SSH_COMMAND=\"ssh -i /test-keys/test-key-name\" git -c safe.directory='/tmp/test-repo-name' fetch --no-write-fetch-head origin", [], 0), // fetch - builtInCommands
-                $this->createRanCommand("git -c safe.directory='/tmp/test-repo-name' reset --hard @{u}", [], 0), // fetch - builtInCommands
+                $this->createRanCommand('mkdir -p ' . escapeshellarg($this->deployGitDir()), [], 0), // fetch - builtInCommands
+                $this->createRanCommand('GIT_SSH_COMMAND="ssh -i /test-keys/test-key-name" git --git-dir=' . escapeshellarg($this->deployGitDir()) . ' --work-tree=' . escapeshellarg($this->repoPath()) . ' init', [], 0), // fetch - builtInCommands
+                $this->createRanCommand('GIT_SSH_COMMAND="ssh -i /test-keys/test-key-name" git --git-dir=' . escapeshellarg($this->deployGitDir()) . ' --work-tree=' . escapeshellarg($this->repoPath()) . ' remote remove origin >/dev/null 2>&1 || true', [], 0), // fetch - builtInCommands
+                $this->createRanCommand('GIT_SSH_COMMAND="ssh -i /test-keys/test-key-name" git --git-dir=' . escapeshellarg($this->deployGitDir()) . ' --work-tree=' . escapeshellarg($this->repoPath()) . ' remote add origin ' . escapeshellarg('git@github.com:testuser/' . $this->mockRepoCreator->testRepoName . '.git'), [], 0), // fetch - builtInCommands
+                $this->createRanCommand('GIT_SSH_COMMAND="ssh -i /test-keys/test-key-name" git --git-dir=' . escapeshellarg($this->deployGitDir()) . ' --work-tree=' . escapeshellarg($this->repoPath()) . ' fetch --no-write-fetch-head origin "$(git symbolic-ref --short HEAD 2>/dev/null || echo main)"', [], 0), // fetch - builtInCommands
+                $this->createRanCommand('git --git-dir=' . escapeshellarg($this->deployGitDir()) . ' --work-tree=' . escapeshellarg($this->repoPath()) . ' reset --hard "origin/$(git symbolic-ref --short HEAD 2>/dev/null || echo main)"', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('false', ['error'], 1) // post_fetch - Este falla y debe lanzar excepción
             );
 
@@ -821,14 +884,17 @@ class RunnerTest extends TestCase {
 
         $executerMock = $this->createMock(Executer::class);
         $executerMock
-            ->expects($this->atLeast(5))
+            ->expects($this->atLeast(9))
             ->method('run')
             ->willReturnOnConsecutiveCalls(
                 $this->createRanCommand('echo $PWD', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('whoami', [], 0), // fetch - builtInCommands
-                $this->createRanCommand('sudo chown -R "$(whoami)":"$(whoami)" \'' . $this->mockRepoCreator::BASE_REPO_DIR . '/' . $this->mockRepoCreator->testRepoName . '\'', [], 0), // fetch - builtInCommands
-                $this->createRanCommand("GIT_SSH_COMMAND=\"ssh -i /test-keys/test-key-name\" git -c safe.directory='/tmp/test-repo-name' fetch --no-write-fetch-head origin", [], 0), // fetch - builtInCommands
-                $this->createRanCommand("git -c safe.directory='/tmp/test-repo-name' reset --hard @{u}", [], 0), // fetch - builtInCommands
+                $this->createRanCommand('mkdir -p ' . escapeshellarg($this->deployGitDir()), [], 0), // fetch - builtInCommands
+                $this->createRanCommand('GIT_SSH_COMMAND="ssh -i /test-keys/test-key-name" git --git-dir=' . escapeshellarg($this->deployGitDir()) . ' --work-tree=' . escapeshellarg($this->repoPath()) . ' init', [], 0), // fetch - builtInCommands
+                $this->createRanCommand('GIT_SSH_COMMAND="ssh -i /test-keys/test-key-name" git --git-dir=' . escapeshellarg($this->deployGitDir()) . ' --work-tree=' . escapeshellarg($this->repoPath()) . ' remote remove origin >/dev/null 2>&1 || true', [], 0), // fetch - builtInCommands
+                $this->createRanCommand('GIT_SSH_COMMAND="ssh -i /test-keys/test-key-name" git --git-dir=' . escapeshellarg($this->deployGitDir()) . ' --work-tree=' . escapeshellarg($this->repoPath()) . ' remote add origin ' . escapeshellarg('git@github.com:testuser/' . $this->mockRepoCreator->testRepoName . '.git'), [], 0), // fetch - builtInCommands
+                $this->createRanCommand('GIT_SSH_COMMAND="ssh -i /test-keys/test-key-name" git --git-dir=' . escapeshellarg($this->deployGitDir()) . ' --work-tree=' . escapeshellarg($this->repoPath()) . ' fetch --no-write-fetch-head origin "$(git symbolic-ref --short HEAD 2>/dev/null || echo main)"', [], 0), // fetch - builtInCommands
+                $this->createRanCommand('git --git-dir=' . escapeshellarg($this->deployGitDir()) . ' --work-tree=' . escapeshellarg($this->repoPath()) . ' reset --hard "origin/$(git symbolic-ref --short HEAD 2>/dev/null || echo main)"', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('sleep 100', ['Command timed out'], \Mariano\GitAutoDeploy\Executer::EXIT_CODE_TIMEOUT) // post_fetch - timeout
             );
 
