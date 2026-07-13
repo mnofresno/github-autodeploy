@@ -305,14 +305,14 @@ class Runner {
             return [
                 'echo $PWD',
                 'whoami',
-                $gitCommandPrefix . ' -c safe.directory=' . $repoDir . ' fetch origin',
+                $gitCommandPrefix . ' -c safe.directory=' . $repoDir . ' fetch --no-write-fetch-head origin',
                 'git -c safe.directory=' . $repoDir . ' reset --hard @{u}',
             ];
         }
         return [
             'echo $PWD',
             'whoami',
-            $gitCommandPrefix . ' -c safe.directory=' . $repoDir . ' fetch origin',
+            $gitCommandPrefix . ' -c safe.directory=' . $repoDir . ' fetch --no-write-fetch-head origin',
             'git -c safe.directory=' . $repoDir . ' reset --hard @{u}',
         ];
     }
