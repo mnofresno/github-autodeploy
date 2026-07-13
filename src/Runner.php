@@ -303,14 +303,13 @@ class Runner {
         $transportConfig = $this->resolveGitTransportConfig();
         $gitCommandPrefix = $this->buildGitCommandPrefix($transportConfig, $repoDir);
         $branchSelector = '$(git symbolic-ref --short HEAD 2>/dev/null || echo main)';
-        $repoCloneUri = escapeshellarg($this->resolveRepoCloneUri($transportConfig));
         return [
             'echo $PWD',
             'whoami',
             'mkdir -p ' . $repoGitDir,
             $gitCommandPrefix . ' --git-dir=' . $repoGitDir . ' --work-tree=' . $repoDir . ' init',
             $gitCommandPrefix . ' --git-dir=' . $repoGitDir . ' --work-tree=' . $repoDir . ' remote remove origin >/dev/null 2>&1 || true',
-            $gitCommandPrefix . ' --git-dir=' . $repoGitDir . ' --work-tree=' . $repoDir . ' remote add origin ' . $repoCloneUri,
+            $gitCommandPrefix . ' --git-dir=' . $repoGitDir . ' --work-tree=' . $repoDir . ' remote add origin "$(git config --get remote.origin.url)"',
             $gitCommandPrefix . ' --git-dir=' . $repoGitDir . ' --work-tree=' . $repoDir . ' fetch --no-write-fetch-head origin "' . $branchSelector . '"',
             'git --git-dir=' . $repoGitDir . ' --work-tree=' . $repoDir . ' reset --hard "origin/' . $branchSelector . '"',
         ];
@@ -421,19 +420,6 @@ class Runner {
         }
 
         return $transportConfig;
-    }
-
-    private function resolveRepoCloneUri(?array $transportConfig = null): string {
-        $transportConfig = $transportConfig ?? $this->resolveGitTransportConfig();
-        $repoName = $this->request->getQueryParam(Request::REPO_QUERY_PARAM);
-        $queryParams = $this->request->getQueryParamsAll();
-        $clonePath = array_key_exists(Request::CLONE_PATH_QUERY_PARAM, $queryParams)
-            ? $this->request->getQueryParam(Request::CLONE_PATH_QUERY_PARAM)
-            : '';
-        return $transportConfig['template_uri'] ?? $this->configReader->resolveRepoTemplateUri(
-            $repoName,
-            $clonePath
-        );
     }
 
     private function buildDeployGitDir(string $repoPath): string {

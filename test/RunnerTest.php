@@ -235,7 +235,7 @@ class RunnerTest extends TestCase {
                 )],
                 [$this->logicalAnd(
                     $this->stringContains('remote add origin'),
-                    $this->stringContains('.git')
+                    $this->stringContains('git config --get remote.origin.url')
                 )],
                 [$this->logicalAnd(
                     $this->stringContains('fetch --no-write-fetch-head origin "' . $this->branchSelector() . '"'),
@@ -778,7 +778,7 @@ class RunnerTest extends TestCase {
                 $this->createRanCommand('mkdir -p ' . escapeshellarg($this->deployGitDir()), [], 0), // fetch - builtInCommands
                 $this->createRanCommand('GIT_SSH_COMMAND="ssh -i /test-keys/test-key-name" git --git-dir=' . escapeshellarg($this->deployGitDir()) . ' --work-tree=' . escapeshellarg($this->repoPath()) . ' init', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('GIT_SSH_COMMAND="ssh -i /test-keys/test-key-name" git --git-dir=' . escapeshellarg($this->deployGitDir()) . ' --work-tree=' . escapeshellarg($this->repoPath()) . ' remote remove origin >/dev/null 2>&1 || true', [], 0), // fetch - builtInCommands
-                $this->createRanCommand('GIT_SSH_COMMAND="ssh -i /test-keys/test-key-name" git --git-dir=' . escapeshellarg($this->deployGitDir()) . ' --work-tree=' . escapeshellarg($this->repoPath()) . ' remote add origin ' . escapeshellarg('git@github.com:testuser/' . $this->mockRepoCreator->testRepoName . '.git'), [], 0), // fetch - builtInCommands
+                $this->createRanCommand('GIT_SSH_COMMAND="ssh -i /test-keys/test-key-name" git --git-dir=' . escapeshellarg($this->deployGitDir()) . ' --work-tree=' . escapeshellarg($this->repoPath()) . ' remote add origin "$(git config --get remote.origin.url)"', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('GIT_SSH_COMMAND="ssh -i /test-keys/test-key-name" git --git-dir=' . escapeshellarg($this->deployGitDir()) . ' --work-tree=' . escapeshellarg($this->repoPath()) . ' fetch --no-write-fetch-head origin "$(git symbolic-ref --short HEAD 2>/dev/null || echo main)"', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('git --git-dir=' . escapeshellarg($this->deployGitDir()) . ' --work-tree=' . escapeshellarg($this->repoPath()) . ' reset --hard "origin/$(git symbolic-ref --short HEAD 2>/dev/null || echo main)"', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('false', ['error'], 1) // post_fetch - Este falla y debe lanzar excepción
@@ -892,7 +892,7 @@ class RunnerTest extends TestCase {
                 $this->createRanCommand('mkdir -p ' . escapeshellarg($this->deployGitDir()), [], 0), // fetch - builtInCommands
                 $this->createRanCommand('GIT_SSH_COMMAND="ssh -i /test-keys/test-key-name" git --git-dir=' . escapeshellarg($this->deployGitDir()) . ' --work-tree=' . escapeshellarg($this->repoPath()) . ' init', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('GIT_SSH_COMMAND="ssh -i /test-keys/test-key-name" git --git-dir=' . escapeshellarg($this->deployGitDir()) . ' --work-tree=' . escapeshellarg($this->repoPath()) . ' remote remove origin >/dev/null 2>&1 || true', [], 0), // fetch - builtInCommands
-                $this->createRanCommand('GIT_SSH_COMMAND="ssh -i /test-keys/test-key-name" git --git-dir=' . escapeshellarg($this->deployGitDir()) . ' --work-tree=' . escapeshellarg($this->repoPath()) . ' remote add origin ' . escapeshellarg('git@github.com:testuser/' . $this->mockRepoCreator->testRepoName . '.git'), [], 0), // fetch - builtInCommands
+                $this->createRanCommand('GIT_SSH_COMMAND="ssh -i /test-keys/test-key-name" git --git-dir=' . escapeshellarg($this->deployGitDir()) . ' --work-tree=' . escapeshellarg($this->repoPath()) . ' remote add origin "$(git config --get remote.origin.url)"', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('GIT_SSH_COMMAND="ssh -i /test-keys/test-key-name" git --git-dir=' . escapeshellarg($this->deployGitDir()) . ' --work-tree=' . escapeshellarg($this->repoPath()) . ' fetch --no-write-fetch-head origin "$(git symbolic-ref --short HEAD 2>/dev/null || echo main)"', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('git --git-dir=' . escapeshellarg($this->deployGitDir()) . ' --work-tree=' . escapeshellarg($this->repoPath()) . ' reset --hard "origin/$(git symbolic-ref --short HEAD 2>/dev/null || echo main)"', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('sleep 100', ['Command timed out'], \Mariano\GitAutoDeploy\Executer::EXIT_CODE_TIMEOUT) // post_fetch - timeout
