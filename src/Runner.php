@@ -136,7 +136,7 @@ class Runner {
         $preFetchCommands = $this->getPreFetchCommands();
         $fetchCommands = $this->getFetchCommands();
         $postFetchCommands = $this->getPostFetchCommands();
-        $verboseMatchers = $this->getVerboseMatchers();
+        $verboseMatchers = $this->getVerboseMatchers($this->deployCommitSha);
 
         $this->runCollectionOfCommands($preFetchCommands, $commandView, DeploymentStatus::PHASE_PRE_FETCH, $verboseMatchers);
         $this->runCollectionOfCommands($fetchCommands, $commandView, DeploymentStatus::PHASE_FETCH, $verboseMatchers);
@@ -218,8 +218,11 @@ class Runner {
         $this->logger->info("Completed phase: {$phase}", ['phase' => $phase, 'commands_count' => count($commands)]);
     }
 
-    private function getVerboseMatchers(): array {
-        $repoConfig = $this->deployConfigReader->fetchRepoConfig($this->request->getQueryParam(Request::REPO_QUERY_PARAM));
+    private function getVerboseMatchers(?string $commitSha = null): array {
+        $repoConfig = $this->deployConfigReader->fetchRepoConfig(
+            $this->request->getQueryParam(Request::REPO_QUERY_PARAM),
+            $commitSha
+        );
         if (!$repoConfig || !method_exists($repoConfig, 'verboseMatchers')) {
             return [];
         }
@@ -283,7 +286,10 @@ class Runner {
     }
 
     private function getPostFetchCommands(): array {
-        $deployConfig = $this->deployConfigReader->fetchRepoConfig($this->request->getQueryParam(Request::REPO_QUERY_PARAM));
+        $deployConfig = $this->deployConfigReader->fetchRepoConfig(
+            $this->request->getQueryParam(Request::REPO_QUERY_PARAM),
+            $this->deployCommitSha
+        );
         $commands = $deployConfig
             ? $deployConfig->postFetchCommands()
             : [];
@@ -291,7 +297,10 @@ class Runner {
     }
 
     private function getPreFetchCommands(): array {
-        $deployConfig = $this->deployConfigReader->fetchRepoConfig($this->request->getQueryParam(Request::REPO_QUERY_PARAM));
+        $deployConfig = $this->deployConfigReader->fetchRepoConfig(
+            $this->request->getQueryParam(Request::REPO_QUERY_PARAM),
+            $this->deployCommitSha
+        );
         $commands = $deployConfig
             ? $deployConfig->preFetchCommands()
             : [];
@@ -416,7 +425,7 @@ class Runner {
             ? $this->request->getQueryParam(Request::CLONE_PATH_QUERY_PARAM)
             : '';
         $transportConfig = $this->configReader->resolveRepoTransportConfig($repoName, $clonePath);
-        $repoConfig = $this->deployConfigReader->fetchRepoConfig($repoName);
+        $repoConfig = $this->deployConfigReader->fetchRepoConfig($repoName, $this->deployCommitSha);
         if ($repoConfig && method_exists($repoConfig, 'gitTransport')) {
             $repoTransport = $repoConfig->gitTransport();
             if (is_array($repoTransport) && !empty($repoTransport)) {
@@ -438,7 +447,7 @@ class Runner {
     }
 
     private function getCustomCommands(): ?array {
-        return $this->customCommands->get();
+        return $this->customCommands->get($this->deployCommitSha);
     }
 
     private function assertRepoAndKey(string $repo, string $key): void {

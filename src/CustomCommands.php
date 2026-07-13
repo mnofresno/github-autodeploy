@@ -31,8 +31,8 @@ class CustomCommands {
         $this->deployConfigReader = $deployConfigReader ?? new DeployConfigReader($configReader, $logger);
     }
 
-    public function get(): ?array {
-        $customCommands = $this->getCommandsByRepoDefaultOrNull();
+    public function get(?string $commitSha = null): ?array {
+        $customCommands = $this->getCommandsByRepoDefaultOrNull($commitSha);
         return $customCommands
             ? array_map([$this, 'hydratePlaceHolders'], $customCommands)
             : null;
@@ -70,7 +70,7 @@ class CustomCommands {
         return $result;
     }
 
-    private function getCommandsByRepoDefaultOrNull(): ?array {
+    private function getCommandsByRepoDefaultOrNull(?string $commitSha = null): ?array {
         $commandsConfig = $this->configReader->get(ConfigReader::CUSTOM_UPDATE_COMMANDS);
         $repoName = $this->request->getQueryParam(Request::REPO_QUERY_PARAM);
         $commandsPerRepoInGlobalConfig = $this->commandsPerRepoInGlobalConfig($repoName, $commandsConfig);
@@ -80,7 +80,7 @@ class CustomCommands {
             return $commandsPerRepoInGlobalConfig;
         }
 
-        $repoDeployFileConfig = $this->deployConfigReader->fetchRepoConfig($repoName);
+        $repoDeployFileConfig = $this->deployConfigReader->fetchRepoConfig($repoName, $commitSha);
         $commandsPerRepoInRepoConfig = $repoDeployFileConfig
             ? $repoDeployFileConfig->customCommands()
             : [];

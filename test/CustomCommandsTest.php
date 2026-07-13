@@ -280,6 +280,46 @@ class CustomCommandsTest extends TestCase {
         ], $customCommands);
     }
 
+    public function testRepoSpecificCustomCommandsUseCommitShaWhenProvided(): void {
+        $this->mockConfigReader->expects($this->exactly(2))
+            ->method('get')
+            ->willReturnMap([
+                [ConfigReader::CUSTOM_UPDATE_COMMANDS, null],
+                [ConfigReader::REPOS_BASE_PATH, $this->mockRepoCreator::BASE_REPO_DIR],
+            ]);
+        $this->mockRequest->expects($this->once())
+            ->method('getQueryParam')
+            ->with($this->equalTo(Request::REPO_QUERY_PARAM))
+            ->willReturn('repo-from-commit-test');
+
+        $deployMock = $this->createMock(DeployConfigReader::class);
+        $deployMock->expects($this->once())
+            ->method('fetchRepoConfig')
+            ->with('repo-from-commit-test', 'abc123')
+            ->willReturn(new class () {
+                public function customCommands(): array {
+                    return ['echo from commit'];
+                }
+
+                public function postFetchCommands(): array {
+                    return [];
+                }
+
+                public function preFetchCommands(): array {
+                    return [];
+                }
+            });
+
+        $subject = new CustomCommands(
+            $this->mockConfigReader,
+            $this->mockRequest,
+            $this->mockLogger,
+            $deployMock
+        );
+
+        $this->assertSame(['echo from commit'], $subject->get('abc123'));
+    }
+
     public function testCustomCommandsHandleSecrets() {
         $this->mockConfigReader->expects($this->atLeast(3))
             ->method('get')

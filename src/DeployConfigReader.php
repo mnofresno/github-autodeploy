@@ -18,7 +18,14 @@ class DeployConfigReader {
         $this->logger = $logger;
     }
 
-    public function fetchRepoConfig(string $repoName): ?object {
+    public function fetchRepoConfig(string $repoName, ?string $commitSha = null): ?object {
+        if (is_string($commitSha) && $commitSha !== '') {
+            $remoteContents = $this->fetchRemoteRepoConfig($repoName, $commitSha);
+            if (is_array($remoteContents)) {
+                return $this->generateConfig($remoteContents);
+            }
+        }
+
         $repoConfigFileName = implode(DIRECTORY_SEPARATOR, [
             $this->configReader->get(ConfigReader::REPOS_BASE_PATH),
             $repoName,
@@ -48,6 +55,96 @@ class DeployConfigReader {
             $this->logger->error($e->getMessage());
             return null;
         }
+        return null;
+    }
+
+    private function fetchRemoteRepoConfig(string $repoName, string $commitSha): ?array {
+        $remoteRepo = $this->resolveRemoteRepository($repoName);
+        if (!$remoteRepo) {
+            return null;
+        }
+
+        [$owner, $repo] = $remoteRepo;
+        $baseUrl = sprintf('https://raw.githubusercontent.com/%s/%s/%s/%s', $owner, $repo, $commitSha, self::CUSTOM_CONFIG_FILE_NAME);
+        foreach (['.json', '.yaml', '.yml'] as $extension) {
+            $contents = $this->fetchRemoteFile($baseUrl . $extension);
+            if (!is_string($contents) || trim($contents) === '') {
+                continue;
+            }
+
+            try {
+                if ($extension === '.json') {
+                    $decoded = json_decode($contents, true);
+                    if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
+                        continue;
+                    }
+                    $this->logConfigPerRepoFound($repoName, 'json remote');
+                    return $decoded;
+                }
+
+                $parsed = Yaml::parse($contents);
+                if (is_array($parsed)) {
+                    $this->logConfigPerRepoFound($repoName, substr($extension, 1) . ' remote');
+                    return $parsed;
+                }
+            } catch (\Throwable $e) {
+                $this->logger->warning('Failed to parse remote deploy config', [
+                    'repo' => $repoName,
+                    'commit' => $commitSha,
+                    'extension' => $extension,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return null;
+    }
+
+    private function fetchRemoteFile(string $url): ?string {
+        $context = stream_context_create([
+            'http' => [
+                'timeout' => 10,
+                'ignore_errors' => true,
+                'header' => "User-Agent: github-autodeploy\r\n",
+            ],
+            'https' => [
+                'timeout' => 10,
+                'ignore_errors' => true,
+                'header' => "User-Agent: github-autodeploy\r\n",
+            ],
+        ]);
+        $contents = @file_get_contents($url, false, $context);
+        if (!is_string($contents)) {
+            return null;
+        }
+        if (isset($http_response_header) && is_array($http_response_header)) {
+            foreach ($http_response_header as $header) {
+                if (preg_match('/^HTTP\/\S+\s+404\b/', $header) === 1) {
+                    return null;
+                }
+            }
+        }
+        return $contents;
+    }
+
+    private function resolveRemoteRepository(string $repoName): ?array {
+        $repoPath = implode(DIRECTORY_SEPARATOR, [
+            $this->configReader->get(ConfigReader::REPOS_BASE_PATH),
+            $repoName,
+        ]);
+        $remoteUrl = trim((string) shell_exec(sprintf('git -C %s config --get remote.origin.url', escapeshellarg($repoPath))));
+        if ($remoteUrl === '') {
+            return null;
+        }
+
+        if (preg_match('#^git@github\.com:([^/]+)/([^/.]+)(?:\.git)?$#', $remoteUrl, $matches) === 1) {
+            return [$matches[1], $matches[2]];
+        }
+
+        if (preg_match('#^https://github\.com/([^/]+)/([^/.]+)(?:\.git)?$#', $remoteUrl, $matches) === 1) {
+            return [$matches[1], $matches[2]];
+        }
+
         return null;
     }
 

@@ -551,7 +551,11 @@ class RunnerTest extends TestCase {
             ->will($this->returnValue('127.0.0.1'));
         $this->mockRequest->expects($this->any())
             ->method('getBody')
-            ->willReturn([]);
+            ->willReturn([
+                'commit' => [
+                    'sha' => 'abc123',
+                ],
+            ]);
         $this->mockRequest->expects($this->any())
             ->method('getQueryParam')
             ->will($this->returnValueMap([
@@ -564,8 +568,9 @@ class RunnerTest extends TestCase {
             ->with($this->equalTo(200));
 
         $deployMock = $this->createMock(DeployConfigReader::class);
-        $deployMock->expects($this->atLeast(2))
+        $deployMock->expects($this->exactly(4))
             ->method('fetchRepoConfig')
+            ->with($this->equalTo($this->mockRepoCreator->testRepoName), $this->equalTo('abc123'))
             ->willReturn(new class () {
                 public function customCommands(): array {
                     return [];
