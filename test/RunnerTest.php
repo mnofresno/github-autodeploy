@@ -39,6 +39,19 @@ class RunnerTest extends TestCase {
         return '$(git symbolic-ref --short HEAD 2>/dev/null || echo main)';
     }
 
+    private function gitCommandPrefix(): string {
+        return 'GIT_SSH_COMMAND="ssh -i /test-keys/test-key-name" git --git-dir='
+            . escapeshellarg($this->deployGitDir())
+            . ' --work-tree=' . escapeshellarg($this->repoPath());
+    }
+
+    private function remoteSyncCommand(): string {
+        $prefix = $this->gitCommandPrefix();
+        return 'if ' . $prefix . ' remote get-url origin >/dev/null 2>&1; then '
+            . $prefix . ' remote set-url origin "$(git config --get remote.origin.url)"; else '
+            . $prefix . ' remote add origin "$(git config --get remote.origin.url)"; fi';
+    }
+
     public function setUp(): void {
         $this->mockRepoCreator = new MockRepoCreator();
         $this->mockRepoCreator->spinUp();
@@ -230,8 +243,8 @@ class RunnerTest extends TestCase {
                     $this->stringContains(' init')
                 )],
                 [$this->logicalAnd(
-                    $this->stringContains('remote remove origin'),
-                    $this->stringContains('|| true')
+                    $this->stringContains('remote get-url origin'),
+                    $this->stringContains('remote set-url origin')
                 )],
                 [$this->logicalAnd(
                     $this->stringContains('remote add origin'),
@@ -475,8 +488,8 @@ class RunnerTest extends TestCase {
                     $this->stringContains(' init')
                 )],
                 [$this->logicalAnd(
-                    $this->stringContains('remote remove origin'),
-                    $this->stringContains('|| true')
+                    $this->stringContains('remote get-url origin'),
+                    $this->stringContains('remote set-url origin')
                 )],
                 [$this->logicalAnd(
                     $this->stringContains('remote add origin'),
@@ -576,8 +589,8 @@ class RunnerTest extends TestCase {
                     $this->stringContains(' init')
                 )],
                 [$this->logicalAnd(
-                    $this->stringContains('remote remove origin'),
-                    $this->stringContains('|| true')
+                    $this->stringContains('remote get-url origin'),
+                    $this->stringContains('remote set-url origin')
                 )],
                 [$this->logicalAnd(
                     $this->stringContains('remote add origin'),
@@ -687,8 +700,8 @@ class RunnerTest extends TestCase {
                     $this->stringContains(' init')
                 )],
                 [$this->logicalAnd(
-                    $this->stringContains('remote remove origin'),
-                    $this->stringContains('|| true')
+                    $this->stringContains('remote get-url origin'),
+                    $this->stringContains('remote set-url origin')
                 )],
                 [$this->logicalAnd(
                     $this->stringContains('remote add origin'),
@@ -777,8 +790,7 @@ class RunnerTest extends TestCase {
                 $this->createRanCommand('whoami', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('mkdir -p ' . escapeshellarg($this->deployGitDir()), [], 0), // fetch - builtInCommands
                 $this->createRanCommand('GIT_SSH_COMMAND="ssh -i /test-keys/test-key-name" git --git-dir=' . escapeshellarg($this->deployGitDir()) . ' --work-tree=' . escapeshellarg($this->repoPath()) . ' init', [], 0), // fetch - builtInCommands
-                $this->createRanCommand('GIT_SSH_COMMAND="ssh -i /test-keys/test-key-name" git --git-dir=' . escapeshellarg($this->deployGitDir()) . ' --work-tree=' . escapeshellarg($this->repoPath()) . ' remote remove origin >/dev/null 2>&1 || true', [], 0), // fetch - builtInCommands
-                $this->createRanCommand('GIT_SSH_COMMAND="ssh -i /test-keys/test-key-name" git --git-dir=' . escapeshellarg($this->deployGitDir()) . ' --work-tree=' . escapeshellarg($this->repoPath()) . ' remote add origin "$(git config --get remote.origin.url)"', [], 0), // fetch - builtInCommands
+                $this->createRanCommand($this->remoteSyncCommand(), [], 0), // fetch - builtInCommands
                 $this->createRanCommand('GIT_SSH_COMMAND="ssh -i /test-keys/test-key-name" git --git-dir=' . escapeshellarg($this->deployGitDir()) . ' --work-tree=' . escapeshellarg($this->repoPath()) . ' fetch --no-write-fetch-head origin "$(git symbolic-ref --short HEAD 2>/dev/null || echo main)"', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('git --git-dir=' . escapeshellarg($this->deployGitDir()) . ' --work-tree=' . escapeshellarg($this->repoPath()) . ' reset --hard "origin/$(git symbolic-ref --short HEAD 2>/dev/null || echo main)"', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('false', ['error'], 1) // post_fetch - Este falla y debe lanzar excepción
@@ -891,8 +903,7 @@ class RunnerTest extends TestCase {
                 $this->createRanCommand('whoami', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('mkdir -p ' . escapeshellarg($this->deployGitDir()), [], 0), // fetch - builtInCommands
                 $this->createRanCommand('GIT_SSH_COMMAND="ssh -i /test-keys/test-key-name" git --git-dir=' . escapeshellarg($this->deployGitDir()) . ' --work-tree=' . escapeshellarg($this->repoPath()) . ' init', [], 0), // fetch - builtInCommands
-                $this->createRanCommand('GIT_SSH_COMMAND="ssh -i /test-keys/test-key-name" git --git-dir=' . escapeshellarg($this->deployGitDir()) . ' --work-tree=' . escapeshellarg($this->repoPath()) . ' remote remove origin >/dev/null 2>&1 || true', [], 0), // fetch - builtInCommands
-                $this->createRanCommand('GIT_SSH_COMMAND="ssh -i /test-keys/test-key-name" git --git-dir=' . escapeshellarg($this->deployGitDir()) . ' --work-tree=' . escapeshellarg($this->repoPath()) . ' remote add origin "$(git config --get remote.origin.url)"', [], 0), // fetch - builtInCommands
+                $this->createRanCommand($this->remoteSyncCommand(), [], 0), // fetch - builtInCommands
                 $this->createRanCommand('GIT_SSH_COMMAND="ssh -i /test-keys/test-key-name" git --git-dir=' . escapeshellarg($this->deployGitDir()) . ' --work-tree=' . escapeshellarg($this->repoPath()) . ' fetch --no-write-fetch-head origin "$(git symbolic-ref --short HEAD 2>/dev/null || echo main)"', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('git --git-dir=' . escapeshellarg($this->deployGitDir()) . ' --work-tree=' . escapeshellarg($this->repoPath()) . ' reset --hard "origin/$(git symbolic-ref --short HEAD 2>/dev/null || echo main)"', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('sleep 100', ['Command timed out'], \Mariano\GitAutoDeploy\Executer::EXIT_CODE_TIMEOUT) // post_fetch - timeout
