@@ -47,7 +47,7 @@ class RunnerTest extends TestCase {
 
     private function remoteSyncCommand(): string {
         $prefix = $this->gitCommandPrefix();
-        $remoteUrl = '$(git config --get remote.origin.url)';
+        $remoteUrl = "git@github.com:testuser/'" . $this->mockRepoCreator->testRepoName . "'.git";
         return $prefix . ' remote set-url origin "' . $remoteUrl . '"' . "\n"
             . 'if [ $? -ne 0 ]; then' . "\n"
             . '  ' . $prefix . ' remote add origin "' . $remoteUrl . '"' . "\n"

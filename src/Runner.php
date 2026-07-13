@@ -307,7 +307,7 @@ class Runner {
         $transportConfig = $this->resolveGitTransportConfig();
         $gitCommandPrefix = $this->buildGitCommandPrefix($transportConfig, $repoDir);
         $repoGitCommandPrefix = $gitCommandPrefix . ' --git-dir=' . $repoGitDir . ' --work-tree=' . $repoDir;
-        $remoteUrl = '$(git config --get remote.origin.url)';
+        $remoteUrl = $transportConfig['template_uri'] ?? '$(git config --get remote.origin.url)';
         return [
             'echo $PWD',
             'whoami',
