@@ -27,6 +27,7 @@ class Runner {
     private $executer;
     private $createRepoIfNotExists = false;
     private $createdNewRepo = false;
+    private $deployCommitSha = 'unknown';
 
     private $runningLog = [];
     private $deploymentStatus;
@@ -120,6 +121,9 @@ class Runner {
         $this->assertRepoAndKey($repo, $key);
 
         $commit = $this->request->getBody()['commit'] ?? [];
+        $this->deployCommitSha = is_array($commit) && isset($commit['sha']) && is_string($commit['sha'])
+            ? $commit['sha']
+            : 'unknown';
         $this->deploymentStatus->initialize($repo, $key, $commit);
 
         $commandView = new Command();
@@ -304,15 +308,12 @@ class Runner {
         $gitCommandPrefix = $this->buildGitCommandPrefix($transportConfig, $repoDir);
         $branchSelector = '$(git symbolic-ref --short HEAD 2>/dev/null || echo main)';
         $repoGitCommandPrefix = $gitCommandPrefix . ' --git-dir=' . $repoGitDir . ' --work-tree=' . $repoDir;
-        $originUrl = '"$(git config --get remote.origin.url)"';
-        $remoteSyncCommand = $repoGitCommandPrefix . ' remote set-url origin ' . $originUrl . ' 2>/dev/null || '
-            . $repoGitCommandPrefix . ' remote add origin ' . $originUrl;
         return [
             'echo $PWD',
             'whoami',
             'mkdir -p ' . $repoGitDir,
             $repoGitCommandPrefix . ' init',
-            $remoteSyncCommand,
+            $repoGitCommandPrefix . ' remote add origin "$(git config --get remote.origin.url)"',
             $repoGitCommandPrefix . ' fetch --no-write-fetch-head origin "' . $branchSelector . '"',
             'git --git-dir=' . $repoGitDir . ' --work-tree=' . $repoDir . ' reset --hard "origin/' . $branchSelector . '"',
         ];
@@ -429,7 +430,7 @@ class Runner {
         return rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR)
             . DIRECTORY_SEPARATOR
             . 'git-autodeploy-'
-            . sha1($repoPath);
+            . sha1($repoPath . '|' . $this->deployCommitSha);
     }
 
     private function getCustomCommands(): ?array {

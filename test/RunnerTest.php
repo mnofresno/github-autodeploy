@@ -32,7 +32,7 @@ class RunnerTest extends TestCase {
     }
 
     private function deployGitDir(): string {
-        return sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'git-autodeploy-' . sha1($this->repoPath());
+        return sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'git-autodeploy-' . sha1($this->repoPath() . '|unknown');
     }
 
     private function branchSelector(): string {
@@ -47,8 +47,7 @@ class RunnerTest extends TestCase {
 
     private function remoteSyncCommand(): string {
         $prefix = $this->gitCommandPrefix();
-        return $prefix . ' remote set-url origin "$(git config --get remote.origin.url)" 2>/dev/null || '
-            . $prefix . ' remote add origin "$(git config --get remote.origin.url)"';
+        return $prefix . ' remote add origin "$(git config --get remote.origin.url)"';
     }
 
     public function setUp(): void {
