@@ -1,3 +1,4 @@
 ---
 post_fetch_commands:
+    - sudo chown -R www-data:www-data /home/mariano-fresno/bpf-leads-clone
     - composer install
