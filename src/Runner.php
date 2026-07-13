@@ -306,7 +306,6 @@ class Runner {
         $repoGitDir = escapeshellarg($this->buildDeployGitDir(realpath($repoPath) ?: $repoPath));
         $transportConfig = $this->resolveGitTransportConfig();
         $gitCommandPrefix = $this->buildGitCommandPrefix($transportConfig, $repoDir);
-        $branchSelector = '$(git symbolic-ref --short HEAD 2>/dev/null || echo main)';
         $repoGitCommandPrefix = $gitCommandPrefix . ' --git-dir=' . $repoGitDir . ' --work-tree=' . $repoDir;
         return [
             'echo $PWD',
@@ -314,8 +313,8 @@ class Runner {
             'mkdir -p ' . $repoGitDir,
             $repoGitCommandPrefix . ' init',
             $repoGitCommandPrefix . ' remote add origin "$(git config --get remote.origin.url)"',
-            $repoGitCommandPrefix . ' fetch --no-write-fetch-head origin "' . $branchSelector . '"',
-            'git --git-dir=' . $repoGitDir . ' --work-tree=' . $repoDir . ' reset --hard "origin/' . $branchSelector . '"',
+            $repoGitCommandPrefix . ' fetch --no-write-fetch-head origin main',
+            'git --git-dir=' . $repoGitDir . ' --work-tree=' . $repoDir . ' reset --hard "origin/main"',
         ];
     }
 
