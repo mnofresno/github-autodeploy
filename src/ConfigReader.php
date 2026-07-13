@@ -88,7 +88,7 @@ class ConfigReader {
             'strategy' => strtolower($strategy),
             'template_uri' => str_replace(
                 self::REPO_KEY_TEMPLATE_PLACEHOLDER,
-                escapeshellarg($repoKey),
+                $repoKey,
                 $template
             ),
         ];

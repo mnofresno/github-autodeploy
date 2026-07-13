@@ -317,7 +317,7 @@ class RunnerTest extends TestCase {
             ->method('run')
             ->willReturnCallback(function (string $command) use (&$commands, $repoName, $repoFullPath) {
                 $commands[] = $command;
-                if (str_contains($command, 'git clone') && str_contains($command, "git@github.com:bpf-project/'$repoName'.git")) {
+                if (str_contains($command, 'git clone') && str_contains($command, "git@github.com:bpf-project/$repoName.git")) {
                     if (!is_dir($repoFullPath)) {
                         mkdir($repoFullPath, 0777, true);
                     }
@@ -330,7 +330,7 @@ class RunnerTest extends TestCase {
         $this->subject->run(true);
         $this->assertContains('echo $PWD', $commands);
         $this->assertTrue((bool) array_filter($commands, function (string $command) use ($repoName): bool {
-            return str_contains($command, 'git clone') && str_contains($command, "git@github.com:bpf-project/'$repoName'.git");
+            return str_contains($command, 'git clone') && str_contains($command, "git@github.com:bpf-project/$repoName.git");
         }));
     }
 
@@ -361,7 +361,7 @@ class RunnerTest extends TestCase {
             ->method('run')
             ->willReturnCallback(function (string $command) use (&$commands, $repoFullPath, $repoName) {
                 $commands[] = $command;
-                if (str_contains($command, ' clone ') && str_contains($command, "https://github.com/bpf-project/'$repoName'.git")) {
+                if (str_contains($command, ' clone ') && str_contains($command, "https://github.com/bpf-project/$repoName.git")) {
                     if (!is_dir($repoFullPath)) {
                         mkdir($repoFullPath, 0777, true);
                     }
