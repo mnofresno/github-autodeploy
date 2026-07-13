@@ -305,9 +305,8 @@ class Runner {
         $branchSelector = '$(git symbolic-ref --short HEAD 2>/dev/null || echo main)';
         $repoGitCommandPrefix = $gitCommandPrefix . ' --git-dir=' . $repoGitDir . ' --work-tree=' . $repoDir;
         $originUrl = '"$(git config --get remote.origin.url)"';
-        $remoteSyncCommand = 'if ' . $repoGitCommandPrefix . ' remote get-url origin >/dev/null 2>&1; then '
-            . $repoGitCommandPrefix . ' remote set-url origin ' . $originUrl . '; else '
-            . $repoGitCommandPrefix . ' remote add origin ' . $originUrl . '; fi';
+        $remoteSyncCommand = $repoGitCommandPrefix . ' remote set-url origin ' . $originUrl . ' 2>/dev/null || '
+            . $repoGitCommandPrefix . ' remote add origin ' . $originUrl;
         return [
             'echo $PWD',
             'whoami',

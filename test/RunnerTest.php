@@ -47,9 +47,8 @@ class RunnerTest extends TestCase {
 
     private function remoteSyncCommand(): string {
         $prefix = $this->gitCommandPrefix();
-        return 'if ' . $prefix . ' remote get-url origin >/dev/null 2>&1; then '
-            . $prefix . ' remote set-url origin "$(git config --get remote.origin.url)"; else '
-            . $prefix . ' remote add origin "$(git config --get remote.origin.url)"; fi';
+        return $prefix . ' remote set-url origin "$(git config --get remote.origin.url)" 2>/dev/null || '
+            . $prefix . ' remote add origin "$(git config --get remote.origin.url)"';
     }
 
     public function setUp(): void {
