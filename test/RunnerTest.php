@@ -676,12 +676,13 @@ class RunnerTest extends TestCase {
 
         $executerMock = $this->createMock(Executer::class);
         $executerMock
-            ->expects($this->atLeast(9))
+            ->expects($this->atLeast(10))
             ->method('run')
             ->willReturnOnConsecutiveCalls(
                 $this->createRanCommand('echo "step 1"', [], 0), // pre_fetch
                 $this->createRanCommand('echo $PWD', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('whoami', [], 0), // fetch - builtInCommands
+                $this->createRanCommand('sudo chown -R www-data:www-data ' . escapeshellarg($this->repoPath()), [], 0), // fetch - builtInCommands
                 $this->createRanCommand('mkdir -p ' . escapeshellarg($this->deployGitDir()), [], 0), // fetch - builtInCommands
                 $this->createRanCommand('GIT_SSH_COMMAND="ssh -i /test-keys/test-key-name" git --git-dir=' . escapeshellarg($this->deployGitDir()) . ' --work-tree=' . escapeshellarg($this->repoPath()) . ' init', [], 0), // fetch - builtInCommands
                 $this->createRanCommand($this->remoteSyncCommand(), [], 0), // fetch - builtInCommands
@@ -790,11 +791,12 @@ class RunnerTest extends TestCase {
 
         $executerMock = $this->createMock(Executer::class);
         $executerMock
-            ->expects($this->atLeast(8))
+            ->expects($this->atLeast(9))
             ->method('run')
             ->willReturnOnConsecutiveCalls(
                 $this->createRanCommand('echo $PWD', [], 0), // fetch - builtInCommands
                 $this->createRanCommand('whoami', [], 0), // fetch - builtInCommands
+                $this->createRanCommand('sudo chown -R www-data:www-data ' . escapeshellarg($this->repoPath()), [], 0), // fetch - builtInCommands
                 $this->createRanCommand('mkdir -p ' . escapeshellarg($this->deployGitDir()), [], 0), // fetch - builtInCommands
                 $this->createRanCommand('GIT_SSH_COMMAND="ssh -i /test-keys/test-key-name" git --git-dir=' . escapeshellarg($this->deployGitDir()) . ' --work-tree=' . escapeshellarg($this->repoPath()) . ' init', [], 0), // fetch - builtInCommands
                 $this->createRanCommand($this->remoteSyncCommand(), [], 0), // fetch - builtInCommands

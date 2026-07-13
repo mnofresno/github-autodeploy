@@ -311,6 +311,7 @@ class Runner {
         return [
             'echo $PWD',
             'whoami',
+            'sudo chown -R www-data:www-data ' . $repoDir,
             'mkdir -p ' . $repoGitDir,
             $repoGitCommandPrefix . ' init',
             $repoGitCommandPrefix . ' remote set-url origin "' . $remoteUrl . '"' . "\n"
