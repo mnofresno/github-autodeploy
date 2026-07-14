@@ -136,6 +136,11 @@ class Runner {
         $preFetchCommands = $this->getPreFetchCommands();
         $fetchCommands = $this->getFetchCommands();
         $postFetchCommands = $this->getPostFetchCommands();
+        if ($this->deployCommitSha !== 'unknown' && empty($postFetchCommands)) {
+            // SHA-based deployments use the built-in fetch path, so repository
+            // custom commands must run after the worktree has been updated.
+            $postFetchCommands = $this->getCustomCommands() ?? [];
+        }
         $verboseMatchers = $this->getVerboseMatchers($this->deployCommitSha);
 
         $this->runCollectionOfCommands($preFetchCommands, $commandView, DeploymentStatus::PHASE_PRE_FETCH, $verboseMatchers);
