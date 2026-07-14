@@ -18,11 +18,21 @@ class DeployConfigReader {
         $this->logger = $logger;
     }
 
-    public function fetchRepoConfig(string $repoName, ?string $commitSha = null): ?object {
+    public function fetchRepoConfig(
+        string $repoName,
+        ?string $commitSha = null,
+        bool $allowLocalFallback = true
+    ): ?object {
         if (is_string($commitSha) && $commitSha !== '') {
             $remoteContents = $this->fetchRemoteRepoConfig($repoName, $commitSha);
             if (is_array($remoteContents)) {
                 return $this->generateConfig($remoteContents);
+            }
+
+            // A local file may belong to an older revision. Never use it to
+            // choose commands before a SHA-based deployment fetches its target.
+            if (!$allowLocalFallback) {
+                return null;
             }
         }
 

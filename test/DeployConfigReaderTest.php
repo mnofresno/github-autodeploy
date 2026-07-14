@@ -77,6 +77,24 @@ class DeployConfigReaderTest extends TestCase {
         $this->assertNull($config);
     }
 
+    public function testFetchRepoConfigCanDisableLocalFallbackForCommitDeployments(): void {
+        $this->configReaderMock->method('get')
+            ->with(ConfigReader::REPOS_BASE_PATH)
+            ->willReturn(MockRepoCreator::BASE_REPO_DIR);
+
+        $this->mockRepoCreator->withConfigYaml([
+            ConfigReader::POST_FETCH_COMMANDS => ['stale command'],
+        ]);
+
+        $config = $this->deployConfigReader->fetchRepoConfig(
+            $this->mockRepoCreator->testRepoName,
+            'unavailable-private-repo-commit',
+            false
+        );
+
+        $this->assertNull($config);
+    }
+
     public function testFetchRepoConfigJsonException() {
         $this->configReaderMock->method('get')
             ->with(ConfigReader::REPOS_BASE_PATH)

@@ -279,16 +279,24 @@ class Runner {
     }
 
     private function getFetchCommands(): array {
+        // GitHub webhooks identify an exact revision. The local deploy file can
+        // be stale when the remote repository is private, so do not let it
+        // override the built-in fetch path.
+        if ($this->deployCommitSha !== 'unknown') {
+            return $this->builtInCommands();
+        }
+
         if ($this->getPostFetchCommands()) {
             return $this->builtInCommands();
         }
         return $this->getCustomCommands() ?? $this->builtInCommands();
     }
 
-    private function getPostFetchCommands(): array {
+    private function getPostFetchCommands(bool $allowLocalFallback = true): array {
         $deployConfig = $this->deployConfigReader->fetchRepoConfig(
             $this->request->getQueryParam(Request::REPO_QUERY_PARAM),
-            $this->deployCommitSha
+            $this->deployCommitSha,
+            $allowLocalFallback
         );
         $commands = $deployConfig
             ? $deployConfig->postFetchCommands()
@@ -299,7 +307,8 @@ class Runner {
     private function getPreFetchCommands(): array {
         $deployConfig = $this->deployConfigReader->fetchRepoConfig(
             $this->request->getQueryParam(Request::REPO_QUERY_PARAM),
-            $this->deployCommitSha
+            $this->deployCommitSha,
+            $this->deployCommitSha === 'unknown'
         );
         $commands = $deployConfig
             ? $deployConfig->preFetchCommands()
@@ -424,7 +433,11 @@ class Runner {
             ? $this->request->getQueryParam(Request::CLONE_PATH_QUERY_PARAM)
             : '';
         $transportConfig = $this->configReader->resolveRepoTransportConfig($repoName, $clonePath);
-        $repoConfig = $this->deployConfigReader->fetchRepoConfig($repoName, $this->deployCommitSha);
+        $repoConfig = $this->deployConfigReader->fetchRepoConfig(
+            $repoName,
+            $this->deployCommitSha,
+            $this->deployCommitSha === 'unknown'
+        );
         if ($repoConfig && method_exists($repoConfig, 'gitTransport')) {
             $repoTransport = $repoConfig->gitTransport();
             if (is_array($repoTransport) && !empty($repoTransport)) {
