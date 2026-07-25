@@ -39,8 +39,82 @@ class Executer {
         $timeout = $this->configReader->get(ConfigReader::COMMAND_TIMEOUT) ?? 3600; // Default: 1 hora
         $result = $this->executeWithTimeout($command, $timeout, $outputCallback);
 
+        if ($this->shouldRepairCheckoutPermissions($command, $result)) {
+            $repairMessage = 'Detected checkout permission drift; repairing ownership through the Docker daemon before retrying git reset.';
+            if ($outputCallback) {
+                $outputCallback($repairMessage);
+            }
+
+            $repairResult = $this->executeWithTimeout(
+                $this->buildCheckoutPermissionRepairCommand(),
+                $timeout,
+                $outputCallback
+            );
+
+            $combinedOutput = array_merge(
+                $result['output'],
+                [$repairMessage],
+                $repairResult['output']
+            );
+
+            if ($repairResult['exit_code'] === 0) {
+                $retryMessage = 'Checkout permissions repaired; retrying git reset once.';
+                if ($outputCallback) {
+                    $outputCallback($retryMessage);
+                }
+
+                $retryResult = $this->executeWithTimeout($command, $timeout, $outputCallback);
+                $result = [
+                    'output' => array_merge($combinedOutput, [$retryMessage], $retryResult['output']),
+                    'exit_code' => $retryResult['exit_code'],
+                ];
+            } else {
+                $result = [
+                    'output' => $combinedOutput,
+                    'exit_code' => $repairResult['exit_code'],
+                ];
+            }
+        }
+
         $whoami = $this->whoami();
         return new RanCommand($command, $result['output'], $whoami, $result['exit_code']);
+    }
+
+    private function shouldRepairCheckoutPermissions(string $command, array $result): bool {
+        if ($result['exit_code'] === 0 || !$this->checkoutPermissionRepairEnabled()) {
+            return false;
+        }
+
+        if (strpos($command, 'reset --hard') === false) {
+            return false;
+        }
+
+        $output = implode("\n", $result['output'] ?? []);
+        return stripos($output, 'unable to unlink old') !== false
+            || stripos($output, 'permission denied') !== false;
+    }
+
+    private function checkoutPermissionRepairEnabled(): bool {
+        $env = $this->buildDeployEnv();
+        $value = strtolower(trim((string) ($env['DEPLOY_REPAIR_CHECKOUT_PERMISSIONS'] ?? 'false')));
+        return in_array($value, ['1', 'true', 'yes', 'on'], true);
+    }
+
+    private function buildCheckoutPermissionRepairCommand(): string {
+        $script = <<<'BASH'
+set -euo pipefail
+deploy_uid="$(id -u)"
+deploy_gid="$(id -g)"
+echo "Normalizing checkout ownership to uid=${deploy_uid} gid=${deploy_gid}"
+docker run --rm \
+  --volume "$PWD:/workspace" \
+  --entrypoint sh \
+  nginx:stable-alpine \
+  -c "chown -R ${deploy_uid}:${deploy_gid} /workspace && chmod -R u+rwX /workspace"
+test -w "$PWD"
+BASH;
+
+        return 'bash -c ' . escapeshellarg($script);
     }
 
     private function executeWithTimeout(string $command, int $timeoutSeconds, ?callable $outputCallback = null): array {
