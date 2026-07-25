@@ -122,7 +122,7 @@ class Runner {
 
         $commit = $this->request->getBody()['commit'] ?? [];
         $this->deployCommitSha = is_array($commit) && isset($commit['sha']) && is_string($commit['sha'])
-            ? $commit['sha']
+            ? trim($commit['sha'])
             : 'unknown';
         $this->deploymentStatus->initialize($repo, $key, $commit);
 
@@ -325,13 +325,15 @@ class Runner {
         $repoPath = $this->configReader->get(ConfigReader::REPOS_BASE_PATH)
             . DIRECTORY_SEPARATOR
             . $this->request->getQueryParam(Request::REPO_QUERY_PARAM);
-        $repoDir = escapeshellarg(realpath($repoPath) ?: $repoPath);
-        $repoGitDir = escapeshellarg($this->buildDeployGitDir(realpath($repoPath) ?: $repoPath));
+        $resolvedRepoPath = realpath($repoPath) ?: $repoPath;
+        $repoDir = escapeshellarg($resolvedRepoPath);
+        $repoGitDir = escapeshellarg($this->buildDeployGitDir($resolvedRepoPath));
         $transportConfig = $this->resolveGitTransportConfig();
         $gitCommandPrefix = $this->buildGitCommandPrefix($transportConfig, $repoDir);
         $repoGitCommandPrefix = $gitCommandPrefix . ' --git-dir=' . $repoGitDir . ' --work-tree=' . $repoDir;
         $remoteUrl = $transportConfig['template_uri'] ?? '$(git config --get remote.origin.url)';
-        return [
+
+        $commands = [
             'echo $PWD',
             'whoami',
             'mkdir -p ' . $repoGitDir,
@@ -341,8 +343,27 @@ class Runner {
                 . '  ' . $repoGitCommandPrefix . ' remote add origin "' . $remoteUrl . '"' . "\n"
                 . 'fi',
             $repoGitCommandPrefix . ' fetch --no-write-fetch-head origin main',
-            'git --git-dir=' . $repoGitDir . ' --work-tree=' . $repoDir . ' reset --hard "origin/main"',
+            'unwritable_dir=$(find ' . $repoDir . ' -xdev -type d ! -writable -print -quit); '
+                . 'if [ -n "$unwritable_dir" ]; then '
+                . 'echo "Deployment worktree is not writable: $unwritable_dir" >&2; '
+                . 'echo "Repair ownership/group permissions on the host before retrying." >&2; '
+                . 'exit 73; fi',
         ];
+
+        if ($this->deployCommitSha !== 'unknown') {
+            $expectedCommit = escapeshellarg($this->deployCommitSha);
+            $expectedCommitObject = escapeshellarg($this->deployCommitSha . '^{commit}');
+            $commands[] = $repoGitCommandPrefix . ' rev-parse --verify ' . $expectedCommitObject;
+            $commands[] = $repoGitCommandPrefix . ' reset --hard ' . $expectedCommit;
+            $commands[] = 'actual_commit=$(' . $repoGitCommandPrefix . ' rev-parse HEAD); '
+                . 'test "$actual_commit" = ' . $expectedCommit . ' || { '
+                . 'echo "Expected deployed commit ' . $this->deployCommitSha . ' but found $actual_commit" >&2; '
+                . 'exit 74; }';
+        } else {
+            $commands[] = $repoGitCommandPrefix . ' reset --hard "origin/main"';
+        }
+
+        return $commands;
     }
 
     private function cloneRepoCommands(string $repoDirectory, ?array $transportConfig = null): array {
