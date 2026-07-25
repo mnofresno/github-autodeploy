@@ -1,0 +1,47 @@
+name: One-shot multiline atomic deployment
+
+on:
+  push:
+    branches: ['master']
+    paths:
+      - '.github/workflows/one-shot-multiline-atomic-deploy.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - name: Route atomic command through bash-c execution
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/Runner.php')
+          text = path.read_text()
+          old = "            $commands[] = $repoGitCommandPrefix . ' fetch --force origin ' . $fetchCommit\n"
+          new = "            $commands[] = \"set -e\\n\" . $repoGitCommandPrefix . ' fetch --force origin ' . $fetchCommit\n"
+          if text.count(old) != 1:
+              raise SystemExit(f'Expected one atomic command assignment, found {text.count(old)}')
+          path.write_text(text.replace(old, new, 1))
+          PY
+
+          php -l src/Runner.php
+          php -l test/RunnerExactCommitFetchTest.php
+          php -l test/RunnerExactCommitTest.php
+          git diff --check
+
+          rm .github/workflows/one-shot-multiline-atomic-deploy.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/Runner.php .github/workflows/one-shot-multiline-atomic-deploy.yml
+          git commit -m 'fix: execute atomic deploy command through bash'
+          git push origin HEAD:master
