@@ -15,7 +15,7 @@ use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 
 class RunnerExactCommitFetchTest extends TestCase {
-    public function testExactCommitFetchVerifyResetAndHeadCheckAreAtomic(): void {
+    public function testExactCommitFetchVerifyResetAndHeadCheckAreAtomicAndMultiline(): void {
         $sha = str_repeat('a', 40);
         $repoName = 'test-app';
         $repoPath = '/tmp/' . $repoName;
@@ -74,7 +74,8 @@ class RunnerExactCommitFetchTest extends TestCase {
         $matchingCommands = array_values(array_filter(
             $commands,
             static fn (string $command): bool =>
-                str_contains($command, $prefix . ' fetch --force origin ' . escapeshellarg($sha))
+                str_starts_with($command, "set -e\n")
+                && str_contains($command, $prefix . ' fetch --force origin ' . escapeshellarg($sha))
                 && str_contains($command, $prefix . ' rev-parse --verify ' . escapeshellarg('FETCH_HEAD^{commit}'))
                 && str_contains($command, $prefix . ' reset --hard ' . escapeshellarg('FETCH_HEAD'))
                 && str_contains($command, 'actual_commit=')
