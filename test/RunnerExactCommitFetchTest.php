@@ -15,7 +15,7 @@ use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 
 class RunnerExactCommitFetchTest extends TestCase {
-    public function testExactCommitIsFetchedIntoNamedDeployRef(): void {
+    public function testExactCommitIsFetchedAndAppliedThroughFetchHead(): void {
         $sha = str_repeat('a', 40);
         $repoName = 'test-app';
         $repoPath = '/tmp/' . $repoName;
@@ -70,10 +70,9 @@ class RunnerExactCommitFetchTest extends TestCase {
             . 'git-autodeploy-' . sha1($repoPath . '|' . $sha);
         $prefix = 'GIT_SSH_COMMAND="ssh -i /keys/deploy-key" git --git-dir='
             . escapeshellarg($gitDir) . ' --work-tree=' . escapeshellarg($repoPath);
-        $deployRef = 'refs/git-autodeploy/deploy-target';
 
-        $this->assertContains($prefix . ' fetch --force origin ' . escapeshellarg($sha . ':' . $deployRef), $commands);
-        $this->assertContains($prefix . ' rev-parse --verify ' . escapeshellarg($deployRef . '^{commit}'), $commands);
-        $this->assertContains($prefix . ' reset --hard ' . escapeshellarg($deployRef), $commands);
+        $this->assertContains($prefix . ' fetch --force origin ' . escapeshellarg($sha), $commands);
+        $this->assertContains($prefix . ' rev-parse --verify ' . escapeshellarg('FETCH_HEAD^{commit}'), $commands);
+        $this->assertContains($prefix . ' reset --hard ' . escapeshellarg('FETCH_HEAD'), $commands);
     }
 }
