@@ -342,19 +342,23 @@ class Runner {
                 . 'if [ $? -ne 0 ]; then' . "\n"
                 . '  ' . $repoGitCommandPrefix . ' remote add origin "' . $remoteUrl . '"' . "\n"
                 . 'fi',
-            $repoGitCommandPrefix . ' fetch --force origin main:refs/remotes/origin/main',
         ];
 
         if ($this->deployCommitSha !== 'unknown') {
             $expectedCommit = escapeshellarg($this->deployCommitSha);
-            $expectedCommitObject = escapeshellarg($this->deployCommitSha . '^{commit}');
-            $commands[] = $repoGitCommandPrefix . ' rev-parse --verify ' . $expectedCommitObject;
-            $commands[] = $repoGitCommandPrefix . ' reset --hard ' . $expectedCommit;
+            $deployTargetRef = 'refs/git-autodeploy/deploy-target';
+            $fetchRefspec = escapeshellarg($this->deployCommitSha . ':' . $deployTargetRef);
+            $deployTargetCommit = escapeshellarg($deployTargetRef . '^{commit}');
+            $deployTargetRefArg = escapeshellarg($deployTargetRef);
+            $commands[] = $repoGitCommandPrefix . ' fetch --force origin ' . $fetchRefspec;
+            $commands[] = $repoGitCommandPrefix . ' rev-parse --verify ' . $deployTargetCommit;
+            $commands[] = $repoGitCommandPrefix . ' reset --hard ' . $deployTargetRefArg;
             $commands[] = 'actual_commit=$(' . $repoGitCommandPrefix . ' rev-parse HEAD); '
                 . 'test "$actual_commit" = ' . $expectedCommit . ' || { '
                 . 'echo "Expected deployed commit ' . $this->deployCommitSha . ' but found $actual_commit" >&2; '
                 . 'exit 74; }';
         } else {
+            $commands[] = $repoGitCommandPrefix . ' fetch --force origin main:refs/remotes/origin/main';
             $commands[] = $repoGitCommandPrefix . ' reset --hard "origin/main"';
         }
 
