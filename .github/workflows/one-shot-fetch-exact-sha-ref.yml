@@ -18,72 +18,43 @@ jobs:
           ref: master
           fetch-depth: 0
 
-      - name: Fetch exact SHA into a named local ref
+      - name: Patch exact SHA fetch and add regression test
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
 
-          runner = Path('src/Runner.php')
-          text = runner.read_text()
-          old = """        $commands = [
-            'echo $PWD',
-            'whoami',
-            'mkdir -p ' . $repoGitDir,
-            $repoGitCommandPrefix . ' init',
-            $repoGitCommandPrefix . ' remote set-url origin "' . $remoteUrl . '"' . "\\n"
-                . 'if [ $? -ne 0 ]; then' . "\\n"
-                . '  ' . $repoGitCommandPrefix . ' remote add origin "' . $remoteUrl . '"' . "\\n"
-                . 'fi',
-            $repoGitCommandPrefix . ' fetch --force origin main:refs/remotes/origin/main',
-        ];
+          path = Path('src/Runner.php')
+          lines = path.read_text().splitlines()
 
-        if ($this->deployCommitSha !== 'unknown') {
-            $expectedCommit = escapeshellarg($this->deployCommitSha);
-            $expectedCommitObject = escapeshellarg($this->deployCommitSha . '^{commit}');
-            $commands[] = $repoGitCommandPrefix . ' rev-parse --verify ' . $expectedCommitObject;
-            $commands[] = $repoGitCommandPrefix . ' reset --hard ' . $expectedCommit;
-            $commands[] = 'actual_commit=$(' . $repoGitCommandPrefix . ' rev-parse HEAD); '
-                . 'test "$actual_commit" = ' . $expectedCommit . ' || { '
-                . 'echo "Expected deployed commit ' . $this->deployCommitSha . ' but found $actual_commit" >&2; '
-                . 'exit 74; }';
-        } else {
-            $commands[] = $repoGitCommandPrefix . ' reset --hard "origin/main"';
-        }
-"""
-          new = """        $commands = [
-            'echo $PWD',
-            'whoami',
-            'mkdir -p ' . $repoGitDir,
-            $repoGitCommandPrefix . ' init',
-            $repoGitCommandPrefix . ' remote set-url origin "' . $remoteUrl . '"' . "\\n"
-                . 'if [ $? -ne 0 ]; then' . "\\n"
-                . '  ' . $repoGitCommandPrefix . ' remote add origin "' . $remoteUrl . '"' . "\\n"
-                . 'fi',
-        ];
+          unconditional = "            $repoGitCommandPrefix . ' fetch --force origin main:refs/remotes/origin/main',"
+          if lines.count(unconditional) != 1:
+              raise SystemExit(f'Expected one unconditional main fetch, found {lines.count(unconditional)}')
+          lines.remove(unconditional)
 
-        if ($this->deployCommitSha !== 'unknown') {
-            $expectedCommit = escapeshellarg($this->deployCommitSha);
-            $deployTargetRef = 'refs/git-autodeploy/deploy-target';
-            $fetchRefspec = escapeshellarg($this->deployCommitSha . ':' . $deployTargetRef);
-            $deployTargetCommit = escapeshellarg($deployTargetRef . '^{commit}');
-            $deployTargetRefArg = escapeshellarg($deployTargetRef);
-            $commands[] = $repoGitCommandPrefix . ' fetch --force origin ' . $fetchRefspec;
-            $commands[] = $repoGitCommandPrefix . ' rev-parse --verify ' . $deployTargetCommit;
-            $commands[] = $repoGitCommandPrefix . ' reset --hard ' . $deployTargetRefArg;
-            $commands[] = 'actual_commit=$(' . $repoGitCommandPrefix . ' rev-parse HEAD); '
-                . 'test "$actual_commit" = ' . $expectedCommit . ' || { '
-                . 'echo "Expected deployed commit ' . $this->deployCommitSha . ' but found $actual_commit" >&2; '
-                . 'exit 74; }';
-        } else {
-            $commands[] = $repoGitCommandPrefix . ' fetch --force origin main:refs/remotes/origin/main';
-            $commands[] = $repoGitCommandPrefix . ' reset --hard "origin/main"';
-        }
-"""
-          if text.count(old) != 1:
-              raise SystemExit(f'Expected exact builtInCommands block once, found {text.count(old)}')
-          runner.write_text(text.replace(old, new, 1))
+          expected_object = "            $expectedCommitObject = escapeshellarg($this->deployCommitSha . '^{commit}');"
+          verify_line = "            $commands[] = $repoGitCommandPrefix . ' rev-parse --verify ' . $expectedCommitObject;"
+          reset_line = "            $commands[] = $repoGitCommandPrefix . ' reset --hard ' . $expectedCommit;"
+          else_reset = "            $commands[] = $repoGitCommandPrefix . ' reset --hard \"origin/main\"';"
+
+          if expected_object not in lines or verify_line not in lines or reset_line not in lines or else_reset not in lines:
+              raise SystemExit('Expected exact-commit command lines were not found')
+
+          idx = lines.index(expected_object)
+          lines[idx:idx + 1] = [
+              "            $deployTargetRef = 'refs/git-autodeploy/deploy-target';",
+              "            $fetchRefspec = escapeshellarg($this->deployCommitSha . ':' . $deployTargetRef);",
+              "            $deployTargetCommit = escapeshellarg($deployTargetRef . '^{commit}');",
+              "            $deployTargetRefArg = escapeshellarg($deployTargetRef);",
+              "            $commands[] = $repoGitCommandPrefix . ' fetch --force origin ' . $fetchRefspec;",
+          ]
+          lines[lines.index(verify_line)] = "            $commands[] = $repoGitCommandPrefix . ' rev-parse --verify ' . $deployTargetCommit;"
+          lines[lines.index(reset_line)] = "            $commands[] = $repoGitCommandPrefix . ' reset --hard ' . $deployTargetRefArg;"
+          else_idx = lines.index(else_reset)
+          lines.insert(else_idx, "            $commands[] = $repoGitCommandPrefix . ' fetch --force origin main:refs/remotes/origin/main';")
+
+          path.write_text('\n'.join(lines) + '\n')
           PY
 
           cat > test/RunnerExactCommitFetchTest.php <<'PHP'
@@ -148,9 +119,9 @@ jobs:
                   );
 
                   $reflection = new ReflectionClass($runner);
-                  $shaProperty = $reflection->getProperty('deployCommitSha');
-                  $shaProperty->setAccessible(true);
-                  $shaProperty->setValue($runner, $sha);
+                  $property = $reflection->getProperty('deployCommitSha');
+                  $property->setAccessible(true);
+                  $property->setValue($runner, $sha);
                   $method = $reflection->getMethod('builtInCommands');
                   $method->setAccessible(true);
                   $commands = $method->invoke($runner);
@@ -161,18 +132,9 @@ jobs:
                       . escapeshellarg($gitDir) . ' --work-tree=' . escapeshellarg($repoPath);
                   $deployRef = 'refs/git-autodeploy/deploy-target';
 
-                  $this->assertContains(
-                      $prefix . ' fetch --force origin ' . escapeshellarg($sha . ':' . $deployRef),
-                      $commands
-                  );
-                  $this->assertContains(
-                      $prefix . ' rev-parse --verify ' . escapeshellarg($deployRef . '^{commit}'),
-                      $commands
-                  );
-                  $this->assertContains(
-                      $prefix . ' reset --hard ' . escapeshellarg($deployRef),
-                      $commands
-                  );
+                  $this->assertContains($prefix . ' fetch --force origin ' . escapeshellarg($sha . ':' . $deployRef), $commands);
+                  $this->assertContains($prefix . ' rev-parse --verify ' . escapeshellarg($deployRef . '^{commit}'), $commands);
+                  $this->assertContains($prefix . ' reset --hard ' . escapeshellarg($deployRef), $commands);
               }
           }
           PHP
