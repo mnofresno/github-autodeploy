@@ -1,0 +1,106 @@
+name: One-shot use FETCH_HEAD for exact deployments
+
+on:
+  push:
+    branches: ['master']
+    paths:
+      - '.github/workflows/one-shot-use-fetch-head.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - name: Replace custom deploy ref with FETCH_HEAD
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          runner = Path('src/Runner.php')
+          text = runner.read_text()
+          old = """            $expectedCommit = escapeshellarg($this->deployCommitSha);
+            $deployTargetRef = 'refs/git-autodeploy/deploy-target';
+            $fetchRefspec = escapeshellarg($this->deployCommitSha . ':' . $deployTargetRef);
+            $deployTargetCommit = escapeshellarg($deployTargetRef . '^{commit}');
+            $deployTargetRefArg = escapeshellarg($deployTargetRef);
+            $commands[] = $repoGitCommandPrefix . ' fetch --force origin ' . $fetchRefspec;
+            $commands[] = $repoGitCommandPrefix . ' rev-parse --verify ' . $deployTargetCommit;
+            $commands[] = $repoGitCommandPrefix . ' reset --hard ' . $deployTargetRefArg;
+"""
+          new = """            $expectedCommit = escapeshellarg($this->deployCommitSha);
+            $fetchCommit = escapeshellarg($this->deployCommitSha);
+            $fetchHeadCommit = escapeshellarg('FETCH_HEAD^{commit}');
+            $fetchHead = escapeshellarg('FETCH_HEAD');
+            $commands[] = $repoGitCommandPrefix . ' fetch --force origin ' . $fetchCommit;
+            $commands[] = $repoGitCommandPrefix . ' rev-parse --verify ' . $fetchHeadCommit;
+            $commands[] = $repoGitCommandPrefix . ' reset --hard ' . $fetchHead;
+"""
+          if text.count(old) != 1:
+              raise SystemExit(f'Expected exact-ref block once, found {text.count(old)}')
+          runner.write_text(text.replace(old, new, 1))
+
+          exact_test = Path('test/RunnerExactCommitFetchTest.php')
+          text = exact_test.read_text()
+          text = text.replace(
+              "    public function testExactCommitIsFetchedIntoNamedDeployRef(): void {",
+              "    public function testExactCommitIsFetchedAndAppliedThroughFetchHead(): void {"
+          )
+          old_assertions = """        $deployRef = 'refs/git-autodeploy/deploy-target';
+
+        $this->assertContains($prefix . ' fetch --force origin ' . escapeshellarg($sha . ':' . $deployRef), $commands);
+        $this->assertContains($prefix . ' rev-parse --verify ' . escapeshellarg($deployRef . '^{commit}'), $commands);
+        $this->assertContains($prefix . ' reset --hard ' . escapeshellarg($deployRef), $commands);
+"""
+          new_assertions = """        $this->assertContains($prefix . ' fetch --force origin ' . escapeshellarg($sha), $commands);
+        $this->assertContains($prefix . ' rev-parse --verify ' . escapeshellarg('FETCH_HEAD^{commit}'), $commands);
+        $this->assertContains($prefix . ' reset --hard ' . escapeshellarg('FETCH_HEAD'), $commands);
+"""
+          if text.count(old_assertions) != 1:
+              raise SystemExit('Expected named-ref assertions were not found')
+          exact_test.write_text(text.replace(old_assertions, new_assertions, 1))
+
+          contract_test = Path('test/RunnerExactCommitTest.php')
+          text = contract_test.read_text()
+          old_contract = """        $deployTargetRef = 'refs/git-autodeploy/deploy-target';
+
+        $this->assertTrue($this->containsCommand(
+            $commands,
+            'fetch --force origin',
+            $sha . ':' . $deployTargetRef
+        ));
+        $this->assertTrue($this->containsCommand(
+            $commands,
+            'rev-parse --verify',
+            $deployTargetRef . '^{commit}'
+        ));
+        $this->assertTrue($this->containsCommand($commands, 'reset --hard', $deployTargetRef));
+"""
+          new_contract = """        $this->assertTrue($this->containsCommand($commands, 'fetch --force origin', $sha));
+        $this->assertTrue($this->containsCommand($commands, 'rev-parse --verify', 'FETCH_HEAD^{commit}'));
+        $this->assertTrue($this->containsCommand($commands, 'reset --hard', 'FETCH_HEAD'));
+"""
+          if text.count(old_contract) != 1:
+              raise SystemExit('Expected named-ref contract assertions were not found')
+          contract_test.write_text(text.replace(old_contract, new_contract, 1))
+          PY
+
+          php -l src/Runner.php
+          php -l test/RunnerExactCommitFetchTest.php
+          php -l test/RunnerExactCommitTest.php
+          git diff --check
+
+          rm .github/workflows/one-shot-use-fetch-head.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/Runner.php test/RunnerExactCommitFetchTest.php test/RunnerExactCommitTest.php .github/workflows/one-shot-use-fetch-head.yml
+          git commit -m 'fix: verify exact deployments through FETCH_HEAD'
+          git push origin HEAD:master
