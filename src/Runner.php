@@ -349,7 +349,7 @@ class Runner {
             $fetchCommit = escapeshellarg($this->deployCommitSha);
             $fetchHeadCommit = escapeshellarg('FETCH_HEAD^{commit}');
             $fetchHead = escapeshellarg('FETCH_HEAD');
-            $commands[] = $repoGitCommandPrefix . ' fetch --force origin ' . $fetchCommit
+            $commands[] = "set -e\n" . $repoGitCommandPrefix . ' fetch --force origin ' . $fetchCommit
                 . ' && ' . $repoGitCommandPrefix . ' rev-parse --verify ' . $fetchHeadCommit
                 . ' && ' . $repoGitCommandPrefix . ' reset --hard ' . $fetchHead
                 . ' && actual_commit=$(' . $repoGitCommandPrefix . ' rev-parse HEAD)'
