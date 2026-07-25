@@ -343,11 +343,6 @@ class Runner {
                 . '  ' . $repoGitCommandPrefix . ' remote add origin "' . $remoteUrl . '"' . "\n"
                 . 'fi',
             $repoGitCommandPrefix . ' fetch --no-write-fetch-head origin main',
-            'unwritable_dir=$(find ' . $repoDir . ' -xdev -type d ! -writable -print -quit); '
-                . 'if [ -n "$unwritable_dir" ]; then '
-                . 'echo "Deployment worktree is not writable: $unwritable_dir" >&2; '
-                . 'echo "Repair ownership/group permissions on the host before retrying." >&2; '
-                . 'exit 73; fi',
         ];
 
         if ($this->deployCommitSha !== 'unknown') {
