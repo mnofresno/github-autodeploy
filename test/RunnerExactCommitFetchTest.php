@@ -15,7 +15,7 @@ use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 
 class RunnerExactCommitFetchTest extends TestCase {
-    public function testExactCommitIsFetchedAndAppliedThroughFetchHead(): void {
+    public function testExactCommitFetchVerifyResetAndHeadCheckAreAtomic(): void {
         $sha = str_repeat('a', 40);
         $repoName = 'test-app';
         $repoPath = '/tmp/' . $repoName;
@@ -71,8 +71,15 @@ class RunnerExactCommitFetchTest extends TestCase {
         $prefix = 'GIT_SSH_COMMAND="ssh -i /keys/deploy-key" git --git-dir='
             . escapeshellarg($gitDir) . ' --work-tree=' . escapeshellarg($repoPath);
 
-        $this->assertContains($prefix . ' fetch --force origin ' . escapeshellarg($sha), $commands);
-        $this->assertContains($prefix . ' rev-parse --verify ' . escapeshellarg('FETCH_HEAD^{commit}'), $commands);
-        $this->assertContains($prefix . ' reset --hard ' . escapeshellarg('FETCH_HEAD'), $commands);
+        $matchingCommands = array_values(array_filter(
+            $commands,
+            static fn (string $command): bool =>
+                str_contains($command, $prefix . ' fetch --force origin ' . escapeshellarg($sha))
+                && str_contains($command, $prefix . ' rev-parse --verify ' . escapeshellarg('FETCH_HEAD^{commit}'))
+                && str_contains($command, $prefix . ' reset --hard ' . escapeshellarg('FETCH_HEAD'))
+                && str_contains($command, 'actual_commit=')
+        ));
+
+        $this->assertCount(1, $matchingCommands);
     }
 }
