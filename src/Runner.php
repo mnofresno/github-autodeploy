@@ -342,7 +342,7 @@ class Runner {
                 . 'if [ $? -ne 0 ]; then' . "\n"
                 . '  ' . $repoGitCommandPrefix . ' remote add origin "' . $remoteUrl . '"' . "\n"
                 . 'fi',
-            $repoGitCommandPrefix . ' fetch --no-write-fetch-head origin main',
+            $repoGitCommandPrefix . ' fetch --force origin main:refs/remotes/origin/main',
         ];
 
         if ($this->deployCommitSha !== 'unknown') {
