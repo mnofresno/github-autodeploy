@@ -1,0 +1,61 @@
+name: One-shot atomic exact deployment
+
+on:
+  push:
+    branches: ['master']
+    paths:
+      - '.github/workflows/one-shot-atomic-exact-deploy.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - name: Make fetch verify reset and HEAD validation atomic
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/Runner.php')
+          lines = path.read_text().splitlines()
+          start_line = "            $commands[] = $repoGitCommandPrefix . ' fetch --force origin ' . $fetchCommit;"
+          end_line = "                . 'exit 74; }';"
+          if lines.count(start_line) != 1:
+              raise SystemExit(f'Expected one exact fetch command, found {lines.count(start_line)}')
+          start = lines.index(start_line)
+          candidates = [i for i, line in enumerate(lines[start:], start=start) if line == end_line]
+          if len(candidates) != 1:
+              raise SystemExit(f'Expected one exact deploy validation ending, found {len(candidates)}')
+          end = candidates[0]
+          lines[start:end + 1] = [
+              "            $commands[] = $repoGitCommandPrefix . ' fetch --force origin ' . $fetchCommit",
+              "                . ' && ' . $repoGitCommandPrefix . ' rev-parse --verify ' . $fetchHeadCommit",
+              "                . ' && ' . $repoGitCommandPrefix . ' reset --hard ' . $fetchHead",
+              "                . ' && actual_commit=$(' . $repoGitCommandPrefix . ' rev-parse HEAD)'",
+              "                . ' && test \"$actual_commit\" = ' . $expectedCommit . ' || { '",
+              "                . 'echo \"Expected deployed commit ' . $this->deployCommitSha . ' but found ${actual_commit:-unknown}\" >&2; '",
+              "                . 'exit 74; }';",
+          ]
+          path.write_text('\n'.join(lines) + '\n')
+          PY
+
+          php -l src/Runner.php
+          php -l test/RunnerExactCommitFetchTest.php
+          php -l test/RunnerExactCommitTest.php
+          git diff --check
+
+          rm .github/workflows/one-shot-atomic-exact-deploy.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/Runner.php .github/workflows/one-shot-atomic-exact-deploy.yml
+          git commit -m 'fix: keep exact deployment git state atomic'
+          git push origin HEAD:master
