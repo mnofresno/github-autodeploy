@@ -18,19 +18,10 @@ class RunnerExactCommitTest extends TestCase {
     public function testShaDeploymentFetchesResetsAndVerifiesTheRequestedCommit(): void {
         $sha = '0123456789abcdef0123456789abcdef01234567';
         $commands = $this->buildCommandsFor($sha);
-        $deployTargetRef = 'refs/git-autodeploy/deploy-target';
 
-        $this->assertTrue($this->containsCommand(
-            $commands,
-            'fetch --force origin',
-            $sha . ':' . $deployTargetRef
-        ));
-        $this->assertTrue($this->containsCommand(
-            $commands,
-            'rev-parse --verify',
-            $deployTargetRef . '^{commit}'
-        ));
-        $this->assertTrue($this->containsCommand($commands, 'reset --hard', $deployTargetRef));
+        $this->assertTrue($this->containsCommand($commands, 'fetch --force origin', $sha));
+        $this->assertTrue($this->containsCommand($commands, 'rev-parse --verify', 'FETCH_HEAD^{commit}'));
+        $this->assertTrue($this->containsCommand($commands, 'reset --hard', 'FETCH_HEAD'));
         $this->assertTrue($this->containsCommand($commands, 'actual_commit=', $sha));
         $this->assertFalse($this->containsCommand($commands, 'reset --hard "origin/main"'));
     }
