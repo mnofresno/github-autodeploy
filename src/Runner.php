@@ -346,13 +346,12 @@ class Runner {
 
         if ($this->deployCommitSha !== 'unknown') {
             $expectedCommit = escapeshellarg($this->deployCommitSha);
-            $deployTargetRef = 'refs/git-autodeploy/deploy-target';
-            $fetchRefspec = escapeshellarg($this->deployCommitSha . ':' . $deployTargetRef);
-            $deployTargetCommit = escapeshellarg($deployTargetRef . '^{commit}');
-            $deployTargetRefArg = escapeshellarg($deployTargetRef);
-            $commands[] = $repoGitCommandPrefix . ' fetch --force origin ' . $fetchRefspec;
-            $commands[] = $repoGitCommandPrefix . ' rev-parse --verify ' . $deployTargetCommit;
-            $commands[] = $repoGitCommandPrefix . ' reset --hard ' . $deployTargetRefArg;
+            $fetchCommit = escapeshellarg($this->deployCommitSha);
+            $fetchHeadCommit = escapeshellarg('FETCH_HEAD^{commit}');
+            $fetchHead = escapeshellarg('FETCH_HEAD');
+            $commands[] = $repoGitCommandPrefix . ' fetch --force origin ' . $fetchCommit;
+            $commands[] = $repoGitCommandPrefix . ' rev-parse --verify ' . $fetchHeadCommit;
+            $commands[] = $repoGitCommandPrefix . ' reset --hard ' . $fetchHead;
             $commands[] = 'actual_commit=$(' . $repoGitCommandPrefix . ' rev-parse HEAD); '
                 . 'test "$actual_commit" = ' . $expectedCommit . ' || { '
                 . 'echo "Expected deployed commit ' . $this->deployCommitSha . ' but found $actual_commit" >&2; '
