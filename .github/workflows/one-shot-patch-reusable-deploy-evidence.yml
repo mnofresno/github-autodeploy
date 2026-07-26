@@ -97,3 +97,5 @@ jobs:
           git add .github/workflows/reusable-deploy.yml .github/workflows/one-shot-patch-reusable-deploy-evidence.yml
           git commit -m 'fix: publish portable sanitized deploy evidence'
           git push origin HEAD:master
+
+# Triggered after the workflow was present on the default branch.
