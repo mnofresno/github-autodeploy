@@ -48,9 +48,12 @@ jobs:
         run: |
           set -euo pipefail
           bash -n .github/actions/deploy-and-poll/deploy-and-poll.sh
+          php -l src/ConfigReader.php
           git diff --check
           grep -Fq 'using: composite' .github/actions/deploy-and-poll/action.yml
           grep -Fq 'deployment-evidence.jsonl' .github/workflows/reusable-deploy.yml
+          grep -Fq 'create_repo_if_not_exists=true' .github/actions/deploy-and-poll/deploy-and-poll.sh
+          grep -Fq '"enable_clone": true' config.example.json
           if grep -R --line-number --fixed-strings -- '--fail-with-body' .github/actions .github/workflows/reusable-deploy.yml; then
             echo 'Unsupported curl option found in deployment client' >&2
             exit 1
