@@ -71,6 +71,9 @@ class Security implements ISecurity {
             }
             $ip = ip2long($ip);
             $subnet = ip2long($subnet);
+            if ($ip === false || $subnet === false) {
+                return false;
+            }
             $mask = -1 << (32 - $maskLength);
             return ($ip & $mask) == ($subnet & $mask);
         } elseif (filter_var($subnet, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
@@ -80,6 +83,9 @@ class Security implements ISecurity {
             }
             $ip = inet_pton($ip);
             $subnet = inet_pton($subnet);
+            if ($ip === false || $subnet === false) {
+                return false;
+            }
             $mask = str_repeat("f", $maskLength / 4) . str_repeat("0", 32 - $maskLength / 4);
             $mask = pack("H*", $mask);
             return ($ip & $mask) == ($subnet & $mask);
