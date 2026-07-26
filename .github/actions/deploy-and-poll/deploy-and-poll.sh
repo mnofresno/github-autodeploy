@@ -35,7 +35,32 @@ urlencode() {
 }
 
 safe_token() {
-  printf '%s' "$1" | tr -cd 'A-Za-z0-9._/' | tr -d '-' | cut -c1-80
+  LC_ALL=C printf '%s' "$1" | LC_ALL=C tr -cd 'A-Za-z0-9._/:-' | cut -c1-80
+}
+
+classify_error() {
+  local message
+  message="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
+  case "$message" in
+    *"repository"*"not"*"exist"*|*"repo"*"not"*"exist"*|*"repository"*"not found"*)
+      printf 'repository_not_found'
+      ;;
+    *"invalid"*"deploy"*|*"yaml"*"parse"*|*"configuration"*"invalid"*)
+      printf 'invalid_deploy_config'
+      ;;
+    *"permission denied"*|*"not writable"*|*"unable to create directory"*)
+      printf 'permission_denied'
+      ;;
+    *"unauthorized"*|*"authentication"*"fail"*|*"invalid key"*)
+      printf 'authentication_failed'
+      ;;
+    *"clone"*"fail"*|*"fetch"*"fail"*|*"could not read from remote"*)
+      printf 'checkout_failed'
+      ;;
+    *)
+      printf 'unclassified_server_failure'
+      ;;
+  esac
 }
 
 write_evidence() {
@@ -48,6 +73,7 @@ write_evidence() {
   local exit_code="${7:-}"
   local started_at="${8:-}"
   local completed_at="${9:-}"
+  local error_code="${10:-}"
 
   jq -nc \
     --arg repository "$REPOSITORY" \
@@ -59,6 +85,7 @@ write_evidence() {
     --arg exit_code "$exit_code" \
     --arg started_at "$started_at" \
     --arg completed_at "$completed_at" \
+    --arg error_code "$(safe_token "$error_code")" \
     --argjson instance_index "$instance_index" \
     --argjson instance_count "$instance_count" \
     '{
@@ -70,6 +97,7 @@ write_evidence() {
       run_id: (if $run_id == "" then null else $run_id end),
       started_at: (if $started_at == "" then null else $started_at end),
       completed_at: (if $completed_at == "" then null else $completed_at end),
+      error_code: (if $error_code == "" then null else $error_code end),
       failed_step: (if ($phase == "" and $step_id == "" and $exit_code == "") then null else {
         phase: (if $phase == "" then null else $phase end),
         step_id: (if $step_id == "" then null else ($step_id | tonumber? // $step_id) end),
@@ -129,7 +157,7 @@ for index in "${!instances[@]}"; do
     --arg sha "$COMMIT_SHA" \
     --arg author "$COMMIT_AUTHOR" \
     '{key:$key,run_in_background:true,commit:{sha:$sha,author:$author}}')"
-  deployment_url="https://${instance}?repo=$(urlencode "$REPOSITORY")&key=$(urlencode "$KEY_FILE_FOR_DEPLOY")${extra_params}"
+  deployment_url="https://${instance}?repo=$(urlencode "$REPOSITORY")&key=$(urlencode "$KEY_FILE_FOR_DEPLOY")&create_repo_if_not_exists=true${extra_params}"
 
   http_code="$(curl \
     --silent \
@@ -251,9 +279,11 @@ for index in "${!instances[@]}"; do
         failed_step="$(jq -r '.failed_step.step_id // empty' "$status_file")"
         failed_exit="$(jq -r '.failed_step.exit_code // empty' "$status_file")"
         started_at="$(jq -r '.started_at // empty' "$status_file")"
-        completed_at="$(jq -r '.completed_at // empty' "$status_file")"
-        write_evidence "$instance_number" "$instance_count" "FAILED" "$run_id" "$failed_phase" "$failed_step" "$failed_exit" "$started_at" "$completed_at"
-        echo "Instance ${instance_number}: server deployment failed (phase=$(safe_token "$failed_phase"), step=${failed_step:-unknown}, exit=${failed_exit:-unknown})" >&2
+        completed_at="$(jq -r '.completed_at // .failed_at // empty' "$status_file")"
+        private_error="$(jq -r '.error_message // empty' "$status_file")"
+        error_code="$(classify_error "$private_error")"
+        write_evidence "$instance_number" "$instance_count" "FAILED" "$run_id" "$failed_phase" "$failed_step" "$failed_exit" "$started_at" "$completed_at" "$error_code"
+        echo "Instance ${instance_number}: server deployment failed (phase=$(safe_token "$failed_phase"), step=${failed_step:-unknown}, exit=${failed_exit:-unknown}, code=${error_code})" >&2
         rm -f "$status_file"
         all_success=false
         break
