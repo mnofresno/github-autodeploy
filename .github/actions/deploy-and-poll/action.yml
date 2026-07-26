@@ -6,7 +6,10 @@ inputs:
     description: Comma-separated autodeploy server hostnames
     required: true
   deploy_key:
-    description: Autodeploy authentication key
+    description: Autodeploy SSH key identifier
+    required: true
+  github_token:
+    description: Ephemeral caller GITHUB_TOKEN used only for server-side run verification
     required: true
   repository:
     description: Repository key configured on the autodeploy server
@@ -30,6 +33,7 @@ runs:
       env:
         AUTODEPLOY_URL: ${{ inputs.autodeploy_url }}
         KEY_FILE_FOR_DEPLOY: ${{ inputs.deploy_key }}
+        GITHUB_ACTIONS_TOKEN: ${{ inputs.github_token }}
         REPOSITORY: ${{ inputs.repository }}
         COMMIT_SHA: ${{ inputs.commit_sha }}
         COMMIT_AUTHOR: ${{ inputs.commit_author }}

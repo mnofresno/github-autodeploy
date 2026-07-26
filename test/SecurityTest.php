@@ -29,7 +29,7 @@ class SecurityTest extends TestCase {
             $this->createMock(Logger::class)
         );
         $this->subject = new Security($this->createMock(Logger::class), $this->ipAllowListManager);
-        file_put_contents($this->allowListFile, "");
+        file_put_contents($this->allowListFile, '');
     }
 
     public function tearDown(): void {
@@ -102,7 +102,7 @@ class SecurityTest extends TestCase {
         $this->assertTrue(true);
 
         $updatedAllowList = file($this->allowListFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-        $this->assertCount(3, $updatedAllowList); // Original + 2 new CIDR ranges
+        $this->assertCount(3, $updatedAllowList);
         $this->assertContains('192.168.3.0/24', $updatedAllowList);
         $this->assertContains('192.168.4.0/24', $updatedAllowList);
     }
@@ -117,7 +117,6 @@ class SecurityTest extends TestCase {
         )->assert();
     }
 
-    // New test cases
     public function testAssertAllowedIPv6() {
         file_put_contents($this->allowListFile, "2001:db8::/32\n");
         $this->subject->setParams(
@@ -139,12 +138,70 @@ class SecurityTest extends TestCase {
     }
 
     public function testAssertIPv6InvalidCidr() {
-        file_put_contents($this->allowListFile, "2001:db8::/129\n"); // Invalid mask
+        file_put_contents($this->allowListFile, "2001:db8::/129\n");
         $this->expectException(ForbiddenException::class);
         $this->subject->setParams(
             [],
             [],
             '2001:db8::1'
         )->assert();
+    }
+
+    public function testAuthenticatedGithubActionsRunBypassesIpAllowlist(): void {
+        $verifiedContext = null;
+        $subject = new Security(
+            $this->createMock(Logger::class),
+            $this->ipAllowListManager,
+            static function (array $context) use (&$verifiedContext): bool {
+                $verifiedContext = $context;
+                return true;
+            }
+        );
+
+        $this->githubClientMock->expects($this->never())->method('fetchAllowedRangesLists');
+        $subject->setParams(
+            [],
+            [
+                'x-github-actions-token' => 'masked-ephemeral-token',
+                'x-github-repository' => 'bpf-project/bpf-auth',
+                'x-autodeploy-repository' => 'bpf-auth',
+                'x-github-run-id' => '123456789',
+                'x-github-sha' => '0123456789abcdef0123456789abcdef01234567',
+            ],
+            '203.0.113.10'
+        )->assert();
+
+        $this->assertSame('bpf-project/bpf-auth', $verifiedContext['repository']);
+        $this->assertSame('bpf-auth', $verifiedContext['repository_key']);
+        $this->assertSame('123456789', $verifiedContext['run_id']);
+    }
+
+    public function testGithubActionsRunMustMatchTrustedOwnerAndRepositoryKey(): void {
+        $verifierCalled = false;
+        $subject = new Security(
+            $this->createMock(Logger::class),
+            $this->ipAllowListManager,
+            static function () use (&$verifierCalled): bool {
+                $verifierCalled = true;
+                return true;
+            }
+        );
+
+        $this->expectException(ForbiddenException::class);
+        try {
+            $subject->setParams(
+                [],
+                [
+                    'x-github-actions-token' => 'token',
+                    'x-github-repository' => 'untrusted-owner/bpf-auth',
+                    'x-autodeploy-repository' => 'different-repo',
+                    'x-github-run-id' => '123',
+                    'x-github-sha' => '0123456789abcdef0123456789abcdef01234567',
+                ],
+                '203.0.113.10'
+            )->assert();
+        } finally {
+            $this->assertFalse($verifierCalled);
+        }
     }
 }
