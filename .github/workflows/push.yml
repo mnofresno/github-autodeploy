@@ -10,26 +10,26 @@ jobs:
   build_and_run_tests:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - name: Setup PHP
-      uses: shivammathur/setup-php@v2
-      with:
-        php-version: '8.1'
-        extensions: mbstring, dom, curl, libxml, xml, xmlreader
-    - name: Validate composer.json and composer.lock
-      run: composer validate --strict
-    - name: Cache Composer packages
-      id: composer-cache
-      uses: actions/cache@v4
-      with:
-        path: vendor
-        key: ${{ runner.os }}-php8.1-${{ hashFiles('**/composer.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-php8.1-
-    - name: Install dependencies
-      run: composer install --prefer-dist --no-progress
-    - name: Run test suite
-      run: composer run-script test
+      - uses: actions/checkout@v4
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          extensions: mbstring, dom, curl, libxml, xml, xmlreader
+      - name: Validate composer.json and composer.lock
+        run: composer validate --strict
+      - name: Cache Composer packages
+        id: composer-cache
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: ${{ runner.os }}-php8.1-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-php8.1-
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress
+      - name: Run test suite
+        run: composer run-script test
 
   lint-php-code:
     runs-on: ubuntu-latest
@@ -39,86 +39,79 @@ jobs:
       - name: Lint PHP code (Dry Run)
         run: ./linter/lint.sh --dry-run
 
+  validate-deploy-client:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate portable deploy client
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n .github/actions/deploy-and-poll/deploy-and-poll.sh
+          git diff --check
+          grep -Fq 'using: composite' .github/actions/deploy-and-poll/action.yml
+          grep -Fq 'deployment-evidence.jsonl' .github/workflows/reusable-deploy.yml
+          if grep -R --line-number --fixed-strings -- '--fail-with-body' .github/actions .github/workflows/reusable-deploy.yml; then
+            echo 'Unsupported curl option found in deployment client' >&2
+            exit 1
+          fi
+          if grep -R --line-number --fixed-strings '%{exitcode}' .github/actions .github/workflows/reusable-deploy.yml; then
+            echo 'Unsupported curl write-out variable found in deployment client' >&2
+            exit 1
+          fi
+          if grep -R --line-number 'echo .*KEY_FILE_FOR_DEPLOY\|echo .*deployment_url' .github/actions .github/workflows/reusable-deploy.yml; then
+            echo 'Potential secret-bearing deployment output found' >&2
+            exit 1
+          fi
+
   deploy:
     runs-on: ubuntu-latest
-    needs: [build_and_run_tests, lint-php-code]
-    if: success()
+    needs: [build_and_run_tests, lint-php-code, validate-deploy-client]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master' && success()
     steps:
       - name: Self-Update All Instances
         env:
-            AUTODEPLOY_URL: ${{ vars.AUTODEPLOY_URL }}
+          AUTODEPLOY_URL: ${{ vars.AUTODEPLOY_URL }}
         run: |
-            # Convert comma-separated URLs into array
-            IFS=',' read -ra URLS <<< "$AUTODEPLOY_URL"
-            
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            echo "🔄 Self-updating ${#URLS[@]} instance(s)"
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            echo ""
-            
-            # Array to track results
-            declare -a RESULTS
-            declare -a FAILED_INSTANCES
-            ALL_SUCCESS=true
-            
-            # Iterate over each URL
-            for i in "${!URLS[@]}"; do
-                URL="${URLS[$i]}"
-                # Remove whitespace
-                URL=$(echo "$URL" | xargs)
-                
-                INSTANCE_NUM=$((i + 1))
-                
-                echo "┌─────────────────────────────────────────────┐"
-                echo "│ Instance $INSTANCE_NUM/${#URLS[@]}: $URL"
-                echo "└─────────────────────────────────────────────┘"
-                
-                # Call /self-update endpoint
-                response=$(curl -X GET \
-                    -s -o "response_${i}.txt" -w "%{http_code}" \
-                    --max-time 60 \
-                    "https://${URL}/self-update" 2>&1 || echo "000")
-                
-                # Check the result
-                if [ "$response" -ge 200 ] && [ "$response" -lt 400 ]; then
-                    echo "✅ SUCCESS - Self-update completed (HTTP $response)"
-                    RESULTS[$i]="✅ $URL - Self-updated (HTTP $response)"
-                else
-                    echo "❌ FAILED - Self-update failed (HTTP $response)"
-                    RESULTS[$i]="❌ $URL - Self-update failed (HTTP $response)"
-                    FAILED_INSTANCES+=("$URL")
-                    ALL_SUCCESS=false
-                fi
-                
-                # Show response preview
-                echo ""
-                echo "Response preview:"
-                if [ -f "response_${i}.txt" ]; then
-                    head -n 20 "response_${i}.txt" | sed 's/^/  /'
-                fi
-                echo ""
-                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-                echo ""
-            done
-            
-            # Final summary
-            echo ""
-            echo "╔═══════════════════════════════════════════════╗"
-            echo "║           SELF-UPDATE SUMMARY                 ║"
-            echo "╚═══════════════════════════════════════════════╝"
-            echo ""
-            for result in "${RESULTS[@]}"; do
-                echo "  $result"
-            done
-            echo ""
-            
-            if [ "$ALL_SUCCESS" = true ]; then
-                echo "🎉 All instances self-updated successfully!"
-                exit 0
+          set -u -o pipefail
+          IFS=',' read -ra URLS <<< "$AUTODEPLOY_URL"
+
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🔄 Self-updating ${#URLS[@]} instance(s)"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+          declare -a RESULTS
+          declare -a FAILED_INSTANCES
+          ALL_SUCCESS=true
+
+          for i in "${!URLS[@]}"; do
+            URL="$(echo "${URLS[$i]}" | xargs)"
+            INSTANCE_NUM=$((i + 1))
+            echo "Instance $INSTANCE_NUM/${#URLS[@]}: $URL"
+
+            response=$(curl -X GET \
+              -s -o "response_${i}.txt" -w "%{http_code}" \
+              --max-time 60 \
+              "https://${URL}/self-update" 2>/dev/null || echo "000")
+
+            if [[ "$response" =~ ^[0-9]+$ ]] && [ "$response" -ge 200 ] && [ "$response" -lt 400 ]; then
+              echo "✅ self-update completed (HTTP $response)"
+              RESULTS[$i]="✅ $URL - self-updated (HTTP $response)"
             else
-                echo "⚠️  Some self-updates failed:"
-                for failed in "${FAILED_INSTANCES[@]}"; do
-                    echo "   - $failed"
-                done
-                exit 1
+              echo "❌ self-update failed (HTTP $response)"
+              RESULTS[$i]="❌ $URL - self-update failed (HTTP $response)"
+              FAILED_INSTANCES+=("$URL")
+              ALL_SUCCESS=false
             fi
+          done
+
+          for result in "${RESULTS[@]}"; do
+            echo "$result"
+          done
+
+          if [ "$ALL_SUCCESS" = true ]; then
+            exit 0
+          fi
+
+          echo "Some self-updates failed" >&2
+          exit 1
