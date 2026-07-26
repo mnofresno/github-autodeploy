@@ -66,6 +66,11 @@ class HamsterTest extends TestCase {
                 return '';
             });
 
+        $this->configReader
+            ->method('get')
+            ->with(ConfigReader::EXPOSE_RAW_LOG)
+            ->willReturn(true);
+
         $expectedResults = [
             [
                 'date' => '2024-06-21T02:31:56.368058+00:00',
@@ -139,7 +144,6 @@ class HamsterTest extends TestCase {
                 return '';
             });
 
-        // getBody returns run_in_background in JSON (new workflow format)
         $this->request
             ->method('getBody')
             ->willReturn([
@@ -179,7 +183,6 @@ class HamsterTest extends TestCase {
             ->expects($this->atLeastOnce())
             ->method('info');
 
-        // Should call finishRequest for async execution
         $this->runner
             ->expects($this->once())
             ->method('run')
@@ -203,7 +206,6 @@ class HamsterTest extends TestCase {
                 return '';
             });
 
-        // getBody returns empty array (backward compatibility)
         $this->request
             ->method('getBody')
             ->willReturn([]);
@@ -236,7 +238,6 @@ class HamsterTest extends TestCase {
             ->expects($this->atLeastOnce())
             ->method('info');
 
-        // Should call finishRequest for async execution
         $this->runner
             ->expects($this->once())
             ->method('run')
@@ -257,7 +258,6 @@ class HamsterTest extends TestCase {
                 return '';
             });
 
-        // getBody returns data without run_in_background
         $this->request
             ->method('getBody')
             ->willReturn([
@@ -268,7 +268,6 @@ class HamsterTest extends TestCase {
                 ],
             ]);
 
-        // Should execute synchronously (no background)
         $this->logger
             ->expects($this->atLeastOnce())
             ->method('info')
