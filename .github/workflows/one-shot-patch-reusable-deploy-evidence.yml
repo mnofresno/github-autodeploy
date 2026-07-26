@@ -98,4 +98,4 @@ jobs:
           git commit -m 'fix: publish portable sanitized deploy evidence'
           git push origin HEAD:master
 
-# Triggered after the workflow was present on the default branch.
+# Triggered through a pull-request merge after the workflow existed on master.
