@@ -79,7 +79,10 @@ jobs:
           grep -Fq 'clone_path=' .github/actions/deploy-and-poll/deploy-and-poll.sh
           grep -Fq 'repo-owner-bootstrap-v1' public/index.php
           grep -Fq 'sanitized-deployment-status-v1' public/index.php
-          grep -Fq 'Controller capability verified after self-update' .github/actions/deploy-and-poll/deploy-and-poll.sh
+          grep -Fq 'github-actions-run-auth-v1' public/index.php
+          grep -Fq "CAPABILITY='github-actions-run-auth-v1'" .github/actions/deploy-and-poll/deploy-and-poll.sh
+          grep -Fq 'X-GitHub-Actions-Token' .github/actions/deploy-and-poll/deploy-and-poll.sh
+          grep -Fq 'github_token:' .github/workflows/reusable-deploy.yml
           grep -Fq '"enable_clone": true' config.example.json
           if grep -R --line-number --fixed-strings -- '--fail-with-body' .github/actions .github/workflows/reusable-deploy.yml; then
             echo 'Unsupported curl option found in deployment client' >&2
@@ -129,7 +132,7 @@ jobs:
                 sleep 2
                 if curl --silent --show-error --connect-timeout 10 --max-time 30 \
                     "https://${URL}/controller-capabilities" 2>/dev/null \
-                    | jq -e '.capabilities | index("repo-owner-bootstrap-v1") != null and index("sanitized-deployment-status-v1") != null' >/dev/null 2>&1; then
+                    | jq -e '.capabilities | index("repo-owner-bootstrap-v1") != null and index("sanitized-deployment-status-v1") != null and index("github-actions-run-auth-v1") != null' >/dev/null 2>&1; then
                   capability_ok=true
                   break
                 fi
