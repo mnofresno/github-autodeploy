@@ -92,7 +92,7 @@ jobs:
   deploy:
     name: Run server deployment and verification
     needs: mark-pending
-    uses: mnofresno/github-autodeploy/.github/workflows/reusable-deploy.yml@master
+    uses: mnofresno/github-autodeploy/.github/workflows/reusable-deploy.yml@7d618f5429e2d99bc243ee3346e2307b3cab2735
     with:
       autodeploy_url: ${{ inputs.autodeploy_url }}
       deploy_key: ${{ inputs.deploy_key }}
