@@ -1,0 +1,72 @@
+name: Reusable Verified Deployment v2
+
+on:
+  workflow_call:
+    inputs:
+      autodeploy_url: {required: true, type: string}
+      deploy_key: {required: true, type: string}
+      repository: {required: true, type: string}
+      commit_sha: {required: true, type: string}
+      commit_author: {required: true, type: string}
+      runs_on: {required: false, type: string, default: 'self-hosted'}
+      env_vars: {required: false, type: string, default: ''}
+      status_context: {required: false, type: string, default: 'production/deployment'}
+      status_description: {required: false, type: string, default: ''}
+    secrets:
+      KEY_FILE_FOR_DEPLOY: {required: true}
+
+permissions:
+  actions: read
+  contents: read
+  statuses: write
+
+jobs:
+  pending:
+    runs-on: ${{ inputs.runs_on }}
+    steps:
+      - name: Publish pending status
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ inputs.commit_sha }}
+          CONTEXT: ${{ inputs.status_context }}
+          DESCRIPTION: ${{ inputs.status_description }}
+          TARGET: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          payload=$(jq -nc --arg state pending --arg context "$CONTEXT" --arg description "Pending: $DESCRIPTION" --arg target_url "$TARGET" '{state:$state,context:$context,description:($description|.[0:140]),target_url:$target_url}')
+          curl --fail --silent --show-error -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/statuses/$SHA" -d "$payload" >/dev/null
+
+  deploy:
+    needs: pending
+    uses: mnofresno/github-autodeploy/.github/workflows/reusable-deploy.yml@03ee8c08636c309a6570d8204aa4559b761a669a
+    with:
+      autodeploy_url: ${{ inputs.autodeploy_url }}
+      deploy_key: ${{ inputs.deploy_key }}
+      repository: ${{ inputs.repository }}
+      commit_sha: ${{ inputs.commit_sha }}
+      commit_author: ${{ inputs.commit_author }}
+      runs_on: ${{ inputs.runs_on }}
+      env_vars: ${{ inputs.env_vars }}
+    secrets:
+      KEY_FILE_FOR_DEPLOY: ${{ secrets.KEY_FILE_FOR_DEPLOY }}
+
+  final:
+    needs: [pending, deploy]
+    if: always()
+    runs-on: ${{ inputs.runs_on }}
+    steps:
+      - name: Publish final status
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ inputs.commit_sha }}
+          CONTEXT: ${{ inputs.status_context }}
+          DESCRIPTION: ${{ inputs.status_description }}
+          RESULT: ${{ needs.deploy.result }}
+          TARGET: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          state=failure
+          prefix=Failed
+          if [ "$RESULT" = success ]; then state=success; prefix=Verified; fi
+          payload=$(jq -nc --arg state "$state" --arg context "$CONTEXT" --arg description "$prefix: $DESCRIPTION" --arg target_url "$TARGET" '{state:$state,context:$context,description:($description|.[0:140]),target_url:$target_url}')
+          curl --fail --silent --show-error -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/statuses/$SHA" -d "$payload" >/dev/null
