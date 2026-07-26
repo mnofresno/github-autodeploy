@@ -73,10 +73,14 @@ class Hamster {
         $this->logger->debug('Checking for run_in_background', ['body_data' => $bodyData]);
         if (isset($bodyData['run_in_background'])) {
             $runInBackground = $bodyData['run_in_background'] === true || $bodyData['run_in_background'] === 'true';
-            $this->logger->info($runInBackground ? 'Background run enabled from JSON body' : 'Background run disabled from JSON body');
+            if ($runInBackground) {
+                $this->logger->info('Background run enabled from JSON body');
+            }
         } else {
             $runInBackground = $this->request->getQueryParam('run_in_background') === 'true';
-            $this->logger->info($runInBackground ? 'Background run enabled from query parameter' : 'Background run disabled');
+            if ($runInBackground) {
+                $this->logger->info('Background run enabled from query parameter');
+            }
         }
         $waitForCompletion = $this->request->getQueryParam('wait') === 'true';
 
