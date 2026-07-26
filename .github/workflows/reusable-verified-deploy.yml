@@ -1,0 +1,149 @@
+# Reusable wrapper around the existing deployment workflow.
+# It publishes a sanitized commit status before and after the server-side
+# deployment so external tooling can verify the exact production result.
+name: Reusable Verified Deployment
+
+on:
+  workflow_call:
+    inputs:
+      autodeploy_url:
+        description: 'Autodeploy server URL(s)'
+        required: true
+        type: string
+      deploy_key:
+        description: 'Compatibility input; the secret is supplied separately'
+        required: true
+        type: string
+      repository:
+        description: 'Repository name to deploy'
+        required: true
+        type: string
+      commit_sha:
+        description: 'Exact commit SHA represented by this production deployment'
+        required: true
+        type: string
+      commit_author:
+        description: 'Commit author'
+        required: true
+        type: string
+      runs_on:
+        description: 'Runner label'
+        required: false
+        type: string
+        default: 'ubuntu-latest'
+      env_vars:
+        description: 'Deployment variables forwarded to the existing workflow; never copied into statuses'
+        required: false
+        type: string
+        default: ''
+      status_context:
+        description: 'Sanitized GitHub commit status context'
+        required: false
+        type: string
+        default: 'production/deployment'
+      status_description:
+        description: 'Optional non-sensitive deployment subject, for example an immutable image SHA'
+        required: false
+        type: string
+        default: ''
+    secrets:
+      KEY_FILE_FOR_DEPLOY:
+        required: true
+
+permissions:
+  contents: read
+  statuses: write
+
+jobs:
+  mark-pending:
+    name: Publish pending production status
+    runs-on: ${{ inputs.runs_on }}
+    steps:
+      - name: Publish sanitized pending status
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMIT_SHA: ${{ inputs.commit_sha }}
+          STATUS_CONTEXT: ${{ inputs.status_context }}
+          STATUS_DESCRIPTION: ${{ inputs.status_description }}
+          TARGET_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          context=$(printf '%s' "$STATUS_CONTEXT" | tr -cd 'A-Za-z0-9._/-' | cut -c1-100)
+          [ -n "$context" ] || context='production/deployment'
+          subject=$(printf '%s' "$STATUS_DESCRIPTION" | tr '\n\r' '  ' | cut -c1-90)
+          description='Deployment requested; waiting for server verification'
+          if [ -n "$subject" ]; then
+            description="Pending: $subject"
+          fi
+          payload=$(jq -n \
+            --arg state pending \
+            --arg context "$context" \
+            --arg description "$description" \
+            --arg target_url "$TARGET_URL" \
+            '{state:$state, context:$context, description:$description, target_url:$target_url}')
+          curl --fail-with-body --silent --show-error \
+            -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/statuses/$COMMIT_SHA" \
+            -d "$payload" >/dev/null
+
+  deploy:
+    name: Run server deployment and verification
+    needs: mark-pending
+    uses: mnofresno/github-autodeploy/.github/workflows/reusable-deploy.yml@master
+    with:
+      autodeploy_url: ${{ inputs.autodeploy_url }}
+      deploy_key: ${{ inputs.deploy_key }}
+      repository: ${{ inputs.repository }}
+      commit_sha: ${{ inputs.commit_sha }}
+      commit_author: ${{ inputs.commit_author }}
+      runs_on: ${{ inputs.runs_on }}
+      env_vars: ${{ inputs.env_vars }}
+    secrets:
+      KEY_FILE_FOR_DEPLOY: ${{ secrets.KEY_FILE_FOR_DEPLOY }}
+
+  publish-final:
+    name: Publish verified production result
+    needs: [mark-pending, deploy]
+    if: ${{ always() }}
+    runs-on: ${{ inputs.runs_on }}
+    steps:
+      - name: Publish sanitized final status
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMIT_SHA: ${{ inputs.commit_sha }}
+          STATUS_CONTEXT: ${{ inputs.status_context }}
+          STATUS_DESCRIPTION: ${{ inputs.status_description }}
+          DEPLOY_RESULT: ${{ needs.deploy.result }}
+          TARGET_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          context=$(printf '%s' "$STATUS_CONTEXT" | tr -cd 'A-Za-z0-9._/-' | cut -c1-100)
+          [ -n "$context" ] || context='production/deployment'
+          subject=$(printf '%s' "$STATUS_DESCRIPTION" | tr '\n\r' '  ' | cut -c1-90)
+
+          if [ "$DEPLOY_RESULT" = 'success' ]; then
+            state='success'
+            description='Server verified exact revision and post-deploy checks'
+            [ -z "$subject" ] || description="Verified: $subject"
+          else
+            state='failure'
+            description='Server deployment or post-deploy verification failed'
+            [ -z "$subject" ] || description="Failed: $subject"
+          fi
+
+          payload=$(jq -n \
+            --arg state "$state" \
+            --arg context "$context" \
+            --arg description "$description" \
+            --arg target_url "$TARGET_URL" \
+            '{state:$state, context:$context, description:$description, target_url:$target_url}')
+          curl --fail-with-body --silent --show-error \
+            -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/statuses/$COMMIT_SHA" \
+            -d "$payload" >/dev/null
