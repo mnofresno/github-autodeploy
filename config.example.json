@@ -6,6 +6,7 @@
     ],
     "SSHKeysPath": "/home/myusername/.ssh",
     "ReposBasePath": "/var/www",
+    "enable_clone": true,
     "repos_template_uris": {
         "default": "git@github.com:testuser/{$repo_key}.git",
         "example-repo": "git@github.com:other-org/{$repo_key}.git",
