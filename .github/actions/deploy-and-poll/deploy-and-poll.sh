@@ -3,361 +3,159 @@ set -uo pipefail
 
 EVIDENCE_FILE="${GITHUB_WORKSPACE:-$PWD}/deployment-evidence.jsonl"
 : > "$EVIDENCE_FILE"
-
 MAX_WAIT_SECONDS=2700
 POLL_INTERVAL_SECONDS=5
-PROGRESS_INTERVAL_SECONDS=30
-CONTROLLER_CAPABILITY='repo-owner-bootstrap-v1'
+CAPABILITY='github-actions-run-auth-v1'
 
-require_command() {
-  if ! command -v "$1" >/dev/null 2>&1; then
-    echo "Required command is unavailable: $1" >&2
-    exit 69
-  fi
+require() {
+  command -v "$1" >/dev/null 2>&1 || { echo "Required command unavailable: $1" >&2; exit 69; }
 }
+require curl
+require jq
 
-require_command curl
-require_command jq
-
-for required in AUTODEPLOY_URL KEY_FILE_FOR_DEPLOY REPOSITORY COMMIT_SHA COMMIT_AUTHOR; do
-  if [[ -z "${!required:-}" ]]; then
-    echo "Required deployment input is empty: $required" >&2
-    exit 64
-  fi
+for name in AUTODEPLOY_URL KEY_FILE_FOR_DEPLOY GITHUB_ACTIONS_TOKEN GITHUB_REPOSITORY GITHUB_RUN_ID REPOSITORY COMMIT_SHA COMMIT_AUTHOR; do
+  [[ -n "${!name:-}" ]] || { echo "Required deployment input is empty: $name" >&2; exit 64; }
 done
 
-REPOSITORY_OWNER="${GITHUB_REPOSITORY_OWNER:-${GITHUB_REPOSITORY%%/*}}"
-if [[ ! "$REPOSITORY_OWNER" =~ ^[A-Za-z0-9_.-]+$ ]]; then
-  echo "The repository owner is unavailable or invalid" >&2
-  exit 64
-fi
-if [[ ! "$REPOSITORY" =~ ^[A-Za-z0-9_.-]+$ ]]; then
-  echo "The repository key is invalid" >&2
-  exit 64
-fi
-if [[ ! "$COMMIT_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
-  echo "The requested commit SHA is not a full 40-character Git SHA" >&2
-  exit 64
-fi
+OWNER="${GITHUB_REPOSITORY%%/*}"
+[[ "$GITHUB_REPOSITORY" == "$OWNER/$REPOSITORY" ]] || { echo 'GitHub repository does not match deployment repository' >&2; exit 64; }
+[[ "$OWNER" =~ ^[A-Za-z0-9_.-]+$ ]] || exit 64
+[[ "$REPOSITORY" =~ ^[A-Za-z0-9_.-]+$ ]] || exit 64
+[[ "$GITHUB_RUN_ID" =~ ^[0-9]+$ ]] || exit 64
+[[ "$COMMIT_SHA" =~ ^[0-9a-fA-F]{40}$ ]] || exit 64
 
-urlencode() {
-  jq -nr --arg value "$1" '$value | @uri'
-}
-
-safe_token() {
-  LC_ALL=C printf '%s' "$1" | LC_ALL=C tr -cd 'A-Za-z0-9._/:-' | cut -c1-80
-}
+urlencode() { jq -nr --arg value "$1" '$value|@uri'; }
+safe() { LC_ALL=C printf '%s' "$1" | LC_ALL=C tr -cd 'A-Za-z0-9._/:-' | cut -c1-80; }
 
 write_evidence() {
-  local instance_index="$1"
-  local instance_count="$2"
-  local status="$3"
-  local run_id="${4:-}"
-  local phase="${5:-}"
-  local step_id="${6:-}"
-  local exit_code="${7:-}"
-  local started_at="${8:-}"
-  local completed_at="${9:-}"
-  local error_code="${10:-}"
-
   jq -nc \
     --arg repository "$REPOSITORY" \
     --arg commit_sha "$COMMIT_SHA" \
-    --arg status "$status" \
-    --arg run_id "$run_id" \
-    --arg phase "$(safe_token "$phase")" \
-    --arg step_id "$step_id" \
-    --arg exit_code "$exit_code" \
-    --arg started_at "$started_at" \
-    --arg completed_at "$completed_at" \
-    --arg error_code "$(safe_token "$error_code")" \
-    --argjson instance_index "$instance_index" \
-    --argjson instance_count "$instance_count" \
-    '{
-      repository: $repository,
-      commit_sha: $commit_sha,
-      instance_index: $instance_index,
-      instance_count: $instance_count,
-      status: $status,
-      run_id: (if $run_id == "" then null else $run_id end),
-      started_at: (if $started_at == "" then null else $started_at end),
-      completed_at: (if $completed_at == "" then null else $completed_at end),
-      error_code: (if $error_code == "" then null else $error_code end),
-      failed_step: (if ($phase == "" and $step_id == "" and $exit_code == "") then null else {
-        phase: (if $phase == "" then null else $phase end),
-        step_id: (if $step_id == "" then null else ($step_id | tonumber? // $step_id) end),
-        exit_code: (if $exit_code == "" then null else ($exit_code | tonumber? // $exit_code) end)
-      } end)
-    }' >> "$EVIDENCE_FILE"
+    --arg status "$1" \
+    --arg run_id "${2:-}" \
+    --arg phase "$(safe "${3:-}")" \
+    --arg step_id "${4:-}" \
+    --arg exit_code "${5:-}" \
+    --arg error_code "$(safe "${6:-}")" \
+    '{repository:$repository,commit_sha:$commit_sha,status:$status,run_id:(if $run_id=="" then null else $run_id end),error_code:(if $error_code=="" then null else $error_code end),failed_step:(if ($phase=="" and $step_id=="" and $exit_code=="") then null else {phase:(if $phase=="" then null else $phase end),step_id:(if $step_id=="" then null else ($step_id|tonumber?//$step_id) end),exit_code:(if $exit_code=="" then null else ($exit_code|tonumber?//$exit_code) end)} end)}' >> "$EVIDENCE_FILE"
 }
 
 controller_has_capability() {
-  local instance="$1"
-  local capability_file
-  local http_code
-  local curl_exit
-  capability_file="$(mktemp)"
-  http_code="$(curl \
-    --silent \
-    --show-error \
-    --connect-timeout 10 \
-    --max-time 30 \
-    --output "$capability_file" \
-    --write-out '%{http_code}' \
-    "https://${instance}/controller-capabilities" 2>/dev/null)"
-  curl_exit=$?
-
-  if (( curl_exit == 0 )) && [[ "$http_code" == "200" ]] && \
-      jq -e --arg capability "$CONTROLLER_CAPABILITY" '.capabilities | arrays | index($capability) != null' "$capability_file" >/dev/null 2>&1; then
-    rm -f "$capability_file"
+  local host="$1" file code rc
+  file="$(mktemp)"
+  code="$(curl --silent --show-error --connect-timeout 10 --max-time 30 --output "$file" --write-out '%{http_code}' "https://$host/controller-capabilities" 2>/dev/null)"
+  rc=$?
+  if (( rc == 0 )) && [[ "$code" == 200 ]] && jq -e --arg c "$CAPABILITY" '.capabilities|arrays|index($c)!=null' "$file" >/dev/null 2>&1; then
+    rm -f "$file"
     return 0
   fi
-
-  rm -f "$capability_file"
+  rm -f "$file"
   return 1
 }
 
-ensure_controller_current() {
-  local instance="$1"
-  local update_http
-  local update_exit
-
-  if controller_has_capability "$instance"; then
-    return 0
-  fi
-
-  echo "Controller capability missing; applying verified self-update"
-  update_http="$(curl \
-    --silent \
-    --show-error \
-    --connect-timeout 30 \
-    --max-time 300 \
-    --output /dev/null \
-    --write-out '%{http_code}' \
-    "https://${instance}/self-update" 2>/dev/null)"
-  update_exit=$?
-
-  if (( update_exit != 0 )) || [[ ! "$update_http" =~ ^2[0-9][0-9]$ ]]; then
-    return 1
-  fi
-
-  for _attempt in $(seq 1 15); do
+ensure_controller() {
+  local host="$1" code rc
+  controller_has_capability "$host" && return 0
+  code="$(curl --silent --show-error --connect-timeout 20 --max-time 300 --output /dev/null --write-out '%{http_code}' "https://$host/self-update" 2>/dev/null)"
+  rc=$?
+  (( rc == 0 )) && [[ "$code" =~ ^2[0-9][0-9]$ ]] || return 1
+  for _ in $(seq 1 15); do
     sleep 2
-    if controller_has_capability "$instance"; then
-      echo "Controller capability verified after self-update"
-      return 0
-    fi
+    controller_has_capability "$host" && return 0
   done
-
   return 1
 }
 
-extra_params=""
+extra_params=''
 if [[ -n "${ENV_VARS:-}" ]]; then
   while IFS= read -r pair; do
     [[ -n "$pair" ]] || continue
-    if [[ "$pair" != *=* ]]; then
-      echo "Invalid deployment variable; expected KEY=VALUE" >&2
-      exit 64
-    fi
+    [[ "$pair" == *=* ]] || exit 64
     key="${pair%%=*}"
     value="${pair#*=}"
-    if [[ ! "$key" =~ ^[A-Za-z_][A-Za-z0-9_-]*$ ]]; then
-      echo "Invalid deployment variable name" >&2
-      exit 64
-    fi
+    [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_-]*$ ]] || exit 64
     extra_params+="&env_$(urlencode "$key")=$(urlencode "$value")"
   done < <(printf '%s' "$ENV_VARS" | tr '|' '\n')
 fi
 
-IFS=',' read -r -a instances <<< "$AUTODEPLOY_URL"
-instance_count=${#instances[@]}
-if (( instance_count == 0 )); then
-  echo "No autodeploy instances were supplied" >&2
-  exit 64
-fi
-
-echo "Starting verified deployment"
-echo "Repository: $REPOSITORY"
-echo "Commit: $COMMIT_SHA"
-echo "Instances: $instance_count"
-
+IFS=',' read -r -a hosts <<< "$AUTODEPLOY_URL"
 all_success=true
-clone_hint="${REPOSITORY_OWNER},${REPOSITORY}"
+for raw_host in "${hosts[@]}"; do
+  host="$(printf '%s' "$raw_host" | xargs)"
+  [[ -n "$host" && "$host" != *[!A-Za-z0-9._:-]* ]] || { write_evidence INVALID_INSTANCE; all_success=false; continue; }
 
-for index in "${!instances[@]}"; do
-  instance="$(printf '%s' "${instances[$index]}" | xargs)"
-  instance_number=$((index + 1))
-  if [[ -z "$instance" || "$instance" == *[!A-Za-z0-9._:-]* ]]; then
-    echo "Instance ${instance_number}: invalid server hostname" >&2
-    write_evidence "$instance_number" "$instance_count" "INVALID_INSTANCE"
+  if ! ensure_controller "$host"; then
+    write_evidence CONTROLLER_UPDATE_FAILED '' controller '' 70 controller_update_failed
     all_success=false
     continue
   fi
 
-  if ! ensure_controller_current "$instance"; then
-    echo "Instance ${instance_number}: controller self-update or capability verification failed" >&2
-    write_evidence "$instance_number" "$instance_count" "CONTROLLER_UPDATE_FAILED" "" "controller" "" "70" "" "" "controller_update_failed"
-    all_success=false
-    continue
-  fi
-
-  echo "Instance ${instance_number}/${instance_count}: requesting deployment"
-
-  response_file="$(mktemp)"
-  error_file="$(mktemp)"
-  payload="$(jq -nc \
-    --arg key "$KEY_FILE_FOR_DEPLOY" \
-    --arg sha "$COMMIT_SHA" \
-    --arg author "$COMMIT_AUTHOR" \
-    '{key:$key,run_in_background:true,commit:{sha:$sha,author:$author}}')"
-  deployment_url="https://${instance}?repo=$(urlencode "$REPOSITORY")&key=$(urlencode "$KEY_FILE_FOR_DEPLOY")&create_repo_if_not_exists=true&clone_path=$(urlencode "$clone_hint")${extra_params}"
-
-  http_code="$(curl \
-    --silent \
-    --show-error \
-    --connect-timeout 30 \
-    --max-time 60 \
+  response="$(mktemp)"
+  payload="$(jq -nc --arg key "$KEY_FILE_FOR_DEPLOY" --arg sha "$COMMIT_SHA" --arg author "$COMMIT_AUTHOR" '{key:$key,run_in_background:true,commit:{sha:$sha,author:$author}}')"
+  url="https://$host?repo=$(urlencode "$REPOSITORY")&key=$(urlencode "$KEY_FILE_FOR_DEPLOY")&create_repo_if_not_exists=true&clone_path=$(urlencode "$OWNER,$REPOSITORY")$extra_params"
+  code="$(curl --silent --show-error --connect-timeout 30 --max-time 60 \
     --request POST \
     --header 'Content-Type: application/json' \
-    --data "$payload" \
-    --output "$response_file" \
-    --write-out '%{http_code}' \
-    "$deployment_url" 2>"$error_file")"
-  curl_exit=$?
-
-  if (( curl_exit != 0 )); then
-    echo "Instance ${instance_number}: deployment request transport failure (curl exit ${curl_exit})" >&2
-    write_evidence "$instance_number" "$instance_count" "REQUEST_TRANSPORT_FAILURE" "" "request" "" "$curl_exit"
-    rm -f "$response_file" "$error_file"
+    --header "X-GitHub-Actions-Token: $GITHUB_ACTIONS_TOKEN" \
+    --header "X-GitHub-Repository: $GITHUB_REPOSITORY" \
+    --header "X-Autodeploy-Repository: $REPOSITORY" \
+    --header "X-GitHub-Run-Id: $GITHUB_RUN_ID" \
+    --header "X-GitHub-Sha: $COMMIT_SHA" \
+    --data "$payload" --output "$response" --write-out '%{http_code}' "$url" 2>/dev/null)"
+  rc=$?
+  if (( rc != 0 )) || [[ "$code" != 201 ]] || ! jq empty "$response" >/dev/null 2>&1; then
+    write_evidence REQUEST_REJECTED '' request '' "${code:-$rc}" request_rejected
+    rm -f "$response"
     all_success=false
     continue
   fi
 
-  if [[ "$http_code" != "201" ]]; then
-    echo "Instance ${instance_number}: deployment request rejected (HTTP ${http_code})" >&2
-    write_evidence "$instance_number" "$instance_count" "REQUEST_REJECTED" "" "request" "" "$http_code"
-    rm -f "$response_file" "$error_file"
-    all_success=false
-    continue
-  fi
+  run_id="$(jq -r '.run_id//empty' "$response")"
+  rm -f "$response"
+  [[ "$run_id" =~ ^[A-Za-z0-9._:-]+$ ]] || { write_evidence MISSING_RUN_ID; all_success=false; continue; }
 
-  if ! jq empty "$response_file" >/dev/null 2>&1; then
-    echo "Instance ${instance_number}: deployment server returned invalid JSON" >&2
-    write_evidence "$instance_number" "$instance_count" "INVALID_START_RESPONSE" "" "request"
-    rm -f "$response_file" "$error_file"
-    all_success=false
-    continue
-  fi
-
-  run_id="$(jq -r '.run_id // empty' "$response_file")"
-  rm -f "$response_file" "$error_file"
-  if [[ -z "$run_id" || ! "$run_id" =~ ^[A-Za-z0-9._:-]+$ ]]; then
-    echo "Instance ${instance_number}: deployment server did not return a valid run ID" >&2
-    write_evidence "$instance_number" "$instance_count" "MISSING_RUN_ID" "" "request"
-    all_success=false
-    continue
-  fi
-
-  echo "Instance ${instance_number}: server run accepted"
-  start_epoch="$(date +%s)"
-  last_progress_epoch=0
-
+  started="$(date +%s)"
   while true; do
-    now_epoch="$(date +%s)"
-    elapsed=$((now_epoch - start_epoch))
+    elapsed=$(( $(date +%s) - started ))
     if (( elapsed >= MAX_WAIT_SECONDS )); then
-      echo "Instance ${instance_number}: deployment verification timed out" >&2
-      write_evidence "$instance_number" "$instance_count" "POLL_TIMEOUT" "$run_id" "poll" "" "124"
+      write_evidence POLL_TIMEOUT "$run_id" poll '' 124 poll_timeout
       all_success=false
       break
     fi
 
     status_file="$(mktemp)"
-    poll_http="$(curl \
-      --silent \
-      --show-error \
-      --connect-timeout 10 \
-      --max-time 30 \
-      --output "$status_file" \
-      --write-out '%{http_code}' \
-      "https://${instance}?deployment_status=true&previous_run_id=$(urlencode "$run_id")" 2>/dev/null)"
-    poll_exit=$?
-
-    if (( poll_exit != 0 )) || [[ "$poll_http" != "200" ]] || ! jq empty "$status_file" >/dev/null 2>&1; then
+    poll_code="$(curl --silent --show-error --connect-timeout 10 --max-time 30 --output "$status_file" --write-out '%{http_code}' "https://$host?deployment_status=true&previous_run_id=$(urlencode "$run_id")" 2>/dev/null)"
+    poll_rc=$?
+    if (( poll_rc != 0 )) || [[ "$poll_code" != 200 ]] || ! jq empty "$status_file" >/dev/null 2>&1; then
       rm -f "$status_file"
-      if (( now_epoch - last_progress_epoch >= PROGRESS_INTERVAL_SECONDS )); then
-        echo "Instance ${instance_number}: waiting for a valid server status (${elapsed}s)"
-        last_progress_epoch=$now_epoch
-      fi
       sleep "$POLL_INTERVAL_SECONDS"
       continue
     fi
 
-    response_type="$(jq -r 'type' "$status_file" 2>/dev/null || printf 'invalid')"
-    if [[ "$response_type" == "array" ]]; then
-      normalized_file="$(mktemp)"
-      jq '.[0] // {}' "$status_file" > "$normalized_file"
-      mv "$normalized_file" "$status_file"
-    fi
-
-    status="$(jq -r '.status // "UNKNOWN"' "$status_file")"
-    phase="$(jq -r '.current_phase // empty' "$status_file")"
-    current_step="$(jq -r '.current_step // empty' "$status_file")"
-
+    status="$(jq -r '.status//"UNKNOWN"' "$status_file")"
     case "$status" in
-      RUNNING)
-        if (( now_epoch - last_progress_epoch >= PROGRESS_INTERVAL_SECONDS )); then
-          safe_phase="$(safe_token "$phase")"
-          [[ -n "$safe_phase" ]] || safe_phase="running"
-          if [[ "$current_step" =~ ^[0-9]+$ ]]; then
-            echo "Instance ${instance_number}: ${safe_phase}, step $((current_step + 1)) (${elapsed}s)"
-          else
-            echo "Instance ${instance_number}: ${safe_phase} (${elapsed}s)"
-          fi
-          last_progress_epoch=$now_epoch
-        fi
-        rm -f "$status_file"
-        sleep "$POLL_INTERVAL_SECONDS"
-        ;;
       SUCCESS)
-        started_at="$(jq -r '.started_at // empty' "$status_file")"
-        completed_at="$(jq -r '.completed_at // empty' "$status_file")"
-        write_evidence "$instance_number" "$instance_count" "SUCCESS" "$run_id" "" "" "" "$started_at" "$completed_at"
-        echo "Instance ${instance_number}: deployment and server verification succeeded"
+        write_evidence SUCCESS "$run_id"
         rm -f "$status_file"
         break
         ;;
       FAILED)
-        failed_phase="$(jq -r '.failed_step.phase // empty' "$status_file")"
-        failed_step="$(jq -r '.failed_step.step_id // empty' "$status_file")"
-        failed_exit="$(jq -r '.failed_step.exit_code // empty' "$status_file")"
-        started_at="$(jq -r '.started_at // empty' "$status_file")"
-        completed_at="$(jq -r '.completed_at // .failed_at // empty' "$status_file")"
-        error_code="$(jq -r '.error_code // "unclassified_server_failure"' "$status_file")"
-        error_code="$(safe_token "$error_code")"
-        write_evidence "$instance_number" "$instance_count" "FAILED" "$run_id" "$failed_phase" "$failed_step" "$failed_exit" "$started_at" "$completed_at" "$error_code"
-        echo "Instance ${instance_number}: server deployment failed (phase=$(safe_token "$failed_phase"), step=${failed_step:-unknown}, exit=${failed_exit:-unknown}, code=${error_code})" >&2
+        phase="$(jq -r '.failed_step.phase//empty' "$status_file")"
+        step="$(jq -r '.failed_step.step_id//empty' "$status_file")"
+        exit_code="$(jq -r '.failed_step.exit_code//empty' "$status_file")"
+        error_code="$(jq -r '.error_code//"unclassified_server_failure"' "$status_file")"
+        write_evidence FAILED "$run_id" "$phase" "$step" "$exit_code" "$error_code"
         rm -f "$status_file"
         all_success=false
         break
         ;;
       *)
         rm -f "$status_file"
-        if (( now_epoch - last_progress_epoch >= PROGRESS_INTERVAL_SECONDS )); then
-          echo "Instance ${instance_number}: deployment status not terminal yet (${elapsed}s)"
-          last_progress_epoch=$now_epoch
-        fi
         sleep "$POLL_INTERVAL_SECONDS"
         ;;
     esac
   done
 done
 
-if [[ "$all_success" == "true" ]]; then
-  echo "All deployments completed and were verified"
-  exit 0
-fi
-
-echo "One or more deployments failed; see the sanitized evidence artifact" >&2
-exit 1
+$all_success || { echo 'One or more deployments failed; see sanitized evidence' >&2; exit 1; }
+echo 'All deployments completed and were verified by the server'
