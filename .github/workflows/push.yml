@@ -29,7 +29,27 @@ jobs:
       - name: Install dependencies
         run: composer install --prefer-dist --no-progress
       - name: Run test suite
-        run: composer run-script test
+        shell: bash
+        run: |
+          set +e
+          composer run-script test > phpunit.log 2>&1
+          status="$?"
+          tail -n 250 phpunit.log
+          echo "$status" > phpunit.status
+          exit 0
+      - name: Upload PHPUnit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: github-autodeploy-phpunit-${{ github.run_id }}
+          path: phpunit.log
+          retention-days: 3
+          if-no-files-found: error
+      - name: Enforce PHPUnit result
+        shell: bash
+        run: |
+          status="$(cat phpunit.status)"
+          [[ "$status" == "0" ]] || exit "$status"
 
   lint-php-code:
     runs-on: ubuntu-latest
@@ -43,16 +63,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Validate portable deploy client
+      - name: Validate portable deploy client and public status contract
         shell: bash
         run: |
           set -euo pipefail
           bash -n .github/actions/deploy-and-poll/deploy-and-poll.sh
+          php -l public/index.php
+          php -l src/Request.php
           php -l src/ConfigReader.php
+          php -l src/DeploymentStatus.php
           git diff --check
           grep -Fq 'using: composite' .github/actions/deploy-and-poll/action.yml
           grep -Fq 'deployment-evidence.jsonl' .github/workflows/reusable-deploy.yml
           grep -Fq 'create_repo_if_not_exists=true' .github/actions/deploy-and-poll/deploy-and-poll.sh
+          grep -Fq 'clone_path=' .github/actions/deploy-and-poll/deploy-and-poll.sh
+          grep -Fq 'repo-owner-bootstrap-v1' public/index.php
+          grep -Fq 'sanitized-deployment-status-v1' public/index.php
+          grep -Fq 'Controller capability verified after self-update' .github/actions/deploy-and-poll/deploy-and-poll.sh
           grep -Fq '"enable_clone": true' config.example.json
           if grep -R --line-number --fixed-strings -- '--fail-with-body' .github/actions .github/workflows/reusable-deploy.yml; then
             echo 'Unsupported curl option found in deployment client' >&2
@@ -66,55 +93,55 @@ jobs:
             echo 'Potential secret-bearing deployment output found' >&2
             exit 1
           fi
+          if grep -n "'key' =>" src/DeploymentStatus.php; then
+            echo 'Deployment key must not be persisted in status files' >&2
+            exit 1
+          fi
 
   deploy:
     runs-on: ubuntu-latest
     needs: [build_and_run_tests, lint-php-code, validate-deploy-client]
     if: github.event_name == 'push' && github.ref == 'refs/heads/master' && success()
     steps:
-      - name: Self-Update All Instances
+      - name: Self-update and verify all controller instances
         env:
           AUTODEPLOY_URL: ${{ vars.AUTODEPLOY_URL }}
+        shell: bash
         run: |
           set -u -o pipefail
           IFS=',' read -ra URLS <<< "$AUTODEPLOY_URL"
-
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "🔄 Self-updating ${#URLS[@]} instance(s)"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-          declare -a RESULTS
-          declare -a FAILED_INSTANCES
           ALL_SUCCESS=true
 
           for i in "${!URLS[@]}"; do
             URL="$(echo "${URLS[$i]}" | xargs)"
             INSTANCE_NUM=$((i + 1))
-            echo "Instance $INSTANCE_NUM/${#URLS[@]}: $URL"
+            echo "Controller $INSTANCE_NUM/${#URLS[@]}: applying self-update"
 
             response=$(curl -X GET \
-              -s -o "response_${i}.txt" -w "%{http_code}" \
-              --max-time 60 \
+              -s -o /dev/null -w "%{http_code}" \
+              --connect-timeout 30 \
+              --max-time 300 \
               "https://${URL}/self-update" 2>/dev/null || echo "000")
 
-            if [[ "$response" =~ ^[0-9]+$ ]] && [ "$response" -ge 200 ] && [ "$response" -lt 400 ]; then
-              echo "✅ self-update completed (HTTP $response)"
-              RESULTS[$i]="✅ $URL - self-updated (HTTP $response)"
+            capability_ok=false
+            if [[ "$response" =~ ^2[0-9][0-9]$ ]]; then
+              for _attempt in $(seq 1 15); do
+                sleep 2
+                if curl --silent --show-error --connect-timeout 10 --max-time 30 \
+                    "https://${URL}/controller-capabilities" 2>/dev/null \
+                    | jq -e '.capabilities | index("repo-owner-bootstrap-v1") != null and index("sanitized-deployment-status-v1") != null' >/dev/null 2>&1; then
+                  capability_ok=true
+                  break
+                fi
+              done
+            fi
+
+            if [[ "$capability_ok" == "true" ]]; then
+              echo "✅ controller self-update and capabilities verified"
             else
-              echo "❌ self-update failed (HTTP $response)"
-              RESULTS[$i]="❌ $URL - self-update failed (HTTP $response)"
-              FAILED_INSTANCES+=("$URL")
+              echo "❌ controller self-update or capability verification failed" >&2
               ALL_SUCCESS=false
             fi
           done
 
-          for result in "${RESULTS[@]}"; do
-            echo "$result"
-          done
-
-          if [ "$ALL_SUCCESS" = true ]; then
-            exit 0
-          fi
-
-          echo "Some self-updates failed" >&2
-          exit 1
+          [[ "$ALL_SUCCESS" == "true" ]]

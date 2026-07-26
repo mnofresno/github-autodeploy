@@ -22,18 +22,24 @@ class DeploymentStatus {
     }
 
     public function initialize(string $repo, string $key, array $commit = []): void {
+        // The deploy key authenticates the request but must never be persisted in
+        // a status file. Keep the parameter for backward-compatible callers.
+        unset($key);
         $this->write([
             'run_id' => $this->runId,
             'repo' => $repo,
-            'key' => $key,
             'status' => self::STATUS_RUNNING,
             'started_at' => date('c'),
-            'commit' => $commit,
+            'commit' => [
+                'sha' => is_string($commit['sha'] ?? null) ? $commit['sha'] : null,
+                'author' => is_string($commit['author'] ?? null) ? $commit['author'] : null,
+            ],
             'current_phase' => null,
             'current_step' => null,
             'steps' => [],
             'failed_step' => null,
             'error_message' => null,
+            'error_code' => null,
         ]);
     }
 
@@ -102,6 +108,7 @@ class DeploymentStatus {
         if ($errorMessage) {
             $status['error_message'] = $errorMessage;
         }
+        $status['error_code'] = self::classifyError($errorMessage ?? '', $phase, $exitCode);
         if (isset($status['steps'][$stepId])) {
             $status['steps'][$stepId]['status'] = self::STATUS_FAILED;
             $status['steps'][$stepId]['exit_code'] = $exitCode;
@@ -120,8 +127,60 @@ class DeploymentStatus {
         $this->write($status);
     }
 
+    /** Internal representation used by Runner and local tests. */
     public function get(): array {
         return $this->read();
+    }
+
+    /**
+     * Connector-safe representation. Commands, command output, deploy keys,
+     * paths and private error text are intentionally omitted.
+     */
+    public function getPublic(): array {
+        $status = $this->read();
+        if (empty($status)) {
+            return [];
+        }
+
+        $steps = array_map(static function (array $step): array {
+            return array_filter([
+                'id' => $step['id'] ?? null,
+                'phase' => $step['phase'] ?? null,
+                'status' => $step['status'] ?? null,
+                'verbose' => $step['verbose'] ?? false,
+                'started_at' => $step['started_at'] ?? null,
+                'completed_at' => $step['completed_at'] ?? null,
+                'exit_code' => $step['exit_code'] ?? null,
+            ], static function ($value): bool {
+                return $value !== null;
+            });
+        }, is_array($status['steps'] ?? null) ? $status['steps'] : []);
+
+        $failed = is_array($status['failed_step'] ?? null) ? $status['failed_step'] : null;
+        $failedStep = $failed ? array_filter([
+            'phase' => $failed['phase'] ?? null,
+            'step_id' => $failed['step_id'] ?? ($failed['id'] ?? null),
+            'exit_code' => $failed['exit_code'] ?? null,
+        ], static function ($value): bool {
+            return $value !== null;
+        }) : null;
+
+        return array_filter([
+            'run_id' => $status['run_id'] ?? $this->runId,
+            'repo' => $status['repo'] ?? null,
+            'commit_sha' => $status['commit']['sha'] ?? null,
+            'status' => $status['status'] ?? null,
+            'started_at' => $status['started_at'] ?? null,
+            'completed_at' => $status['completed_at'] ?? null,
+            'failed_at' => $status['failed_at'] ?? null,
+            'current_phase' => $status['current_phase'] ?? null,
+            'current_step' => $status['current_step'] ?? null,
+            'steps' => $steps,
+            'failed_step' => $failedStep,
+            'error_code' => $status['error_code'] ?? null,
+        ], static function ($value): bool {
+            return $value !== null;
+        });
     }
 
     public static function load(string $runId, ?string $statusDir = null): ?DeploymentStatus {
@@ -136,18 +195,41 @@ class DeploymentStatus {
         return file_exists($this->statusFile);
     }
 
+    private static function classifyError(string $message, string $phase, int $exitCode): string {
+        $normalized = strtolower($message);
+        if (strpos($normalized, 'repo') !== false && (strpos($normalized, 'not exist') !== false || strpos($normalized, 'not found') !== false)) {
+            return 'repository_not_found';
+        }
+        if (strpos($normalized, 'permission denied') !== false || strpos($normalized, 'not writable') !== false) {
+            return 'permission_denied';
+        }
+        if (strpos($normalized, 'unauthorized') !== false || strpos($normalized, 'invalid key') !== false) {
+            return 'authentication_failed';
+        }
+        if (strpos($normalized, 'invalid deploy') !== false || strpos($normalized, 'yaml') !== false) {
+            return 'invalid_deploy_config';
+        }
+        if ($phase === self::PHASE_FETCH || in_array($exitCode, [74, 128], true)) {
+            return 'checkout_failed';
+        }
+        if ($exitCode === Executer::EXIT_CODE_TIMEOUT) {
+            return 'command_timeout';
+        }
+        if ($phase === self::PHASE_POST_FETCH) {
+            return 'post_deploy_check_failed';
+        }
+        return 'unclassified_server_failure';
+    }
+
     private function read(): array {
         if (!file_exists($this->statusFile)) {
             return [];
         }
         $content = file_get_contents($this->statusFile);
         $decoded = json_decode($content, true);
-        // Si json_decode falla o devuelve null, o si devolvió un array vacío,
-        // retornamos array vacío (que luego se serializará como objeto cuando tenga datos)
         if ($decoded === null || (is_array($decoded) && empty($decoded))) {
             return [];
         }
-        // Asegurar que siempre es un array asociativo (objeto cuando se serializa)
         if (!is_array($decoded)) {
             return [];
         }

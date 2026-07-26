@@ -42,10 +42,9 @@ class ConfigReader {
             return $this->config[$key];
         }
 
-        // Repository creation is still opt-in per request through
-        // create_repo_if_not_exists=true. Older installations predate the
-        // global flag, so treating an omitted flag as enabled preserves the
-        // authenticated bootstrap capability without changing normal deploys.
+        // Repository creation remains request-explicit. Legacy installations
+        // predate this global switch, so an omitted value permits authenticated
+        // bootstrap while an explicit false value is still authoritative.
         if ($key === self::ENABLE_CLONE) {
             return true;
         }
@@ -123,6 +122,17 @@ class ConfigReader {
 
     private function selectRepoTransportSource(string $repoKey, string $clonePath = '') {
         if ($clonePath !== '') {
+            // The deploy client passes an owner-qualified hint as `owner,repo`.
+            // It contains no URL, credentials or shell syntax and is checked
+            // against the requested repository before becoming an SSH remote.
+            if (preg_match('/^([A-Za-z0-9_.-]+),([A-Za-z0-9_.-]+)$/', $clonePath, $matches) === 1) {
+                if ($matches[2] !== $repoKey) {
+                    return null;
+                }
+                return sprintf('git@github.com:%s/%s.git', $matches[1], $matches[2]);
+            }
+
+            // Keep the legacy explicit clone-path behavior for existing callers.
             return $clonePath;
         }
 

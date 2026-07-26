@@ -94,6 +94,8 @@ class Request {
     }
 
     private static function sanitizeQueryparam(string $input): string {
-        return preg_replace('/[^A-Za-z0-9_,\-]/', '_', $input);
+        // Dots are valid in GitHub owners/repositories and remain safe because
+        // path separators, shell metacharacters and URL delimiters are rejected.
+        return preg_replace('/[^A-Za-z0-9_.,\-]/', '_', $input);
     }
 }

@@ -7,6 +7,7 @@ EVIDENCE_FILE="${GITHUB_WORKSPACE:-$PWD}/deployment-evidence.jsonl"
 MAX_WAIT_SECONDS=2700
 POLL_INTERVAL_SECONDS=5
 PROGRESS_INTERVAL_SECONDS=30
+CONTROLLER_CAPABILITY='repo-owner-bootstrap-v1'
 
 require_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -25,6 +26,15 @@ for required in AUTODEPLOY_URL KEY_FILE_FOR_DEPLOY REPOSITORY COMMIT_SHA COMMIT_
   fi
 done
 
+REPOSITORY_OWNER="${GITHUB_REPOSITORY_OWNER:-${GITHUB_REPOSITORY%%/*}}"
+if [[ ! "$REPOSITORY_OWNER" =~ ^[A-Za-z0-9_.-]+$ ]]; then
+  echo "The repository owner is unavailable or invalid" >&2
+  exit 64
+fi
+if [[ ! "$REPOSITORY" =~ ^[A-Za-z0-9_.-]+$ ]]; then
+  echo "The repository key is invalid" >&2
+  exit 64
+fi
 if [[ ! "$COMMIT_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
   echo "The requested commit SHA is not a full 40-character Git SHA" >&2
   exit 64
@@ -36,31 +46,6 @@ urlencode() {
 
 safe_token() {
   LC_ALL=C printf '%s' "$1" | LC_ALL=C tr -cd 'A-Za-z0-9._/:-' | cut -c1-80
-}
-
-classify_error() {
-  local message
-  message="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
-  case "$message" in
-    *"repository"*"not"*"exist"*|*"repo"*"not"*"exist"*|*"repository"*"not found"*)
-      printf 'repository_not_found'
-      ;;
-    *"invalid"*"deploy"*|*"yaml"*"parse"*|*"configuration"*"invalid"*)
-      printf 'invalid_deploy_config'
-      ;;
-    *"permission denied"*|*"not writable"*|*"unable to create directory"*)
-      printf 'permission_denied'
-      ;;
-    *"unauthorized"*|*"authentication"*"fail"*|*"invalid key"*)
-      printf 'authentication_failed'
-      ;;
-    *"clone"*"fail"*|*"fetch"*"fail"*|*"could not read from remote"*)
-      printf 'checkout_failed'
-      ;;
-    *)
-      printf 'unclassified_server_failure'
-      ;;
-  esac
 }
 
 write_evidence() {
@@ -106,6 +91,67 @@ write_evidence() {
     }' >> "$EVIDENCE_FILE"
 }
 
+controller_has_capability() {
+  local instance="$1"
+  local capability_file
+  local http_code
+  local curl_exit
+  capability_file="$(mktemp)"
+  http_code="$(curl \
+    --silent \
+    --show-error \
+    --connect-timeout 10 \
+    --max-time 30 \
+    --output "$capability_file" \
+    --write-out '%{http_code}' \
+    "https://${instance}/controller-capabilities" 2>/dev/null)"
+  curl_exit=$?
+
+  if (( curl_exit == 0 )) && [[ "$http_code" == "200" ]] && \
+      jq -e --arg capability "$CONTROLLER_CAPABILITY" '.capabilities | arrays | index($capability) != null' "$capability_file" >/dev/null 2>&1; then
+    rm -f "$capability_file"
+    return 0
+  fi
+
+  rm -f "$capability_file"
+  return 1
+}
+
+ensure_controller_current() {
+  local instance="$1"
+  local update_http
+  local update_exit
+
+  if controller_has_capability "$instance"; then
+    return 0
+  fi
+
+  echo "Controller capability missing; applying verified self-update"
+  update_http="$(curl \
+    --silent \
+    --show-error \
+    --connect-timeout 30 \
+    --max-time 300 \
+    --output /dev/null \
+    --write-out '%{http_code}' \
+    "https://${instance}/self-update" 2>/dev/null)"
+  update_exit=$?
+
+  if (( update_exit != 0 )) || [[ ! "$update_http" =~ ^2[0-9][0-9]$ ]]; then
+    return 1
+  fi
+
+  for _attempt in $(seq 1 15); do
+    sleep 2
+    if controller_has_capability "$instance"; then
+      echo "Controller capability verified after self-update"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
 extra_params=""
 if [[ -n "${ENV_VARS:-}" ]]; then
   while IFS= read -r pair; do
@@ -137,6 +183,7 @@ echo "Commit: $COMMIT_SHA"
 echo "Instances: $instance_count"
 
 all_success=true
+clone_hint="${REPOSITORY_OWNER},${REPOSITORY}"
 
 for index in "${!instances[@]}"; do
   instance="$(printf '%s' "${instances[$index]}" | xargs)"
@@ -144,6 +191,13 @@ for index in "${!instances[@]}"; do
   if [[ -z "$instance" || "$instance" == *[!A-Za-z0-9._:-]* ]]; then
     echo "Instance ${instance_number}: invalid server hostname" >&2
     write_evidence "$instance_number" "$instance_count" "INVALID_INSTANCE"
+    all_success=false
+    continue
+  fi
+
+  if ! ensure_controller_current "$instance"; then
+    echo "Instance ${instance_number}: controller self-update or capability verification failed" >&2
+    write_evidence "$instance_number" "$instance_count" "CONTROLLER_UPDATE_FAILED" "" "controller" "" "70" "" "" "controller_update_failed"
     all_success=false
     continue
   fi
@@ -157,7 +211,7 @@ for index in "${!instances[@]}"; do
     --arg sha "$COMMIT_SHA" \
     --arg author "$COMMIT_AUTHOR" \
     '{key:$key,run_in_background:true,commit:{sha:$sha,author:$author}}')"
-  deployment_url="https://${instance}?repo=$(urlencode "$REPOSITORY")&key=$(urlencode "$KEY_FILE_FOR_DEPLOY")&create_repo_if_not_exists=true${extra_params}"
+  deployment_url="https://${instance}?repo=$(urlencode "$REPOSITORY")&key=$(urlencode "$KEY_FILE_FOR_DEPLOY")&create_repo_if_not_exists=true&clone_path=$(urlencode "$clone_hint")${extra_params}"
 
   http_code="$(curl \
     --silent \
@@ -280,8 +334,8 @@ for index in "${!instances[@]}"; do
         failed_exit="$(jq -r '.failed_step.exit_code // empty' "$status_file")"
         started_at="$(jq -r '.started_at // empty' "$status_file")"
         completed_at="$(jq -r '.completed_at // .failed_at // empty' "$status_file")"
-        private_error="$(jq -r '.error_message // empty' "$status_file")"
-        error_code="$(classify_error "$private_error")"
+        error_code="$(jq -r '.error_code // "unclassified_server_failure"' "$status_file")"
+        error_code="$(safe_token "$error_code")"
         write_evidence "$instance_number" "$instance_count" "FAILED" "$run_id" "$failed_phase" "$failed_step" "$failed_exit" "$started_at" "$completed_at" "$error_code"
         echo "Instance ${instance_number}: server deployment failed (phase=$(safe_token "$failed_phase"), step=${failed_step:-unknown}, exit=${failed_exit:-unknown}, code=${error_code})" >&2
         rm -f "$status_file"
