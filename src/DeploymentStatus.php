@@ -127,11 +127,16 @@ class DeploymentStatus {
         $this->write($status);
     }
 
-    /**
-     * Return the connector-safe representation. Commands, command output,
-     * deploy keys, paths and private error text are intentionally omitted.
-     */
+    /** Internal representation used by Runner and local tests. */
     public function get(): array {
+        return $this->read();
+    }
+
+    /**
+     * Connector-safe representation. Commands, command output, deploy keys,
+     * paths and private error text are intentionally omitted.
+     */
+    public function getPublic(): array {
         $status = $this->read();
         if (empty($status)) {
             return [];
