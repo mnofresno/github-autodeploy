@@ -81,7 +81,7 @@ jobs:
             --arg description "$description" \
             --arg target_url "$TARGET_URL" \
             '{state:$state, context:$context, description:$description, target_url:$target_url}')
-          curl --fail-with-body --silent --show-error \
+          curl --fail --silent --show-error \
             -X POST \
             -H "Authorization: Bearer $GH_TOKEN" \
             -H 'Accept: application/vnd.github+json' \
@@ -140,7 +140,7 @@ jobs:
             --arg description "$description" \
             --arg target_url "$TARGET_URL" \
             '{state:$state, context:$context, description:$description, target_url:$target_url}')
-          curl --fail-with-body --silent --show-error \
+          curl --fail --silent --show-error \
             -X POST \
             -H "Authorization: Bearer $GH_TOKEN" \
             -H 'Accept: application/vnd.github+json' \
