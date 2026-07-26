@@ -1,0 +1,84 @@
+name: One-shot patch portable deploy evidence
+
+on:
+  push:
+    branches: ['fix/portable-autodeploy-evidence']
+    paths:
+      - '.github/workflows/one-shot-patch-portable-evidence.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/portable-autodeploy-evidence
+          fetch-depth: 0
+      - name: Patch reusable deploy workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('.github/workflows/reusable-deploy.yml')
+          text = path.read_text()
+
+          replacements = [
+              (
+                  '          set -e  # Exit if any command fails\n',
+                  '          set -e  # Exit if any command fails\n          EVIDENCE_FILE="$GITHUB_WORKSPACE/deployment-evidence.jsonl"\n          : > "$EVIDENCE_FILE"\n',
+              ),
+              (
+                  '            echo "   URL: ${deployment_url}"\n',
+                  '            echo "   Endpoint: https://${INSTANCE_URL} (repository=${REPOSITORY})"\n',
+              ),
+              (
+                  '              -w "HTTP_CODE:%{http_code}\\nCURL_EXIT:%{exitcode}\\n" \\\n',
+                  '              -w "HTTP_CODE:%{http_code}\\n" \\\n',
+              ),
+              (
+                  '            # Extract HTTP code and curl exit code from response metadata\n            http_code=$(grep "HTTP_CODE:" "$metadata_file" | cut -d: -f2 || echo "")\n            curl_exit_from_response=$(grep "CURL_EXIT:" "$metadata_file" | cut -d: -f2 || echo "")\n',
+                  '            # Extract HTTP code from response metadata. The process exit code is captured directly by Bash.\n            http_code=$(grep "HTTP_CODE:" "$metadata_file" | cut -d: -f2 || echo "")\n',
+              ),
+              (
+                  '                echo "$status_response" | jq -r \'.steps[] | "   ✓ Step \\(.id + 1): \\(.command) [\\(.phase)] (exit: \\(.exit_code))"\' || true\n                \n                return 0\n',
+                  '                echo "$status_response" | jq -r \'.steps[] | "   ✓ Step \\(.id + 1): \\(.command) [\\(.phase)] (exit: \\(.exit_code))"\' || true\n                echo "$status_response" | jq -c --arg repository "$REPOSITORY" --arg commit_sha "$COMMIT_SHA" --arg run_id "$run_id" \'{repository:$repository,commit_sha:$commit_sha,run_id:$run_id,status:(.status // "UNKNOWN"),started_at:(.started_at // null),completed_at:(.completed_at // null),failed_step:null}\' >> "$EVIDENCE_FILE"\n                \n                return 0\n',
+              ),
+              (
+                  '                echo ""\n                echo "💡 For more details, check server logs."\n                return 1\n',
+                  '                echo "$status_response" | jq -c --arg repository "$REPOSITORY" --arg commit_sha "$COMMIT_SHA" --arg run_id "$run_id" \'{repository:$repository,commit_sha:$commit_sha,run_id:$run_id,status:(.status // "FAILED"),started_at:(.started_at // null),completed_at:(.completed_at // null),failed_step:(if .failed_step then {step_id:(.failed_step.step_id // null),phase:(.failed_step.phase // null),exit_code:(.failed_step.exit_code // null)} else null end)}\' >> "$EVIDENCE_FILE"\n                echo ""\n                echo "💡 For more details, check server logs."\n                return 1\n',
+              ),
+          ]
+
+          for old, new in replacements:
+              if old not in text:
+                  raise SystemExit(f'Expected workflow fragment not found: {old[:100]!r}')
+              text = text.replace(old, new, 1)
+
+          upload_step = '''
+      - name: Upload sanitized deployment evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-evidence-${{ github.run_id }}
+          path: deployment-evidence.jsonl
+          if-no-files-found: warn
+          retention-days: 14
+'''
+          if 'Upload sanitized deployment evidence' not in text:
+              text = text.rstrip() + '\n' + upload_step
+
+          path.write_text(text)
+          PY
+
+          rm .github/workflows/one-shot-patch-portable-evidence.yml
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows/reusable-deploy.yml .github/workflows/one-shot-patch-portable-evidence.yml
+          git commit -m 'fix: publish portable sanitized deploy evidence'
+          git push origin HEAD:fix/portable-autodeploy-evidence
