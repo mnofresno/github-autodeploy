@@ -73,13 +73,16 @@ class Hamster {
         $this->logger->debug('Checking for run_in_background', ['body_data' => $bodyData]);
         if (isset($bodyData['run_in_background'])) {
             $runInBackground = $bodyData['run_in_background'] === true || $bodyData['run_in_background'] === 'true';
+            $this->logger->info($runInBackground ? 'Background run enabled from JSON body' : 'Background run disabled from JSON body');
         } else {
             $runInBackground = $this->request->getQueryParam('run_in_background') === 'true';
+            $this->logger->info($runInBackground ? 'Background run enabled from query parameter' : 'Background run disabled');
         }
         $waitForCompletion = $this->request->getQueryParam('wait') === 'true';
 
         if ($runInBackground || $waitForCompletion) {
             ini_set('ignore_user_abort', 'On');
+            $this->logger->info($waitForCompletion ? 'Deployment with wait enabled' : 'Background run enabled');
             $website = $this->configReader->get('website') ?? '-website-not-configured-';
             $runId = $this->response->getRunId();
             $this->response->setStatusCode(201);
@@ -115,11 +118,13 @@ class Hamster {
                 json_encode($responseData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)
             );
             $this->response->send('application/json; charset=utf-8');
+            $this->logger->info('Response sent; starting background execution', ['run_id' => $runId]);
             $this->finishRequest();
             $this->executeTrigger();
             return;
         }
 
+        $this->logger->info('Synchronous deployment (no background, no wait)');
         $this->executeTrigger();
         $this->response->send();
     }
