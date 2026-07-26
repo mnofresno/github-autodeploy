@@ -35,7 +35,23 @@ urlencode() {
 }
 
 safe_token() {
-  printf '%s' "$1" | tr -cd 'A-Za-z0-9._-/' | cut -c1-80
+  printf '%s' "$1" | tr -cd 'A-Za-z0-9._/' | cut -c1-80
+}
+
+classify_error_message() {
+  local normalized
+  normalized="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
+  case "$normalized" in
+    *"repo"*"not"*"exist"*|*"repository"*"not"*"found"*) printf 'repository_not_found' ;;
+    *"invalid"*"deploy"*|*"yaml"*"parse"*|*"configuration"*"invalid"*) printf 'invalid_deploy_config' ;;
+    *"permission denied"*|*"unable to unlink"*|*"operation not permitted"*) printf 'permission_denied' ;;
+    *"authentication"*|*"unauthorized"*|*"access denied"*|*"could not read from remote"*) printf 'authentication_failed' ;;
+    *"not a git repository"*|*"git"*"failed"*|*"fetch"*"failed"*) printf 'checkout_failed' ;;
+    *"timeout"*|*"timed out"*) printf 'server_timeout' ;;
+    *"missing"*"repo"*|*"missing"*"key"*|*"bad request"*) printf 'bad_request' ;;
+    '') printf 'server_error_unclassified' ;;
+    *) printf 'server_error_unclassified' ;;
+  esac
 }
 
 write_evidence() {
@@ -48,6 +64,7 @@ write_evidence() {
   local exit_code="${7:-}"
   local started_at="${8:-}"
   local completed_at="${9:-}"
+  local error_code="${10:-}"
 
   jq -nc \
     --arg repository "$REPOSITORY" \
@@ -59,6 +76,7 @@ write_evidence() {
     --arg exit_code "$exit_code" \
     --arg started_at "$started_at" \
     --arg completed_at "$completed_at" \
+    --arg error_code "$(safe_token "$error_code")" \
     --argjson instance_index "$instance_index" \
     --argjson instance_count "$instance_count" \
     '{
@@ -70,6 +88,7 @@ write_evidence() {
       run_id: (if $run_id == "" then null else $run_id end),
       started_at: (if $started_at == "" then null else $started_at end),
       completed_at: (if $completed_at == "" then null else $completed_at end),
+      error_code: (if $error_code == "" then null else $error_code end),
       failed_step: (if ($phase == "" and $step_id == "" and $exit_code == "") then null else {
         phase: (if $phase == "" then null else $phase end),
         step_id: (if $step_id == "" then null else ($step_id | tonumber? // $step_id) end),
@@ -115,7 +134,7 @@ for index in "${!instances[@]}"; do
   instance_number=$((index + 1))
   if [[ -z "$instance" || "$instance" == *[!A-Za-z0-9._:-]* ]]; then
     echo "Instance ${instance_number}: invalid server hostname" >&2
-    write_evidence "$instance_number" "$instance_count" "INVALID_INSTANCE"
+    write_evidence "$instance_number" "$instance_count" "INVALID_INSTANCE" "" "" "" "" "" "" "invalid_instance"
     all_success=false
     continue
   fi
@@ -146,7 +165,7 @@ for index in "${!instances[@]}"; do
 
   if (( curl_exit != 0 )); then
     echo "Instance ${instance_number}: deployment request transport failure (curl exit ${curl_exit})" >&2
-    write_evidence "$instance_number" "$instance_count" "REQUEST_TRANSPORT_FAILURE" "" "request" "" "$curl_exit"
+    write_evidence "$instance_number" "$instance_count" "REQUEST_TRANSPORT_FAILURE" "" "request" "" "$curl_exit" "" "" "request_transport_failure"
     rm -f "$response_file" "$error_file"
     all_success=false
     continue
@@ -154,7 +173,7 @@ for index in "${!instances[@]}"; do
 
   if [[ "$http_code" != "201" ]]; then
     echo "Instance ${instance_number}: deployment request rejected (HTTP ${http_code})" >&2
-    write_evidence "$instance_number" "$instance_count" "REQUEST_REJECTED" "" "request" "" "$http_code"
+    write_evidence "$instance_number" "$instance_count" "REQUEST_REJECTED" "" "request" "" "$http_code" "" "" "request_rejected"
     rm -f "$response_file" "$error_file"
     all_success=false
     continue
@@ -162,7 +181,7 @@ for index in "${!instances[@]}"; do
 
   if ! jq empty "$response_file" >/dev/null 2>&1; then
     echo "Instance ${instance_number}: deployment server returned invalid JSON" >&2
-    write_evidence "$instance_number" "$instance_count" "INVALID_START_RESPONSE" "" "request"
+    write_evidence "$instance_number" "$instance_count" "INVALID_START_RESPONSE" "" "request" "" "" "" "" "invalid_start_response"
     rm -f "$response_file" "$error_file"
     all_success=false
     continue
@@ -172,7 +191,7 @@ for index in "${!instances[@]}"; do
   rm -f "$response_file" "$error_file"
   if [[ -z "$run_id" || ! "$run_id" =~ ^[A-Za-z0-9._:-]+$ ]]; then
     echo "Instance ${instance_number}: deployment server did not return a valid run ID" >&2
-    write_evidence "$instance_number" "$instance_count" "MISSING_RUN_ID" "" "request"
+    write_evidence "$instance_number" "$instance_count" "MISSING_RUN_ID" "" "request" "" "" "" "" "missing_run_id"
     all_success=false
     continue
   fi
@@ -186,7 +205,7 @@ for index in "${!instances[@]}"; do
     elapsed=$((now_epoch - start_epoch))
     if (( elapsed >= MAX_WAIT_SECONDS )); then
       echo "Instance ${instance_number}: deployment verification timed out" >&2
-      write_evidence "$instance_number" "$instance_count" "POLL_TIMEOUT" "$run_id" "poll" "" "124"
+      write_evidence "$instance_number" "$instance_count" "POLL_TIMEOUT" "$run_id" "poll" "" "124" "" "" "poll_timeout"
       all_success=false
       break
     fi
@@ -241,7 +260,7 @@ for index in "${!instances[@]}"; do
       SUCCESS)
         started_at="$(jq -r '.started_at // empty' "$status_file")"
         completed_at="$(jq -r '.completed_at // empty' "$status_file")"
-        write_evidence "$instance_number" "$instance_count" "SUCCESS" "$run_id" "" "" "" "$started_at" "$completed_at"
+        write_evidence "$instance_number" "$instance_count" "SUCCESS" "$run_id" "" "" "" "$started_at" "$completed_at" ""
         echo "Instance ${instance_number}: deployment and server verification succeeded"
         rm -f "$status_file"
         break
@@ -251,9 +270,14 @@ for index in "${!instances[@]}"; do
         failed_step="$(jq -r '.failed_step.step_id // empty' "$status_file")"
         failed_exit="$(jq -r '.failed_step.exit_code // empty' "$status_file")"
         started_at="$(jq -r '.started_at // empty' "$status_file")"
-        completed_at="$(jq -r '.completed_at // empty' "$status_file")"
-        write_evidence "$instance_number" "$instance_count" "FAILED" "$run_id" "$failed_phase" "$failed_step" "$failed_exit" "$started_at" "$completed_at"
-        echo "Instance ${instance_number}: server deployment failed (phase=$(safe_token "$failed_phase"), step=${failed_step:-unknown}, exit=${failed_exit:-unknown})" >&2
+        completed_at="$(jq -r '.completed_at // .failed_at // empty' "$status_file")"
+        server_error_message="$(jq -r '.error_message // empty' "$status_file")"
+        error_code="$(classify_error_message "$server_error_message")"
+        if [[ "$failed_step" =~ ^[0-9]+$ ]] && (( failed_step >= 0 )); then
+          error_code="command_failed"
+        fi
+        write_evidence "$instance_number" "$instance_count" "FAILED" "$run_id" "$failed_phase" "$failed_step" "$failed_exit" "$started_at" "$completed_at" "$error_code"
+        echo "Instance ${instance_number}: server deployment failed (error=${error_code}, phase=$(safe_token "$failed_phase"), step=${failed_step:-unknown}, exit=${failed_exit:-unknown})" >&2
         rm -f "$status_file"
         all_success=false
         break
