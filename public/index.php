@@ -7,7 +7,6 @@ require __DIR__ . '/../Autoloader.php';
 Autoloader::load();
 
 $container = (new ContainerProvider())->provide();
-
 $requestPath = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $requestPath = $requestPath !== '/' ? rtrim($requestPath, '/') : $requestPath;
 
@@ -22,6 +21,7 @@ if ($requestPath === '/self-update') {
         'capabilities' => [
             'repo-owner-bootstrap-v1',
             'sanitized-deployment-status-v1',
+            'github-actions-run-auth-v1',
         ],
     ], JSON_UNESCAPED_SLASHES);
 } else {
