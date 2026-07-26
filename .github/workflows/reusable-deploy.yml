@@ -39,16 +39,21 @@ on:
       KEY_FILE_FOR_DEPLOY:
         required: true
 
+permissions:
+  actions: read
+  contents: read
+
 jobs:
   deploy:
     runs-on: ${{ inputs.runs_on }}
     timeout-minutes: 45
     steps:
       - name: Deploy to Server(s) (Async + Polling)
-        uses: mnofresno/github-autodeploy/.github/actions/deploy-and-poll@d54ee2fd02dafdc27218b54e5c05721bef672219
+        uses: mnofresno/github-autodeploy/.github/actions/deploy-and-poll@ff98f9a2fd80db29a6d99e2ce6b5557c4fabbcd9
         with:
           autodeploy_url: ${{ inputs.autodeploy_url }}
           deploy_key: ${{ secrets.KEY_FILE_FOR_DEPLOY }}
+          github_token: ${{ github.token }}
           repository: ${{ inputs.repository }}
           commit_sha: ${{ inputs.commit_sha }}
           commit_author: ${{ inputs.commit_author }}
