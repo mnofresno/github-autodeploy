@@ -43,7 +43,7 @@ class DeploymentWaitIntegrationTest extends TestCase {
             'author' => 'test-user',
         ]);
 
-        $status = $deploymentStatus->get();
+        $status = $deploymentStatus->getPublic();
         $this->assertEquals(DeploymentStatus::STATUS_RUNNING, $status['status']);
         $this->assertEquals('test-repo', $status['repo']);
         $this->assertEquals('abc123', $status['commit_sha']);
@@ -54,7 +54,7 @@ class DeploymentWaitIntegrationTest extends TestCase {
         $this->assertArrayNotHasKey('key', $persisted);
 
         $deploymentStatus->startPhase(DeploymentStatus::PHASE_PRE_FETCH);
-        $status = $deploymentStatus->get();
+        $status = $deploymentStatus->getPublic();
         $this->assertEquals(DeploymentStatus::PHASE_PRE_FETCH, $status['current_phase']);
 
         $deploymentStatus->startStep('echo "step 1"', DeploymentStatus::PHASE_PRE_FETCH);
@@ -62,7 +62,7 @@ class DeploymentWaitIntegrationTest extends TestCase {
         $deploymentStatus->startStep('echo "step 2"', DeploymentStatus::PHASE_PRE_FETCH);
         $deploymentStatus->completeStep(1, ['output line 2'], 0);
 
-        $status = $deploymentStatus->get();
+        $status = $deploymentStatus->getPublic();
         $this->assertCount(2, $status['steps']);
         $this->assertEquals('SUCCESS', $status['steps'][0]['status']);
         $this->assertEquals('SUCCESS', $status['steps'][1]['status']);
@@ -70,11 +70,11 @@ class DeploymentWaitIntegrationTest extends TestCase {
         $this->assertArrayNotHasKey('output', $status['steps'][0]);
 
         $deploymentStatus->startPhase(DeploymentStatus::PHASE_FETCH);
-        $status = $deploymentStatus->get();
+        $status = $deploymentStatus->getPublic();
         $this->assertEquals(DeploymentStatus::PHASE_FETCH, $status['current_phase']);
 
         $deploymentStatus->markSuccess();
-        $status = $deploymentStatus->get();
+        $status = $deploymentStatus->getPublic();
         $this->assertEquals(DeploymentStatus::STATUS_SUCCESS, $status['status']);
         $this->assertNotNull($status['completed_at']);
         $this->assertArrayNotHasKey('current_phase', $status);
@@ -94,7 +94,7 @@ class DeploymentWaitIntegrationTest extends TestCase {
         $this->assertNotNull($loaded);
         $this->assertTrue($loaded->exists());
 
-        $status = $loaded->get();
+        $status = $loaded->getPublic();
         $this->assertEquals(DeploymentStatus::STATUS_SUCCESS, $status['status']);
         $this->assertCount(1, $status['steps']);
         $this->assertEquals('SUCCESS', $status['steps'][0]['status']);
@@ -116,7 +116,7 @@ class DeploymentWaitIntegrationTest extends TestCase {
             'Command failed'
         );
 
-        $status = DeploymentStatus::load($runId, $this->deploymentStatusDir)->get();
+        $status = DeploymentStatus::load($runId, $this->deploymentStatusDir)->getPublic();
         $this->assertEquals(DeploymentStatus::STATUS_FAILED, $status['status']);
         $this->assertEquals(1, $status['failed_step']['exit_code']);
         $this->assertEquals('post_deploy_check_failed', $status['error_code']);
@@ -140,7 +140,7 @@ class DeploymentWaitIntegrationTest extends TestCase {
             'Command timed out'
         );
 
-        $status = DeploymentStatus::load($runId, $this->deploymentStatusDir)->get();
+        $status = DeploymentStatus::load($runId, $this->deploymentStatusDir)->getPublic();
         $this->assertEquals(DeploymentStatus::STATUS_FAILED, $status['status']);
         $this->assertEquals(Executer::EXIT_CODE_TIMEOUT, $status['failed_step']['exit_code']);
         $this->assertEquals('command_timeout', $status['error_code']);
@@ -159,7 +159,7 @@ class DeploymentWaitIntegrationTest extends TestCase {
         $this->assertNotNull($status2);
         $this->assertTrue($status2->exists());
 
-        $data = $status2->get();
+        $data = $status2->getPublic();
         $this->assertEquals(DeploymentStatus::STATUS_SUCCESS, $data['status']);
         $this->assertEquals('repo1', $data['repo']);
         $this->assertCount(1, $data['steps']);
@@ -179,7 +179,7 @@ class DeploymentWaitIntegrationTest extends TestCase {
         }
         $deploymentStatus->markSuccess();
 
-        $status = $deploymentStatus->get();
+        $status = $deploymentStatus->getPublic();
         $this->assertArrayHasKey('status', $status);
         $this->assertArrayHasKey('run_id', $status);
         $this->assertArrayHasKey('steps', $status);
@@ -207,7 +207,7 @@ class DeploymentWaitIntegrationTest extends TestCase {
         $deploymentStatus->appendStepOutput(0, 'frontend=sha-123');
         $deploymentStatus->appendStepOutput(0, 'backend=sha-456');
 
-        $status = $deploymentStatus->get();
+        $status = $deploymentStatus->getPublic();
         $this->assertTrue($status['steps'][0]['verbose']);
         $this->assertArrayNotHasKey('command', $status['steps'][0]);
         $this->assertArrayNotHasKey('output', $status['steps'][0]);
