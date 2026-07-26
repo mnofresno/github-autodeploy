@@ -1,0 +1,37 @@
+name: Portable async deployment client
+description: Starts a github-autodeploy run, polls the server result, and writes sanitized evidence.
+
+inputs:
+  autodeploy_url:
+    description: Comma-separated autodeploy server hostnames
+    required: true
+  deploy_key:
+    description: Autodeploy authentication key
+    required: true
+  repository:
+    description: Repository key configured on the autodeploy server
+    required: true
+  commit_sha:
+    description: Exact commit SHA to deploy
+    required: true
+  commit_author:
+    description: Commit author used by the server audit trail
+    required: true
+  env_vars:
+    description: Pipe-separated KEY=VALUE deployment variables
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Start deployment and poll sanitized result
+      shell: bash
+      env:
+        AUTODEPLOY_URL: ${{ inputs.autodeploy_url }}
+        KEY_FILE_FOR_DEPLOY: ${{ inputs.deploy_key }}
+        REPOSITORY: ${{ inputs.repository }}
+        COMMIT_SHA: ${{ inputs.commit_sha }}
+        COMMIT_AUTHOR: ${{ inputs.commit_author }}
+        ENV_VARS: ${{ inputs.env_vars }}
+      run: bash "${{ github.action_path }}/deploy-and-poll.sh"
