@@ -37,7 +37,7 @@ write_evidence() {
     --arg step_id "${4:-}" \
     --arg exit_code "${5:-}" \
     --arg error_code "$(safe "${6:-}")" \
-    '{repository:$repository,commit_sha:$commit_sha,status:$status,run_id:(if $run_id=="" then null else $run_id end),error_code:(if $error_code=="" then null else $error_code end),failed_step:(if ($phase=="" and $step_id=="" and $exit_code=="") then null else {phase:(if $phase=="" then null else $phase end),step_id:(if $step_id=="" then null else ($step_id|tonumber?//$step_id) end),exit_code:(if $exit_code=="" then null else ($exit_code|tonumber?//$exit_code) end)} end)}' >> "$EVIDENCE_FILE"
+    '{repository:$repository,commit_sha:$commit_sha,status:$status,run_id:(if $run_id=="" then null else $run_id end),error_code:(if $error_code=="" then null else $error_code end),failed_step:(if ($phase=="" and $step_id=="" and $exit_code=="") then null else {phase:(if $phase=="" then null else $phase end),step_id:(if $step_id=="" then null else (try ($step_id|tonumber) catch $step_id) end),exit_code:(if $exit_code=="" then null else (try ($exit_code|tonumber) catch $exit_code) end)} end)}' >> "$EVIDENCE_FILE"
 }
 
 controller_has_capability() {
