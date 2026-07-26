@@ -38,9 +38,19 @@ class ConfigReader {
     }
 
     public function get(string $key) {
-        return array_key_exists($key, $this->config)
-            ? $this->config[$key]
-            : null;
+        if (array_key_exists($key, $this->config)) {
+            return $this->config[$key];
+        }
+
+        // Repository creation is still opt-in per request through
+        // create_repo_if_not_exists=true. Older installations predate the
+        // global flag, so treating an omitted flag as enabled preserves the
+        // authenticated bootstrap capability without changing normal deploys.
+        if ($key === self::ENABLE_CLONE) {
+            return true;
+        }
+
+        return null;
     }
 
     public function resolveRepoTemplateUri(string $repoKey, string $clonePath = ''): ?string {
