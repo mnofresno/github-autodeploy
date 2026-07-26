@@ -29,7 +29,27 @@ jobs:
       - name: Install dependencies
         run: composer install --prefer-dist --no-progress
       - name: Run test suite
-        run: composer run-script test
+        shell: bash
+        run: |
+          set +e
+          composer run-script test > phpunit.log 2>&1
+          status="$?"
+          tail -n 250 phpunit.log
+          echo "$status" > phpunit.status
+          exit 0
+      - name: Upload PHPUnit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: github-autodeploy-phpunit-${{ github.run_id }}
+          path: phpunit.log
+          retention-days: 3
+          if-no-files-found: error
+      - name: Enforce PHPUnit result
+        shell: bash
+        run: |
+          status="$(cat phpunit.status)"
+          [[ "$status" == "0" ]] || exit "$status"
 
   lint-php-code:
     runs-on: ubuntu-latest
