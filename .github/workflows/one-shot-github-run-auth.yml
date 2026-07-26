@@ -1,3 +1,4 @@
+# Trigger the one-shot patch from a workflow already present on master.
 name: One-shot GitHub run authentication patch
 
 on:
