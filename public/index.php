@@ -8,14 +8,22 @@ Autoloader::load();
 
 $container = (new ContainerProvider())->provide();
 
-// Parse the URI to get just the path (without query string)
 $requestPath = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-// Remove trailing slash for consistent comparison (except for root)
 $requestPath = $requestPath !== '/' ? rtrim($requestPath, '/') : $requestPath;
 
 if ($requestPath === '/self-update') {
     $output = runSelfUpdate();
     echo nl2br(htmlspecialchars($output, ENT_QUOTES, 'UTF-8'));
+} elseif ($requestPath === '/controller-capabilities') {
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: no-store');
+    echo json_encode([
+        'service' => 'github-autodeploy',
+        'capabilities' => [
+            'repo-owner-bootstrap-v1',
+            'sanitized-deployment-status-v1',
+        ],
+    ], JSON_UNESCAPED_SLASHES);
 } else {
     $app = $container->get(Mariano\GitAutoDeploy\Hamster::class);
     $app->run();
