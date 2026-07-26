@@ -35,7 +35,7 @@ urlencode() {
 }
 
 safe_token() {
-  printf '%s' "$1" | tr -cd 'A-Za-z0-9._-/' | cut -c1-80
+  printf '%s' "$1" | tr -cd 'A-Za-z0-9._/' | tr -d '-' | cut -c1-80
 }
 
 write_evidence() {
