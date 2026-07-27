@@ -26,7 +26,7 @@ OWNER="${GITHUB_REPOSITORY%%/*}"
 
 urlencode() { jq -nr --arg value "$1" '$value|@uri'; }
 safe() { LC_ALL=C printf '%s' "$1" | LC_ALL=C tr -cd 'A-Za-z0-9._/:-' | cut -c1-80; }
-safe_diagnostic() { LC_ALL=C printf '%s' "$1" | LC_ALL=C tr -cd 'A-Za-z0-9 ._/:=()[]-;' | cut -c1-360; }
+safe_diagnostic() { LC_ALL=C printf '%s' "$1" | LC_ALL=C tr -cd -- '-A-Za-z0-9 ._/:=()[];' | cut -c1-360; }
 
 write_evidence() {
   jq -nc \
