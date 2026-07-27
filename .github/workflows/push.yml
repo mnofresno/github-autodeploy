@@ -72,6 +72,7 @@ jobs:
           php -l src/Request.php
           php -l src/ConfigReader.php
           php -l src/DeploymentStatus.php
+          php -l src/PublicDeploymentDiagnostics.php
           git diff --check
           grep -Fq 'using: composite' .github/actions/deploy-and-poll/action.yml
           grep -Fq 'deployment-evidence.jsonl' .github/workflows/reusable-deploy.yml
@@ -79,8 +80,10 @@ jobs:
           grep -Fq 'clone_path=' .github/actions/deploy-and-poll/deploy-and-poll.sh
           grep -Fq 'repo-owner-bootstrap-v1' public/index.php
           grep -Fq 'sanitized-deployment-status-v1' public/index.php
+          grep -Fq 'sanitized-deployment-diagnostics-v1' public/index.php
           grep -Fq 'github-actions-run-auth-v1' public/index.php
-          grep -Fq "CAPABILITY='github-actions-run-auth-v1'" .github/actions/deploy-and-poll/deploy-and-poll.sh
+          grep -Fq "CAPABILITY='sanitized-deployment-diagnostics-v1'" .github/actions/deploy-and-poll/deploy-and-poll.sh
+          grep -Fq '/deployment-diagnostics?run_id=' .github/actions/deploy-and-poll/deploy-and-poll.sh
           grep -Fq 'X-GitHub-Actions-Token' .github/actions/deploy-and-poll/deploy-and-poll.sh
           grep -Fq 'github_token:' .github/workflows/reusable-deploy.yml
           grep -Fq '"enable_clone": true' config.example.json
@@ -132,7 +135,7 @@ jobs:
                 sleep 2
                 if curl --silent --show-error --connect-timeout 10 --max-time 30 \
                     "https://${URL}/controller-capabilities" 2>/dev/null \
-                    | jq -e '.capabilities | index("repo-owner-bootstrap-v1") != null and index("sanitized-deployment-status-v1") != null and index("github-actions-run-auth-v1") != null' >/dev/null 2>&1; then
+                    | jq -e '.capabilities | index("repo-owner-bootstrap-v1") != null and index("sanitized-deployment-status-v1") != null and index("sanitized-deployment-diagnostics-v1") != null and index("github-actions-run-auth-v1") != null' >/dev/null 2>&1; then
                   capability_ok=true
                   break
                 fi

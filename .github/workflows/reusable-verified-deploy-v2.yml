@@ -38,7 +38,7 @@ jobs:
 
   deploy:
     needs: pending
-    uses: mnofresno/github-autodeploy/.github/workflows/reusable-deploy.yml@2341e0c60d919103d06ffd15279b247e9852c1d3
+    uses: mnofresno/github-autodeploy/.github/workflows/reusable-deploy.yml@ead79bad32105d36ad51a5847827439c3333a75d
     with:
       autodeploy_url: ${{ inputs.autodeploy_url }}
       deploy_key: ${{ inputs.deploy_key }}
