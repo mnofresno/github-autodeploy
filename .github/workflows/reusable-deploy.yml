@@ -49,7 +49,7 @@ jobs:
     timeout-minutes: 45
     steps:
       - name: Deploy to Server(s) (Async + Polling)
-        uses: mnofresno/github-autodeploy/.github/actions/deploy-and-poll@c337cf9318386b785a180e3aa2ebebaf0e7c5e04
+        uses: mnofresno/github-autodeploy/.github/actions/deploy-and-poll@5c53f9aa6cac804316e50220134c4608c0dd35eb
         with:
           autodeploy_url: ${{ inputs.autodeploy_url }}
           deploy_key: ${{ secrets.KEY_FILE_FOR_DEPLOY }}
