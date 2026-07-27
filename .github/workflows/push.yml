@@ -74,6 +74,9 @@ jobs:
           php -l src/DeploymentStatus.php
           php -l src/PublicDeploymentDiagnostics.php
           git diff --check
+          diagnostic="$(printf '%s' '[deploy] status=80; unsafe=<removed>' | LC_ALL=C tr -cd -- '-A-Za-z0-9 ._/:=()[];')"
+          [[ "$diagnostic" == '[deploy] status=80; unsafe=removed' ]]
+          grep -Fq "tr -cd -- '-A-Za-z0-9 ._/:=()[];'" .github/actions/deploy-and-poll/deploy-and-poll.sh
           grep -Fq 'using: composite' .github/actions/deploy-and-poll/action.yml
           grep -Fq 'deployment-evidence.jsonl' .github/workflows/reusable-deploy.yml
           grep -Fq 'create_repo_if_not_exists=true' .github/actions/deploy-and-poll/deploy-and-poll.sh
