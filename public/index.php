@@ -30,7 +30,7 @@ if ($requestPath === '/self-update') {
 } elseif ($requestPath === '/deployment-diagnostics') {
     header('Content-Type: application/json; charset=utf-8');
     header('Cache-Control: no-store');
-    $runId = isset($_GET['run_id']) && is_string($_GET['run_id']) ? trim($_GET['run_id']) : '';
+    $runId = trim($container->get(Mariano\GitAutoDeploy\Request::class)->getQueryParam('run_id'));
     if ($runId === '' || preg_match('/^[A-Za-z0-9._:-]+$/', $runId) !== 1) {
         http_response_code(400);
         echo json_encode(['error' => 'invalid_run_id'], JSON_UNESCAPED_SLASHES);
