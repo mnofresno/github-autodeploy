@@ -125,7 +125,10 @@ class Security implements ISecurity {
             return false;
         }
 
-        $allowedEvents = ['push', 'workflow_dispatch', 'repository_dispatch'];
+        // Production deployments triggered by a completed build use the
+        // workflow_run event. Keep the event allowlist explicit so other
+        // GitHub Actions event types remain rejected.
+        $allowedEvents = ['push', 'workflow_dispatch', 'workflow_run', 'repository_dispatch'];
         $allowedStatuses = ['queued', 'in_progress'];
         return (string) ($run['id'] ?? '') === $runId
             && strtolower((string) ($run['head_sha'] ?? '')) === $commitSha
