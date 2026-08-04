@@ -31,6 +31,7 @@ class Runner {
 
     private $runningLog = [];
     private $deploymentStatus;
+    private $deploymentLock;
 
     public function __construct(
         Request $request,
@@ -99,6 +100,10 @@ class Runner {
             $this->response->addViewToBody($view);
             $this->response->setStatusCode(500);
         } finally {
+            if ($this->deploymentLock) {
+                $this->deploymentLock->release();
+                $this->deploymentLock = null;
+            }
             $this->response->addViewToBody(new Footer($this->response->getRunId()));
         }
     }
@@ -125,6 +130,18 @@ class Runner {
             ? trim($commit['sha'])
             : 'unknown';
         $this->deploymentStatus->initialize($repo, $key, $commit);
+        $this->deploymentLock = new DeploymentLock($repo);
+        $lockTimeout = (int) ($this->configReader->get(ConfigReader::DEPLOYMENT_LOCK_TIMEOUT) ?? 3600);
+        $this->logger->info('Waiting for repository deployment lock', [
+            'repo' => $repo,
+            'run_id' => $this->response->getRunId(),
+            'timeout_seconds' => $lockTimeout,
+        ]);
+        $this->deploymentLock->acquire($lockTimeout);
+        $this->logger->info('Repository deployment lock acquired', [
+            'repo' => $repo,
+            'run_id' => $this->response->getRunId(),
+        ]);
 
         $commandView = new Command();
         $this->changeDirToRepoPath($commandView);
