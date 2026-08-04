@@ -21,6 +21,7 @@ class ConfigReader {
     public const WHITELISTED_STRINGS_KEY = 'whitelisted_command_strings';
     public const ENABLE_CLONE = 'enable_clone';
     public const COMMAND_TIMEOUT = 'command_timeout';
+    public const DEPLOYMENT_LOCK_TIMEOUT = 'deployment_lock_timeout';
 
     private $config;
 
