@@ -34,7 +34,9 @@ while IFS= read -r tag; do
   ref="$repository:$tag"
   if [[ "$apply" == true ]]; then
     echo "Removing old release tag: $ref"
-    docker image rm "$ref"
+    if ! docker image rm "$ref"; then
+      echo "Could not remove $ref (possibly used by another container); preserving it" >&2
+    fi
   else
     echo "Would remove old release tag: $ref"
   fi
