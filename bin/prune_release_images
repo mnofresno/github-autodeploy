@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Remove old immutable image tags from exactly one managed GHCR repository.
+# Default: dry-run. Never touches volumes, containers, other repositories or build cache.
+set -euo pipefail
+
+usage() {
+  echo "Usage: $0 --repository ghcr.io/owner/image --current <40-hex-sha> --previous <40-hex-sha> [--apply]" >&2
+  exit 64
+}
+
+repository='' current='' previous='' apply=false
+while (( $# )); do
+  case "$1" in
+    --repository) (( $# >= 2 )) || usage; repository="$2"; shift 2 ;;
+    --current) (( $# >= 2 )) || usage; current="$2"; shift 2 ;;
+    --previous) (( $# >= 2 )) || usage; previous="$2"; shift 2 ;;
+    --apply) apply=true; shift ;;
+    *) usage ;;
+  esac
+done
+
+[[ "$repository" =~ ^ghcr\.io/[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._/-]*$ ]] || usage
+[[ "$current" =~ ^[a-f0-9]{40}$ ]] || usage
+[[ "$previous" =~ ^[a-f0-9]{40}$ ]] || usage
+[[ "$current" != "$previous" ]] || { echo "Current and previous must differ" >&2; exit 65; }
+
+# Fail closed unless both release tags are locally available for rollback.
+docker image inspect "$repository:$current" >/dev/null
+docker image inspect "$repository:$previous" >/dev/null
+
+while IFS= read -r tag; do
+  [[ "$tag" =~ ^[a-f0-9]{40}$ ]] || continue
+  [[ "$tag" == "$current" || "$tag" == "$previous" ]] && continue
+  ref="$repository:$tag"
+  if [[ "$apply" == true ]]; then
+    echo "Removing old release tag: $ref"
+    docker image rm "$ref"
+  else
+    echo "Would remove old release tag: $ref"
+  fi
+done < <(docker image ls "$repository" --format '{{.Tag}}' | sort -u)
