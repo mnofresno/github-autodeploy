@@ -28,6 +28,22 @@ urlencode() { jq -nr --arg value "$1" '$value|@uri'; }
 safe() { LC_ALL=C printf '%s' "$1" | LC_ALL=C tr -cd 'A-Za-z0-9._/:-' | cut -c1-80; }
 safe_diagnostic() { LC_ALL=C printf '%s' "$1" | LC_ALL=C tr -cd -- '-A-Za-z0-9 ._/:=()[];' | cut -c1-360; }
 
+classify_error_message() {
+  local normalized
+  normalized="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
+  case "$normalized" in
+    *"repo"*"not"*"exist"*|*"repository"*"not"*"found"*) printf 'repository_not_found' ;;
+    *"invalid"*"deploy"*|*"yaml"*"parse"*|*"configuration"*"invalid"*) printf 'invalid_deploy_config' ;;
+    *"permission denied"*|*"unable to unlink"*|*"operation not permitted"*) printf 'permission_denied' ;;
+    *"authentication"*|*"unauthorized"*|*"access denied"*|*"could not read from remote"*) printf 'authentication_failed' ;;
+    *"not a git repository"*|*"git"*"failed"*|*"fetch"*"failed"*) printf 'checkout_failed' ;;
+    *"timeout"*|*"timed out"*) printf 'server_timeout' ;;
+    *"missing"*"repo"*|*"missing"*"key"*|*"bad request"*) printf 'bad_request' ;;
+    '') printf 'server_error_unclassified' ;;
+    *) printf 'server_error_unclassified' ;;
+  esac
+}
+
 write_evidence() {
   jq -nc \
     --arg repository "$REPOSITORY" \
@@ -84,7 +100,7 @@ IFS=',' read -r -a hosts <<< "$AUTODEPLOY_URL"
 all_success=true
 for raw_host in "${hosts[@]}"; do
   host="$(printf '%s' "$raw_host" | xargs)"
-  [[ -n "$host" && "$host" != *[!A-Za-z0-9._:-]* ]] || { write_evidence INVALID_INSTANCE; all_success=false; continue; }
+  [[ -n "$host" && "$host" != *[!A-Za-z0-9._:-]* ]] || { write_evidence INVALID_INSTANCE '' '' '' '' invalid_instance; all_success=false; continue; }
 
   if ! ensure_controller "$host"; then
     write_evidence CONTROLLER_UPDATE_FAILED '' controller '' 70 controller_update_failed
@@ -114,7 +130,7 @@ for raw_host in "${hosts[@]}"; do
 
   run_id="$(jq -r '.run_id//empty' "$response")"
   rm -f "$response"
-  [[ "$run_id" =~ ^[A-Za-z0-9._:-]+$ ]] || { write_evidence MISSING_RUN_ID; all_success=false; continue; }
+  [[ "$run_id" =~ ^[A-Za-z0-9._:-]+$ ]] || { write_evidence MISSING_RUN_ID '' '' '' '' missing_run_id; all_success=false; continue; }
 
   started="$(date +%s)"
   while true; do
@@ -145,7 +161,14 @@ for raw_host in "${hosts[@]}"; do
         phase="$(jq -r '.failed_step.phase//empty' "$status_file")"
         step="$(jq -r '.failed_step.step_id//empty' "$status_file")"
         exit_code="$(jq -r '.failed_step.exit_code//empty' "$status_file")"
-        error_code="$(jq -r '.error_code//"unclassified_server_failure"' "$status_file")"
+        error_code="$(jq -r '.error_code // empty' "$status_file")"
+        if [[ -z "$error_code" ]]; then
+          server_error_message="$(jq -r '.error_message // empty' "$status_file")"
+          error_code="$(classify_error_message "$server_error_message")"
+          if [[ "$step" =~ ^[0-9]+$ ]]; then
+            error_code='command_failed'
+          fi
+        fi
         diagnostic=''
         diagnostic_file="$(mktemp)"
         diagnostic_code="$(curl --silent --show-error --connect-timeout 10 --max-time 30 --output "$diagnostic_file" --write-out '%{http_code}' "https://$host/deployment-diagnostics?run_id=$(urlencode "$run_id")" 2>/dev/null)"
